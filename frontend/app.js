@@ -122,11 +122,18 @@ function renderReport(report, review = false) {
   const causes = (report.causeCases || []).map((item, index) => `<div class="cause-item">
     <span>${index + 1}</span><div><strong>${escapeHtml(item.cause)}</strong><small>${escapeHtml(item.action)}</small></div><span class="citation">[${escapeHtml(item.id)}]</span>
     <div class="cause-docs">${(item.docs || []).map(citation).join(' ')}</div></div>`).join('');
+  const checks = (report.checks || []).map((item, index) => `<li><strong>${index + 1}. ${escapeHtml(item.title)}</strong><br>${escapeHtml(item.rationale)}</li>`).join('');
+  const stageStatus = {sample_based:'데모 사례 기반', partial:'일부 확인 · 연관 데이터 미연결', unavailable:'데이터 미연결', provisional:'임시 권고'};
+  const stages = (report.stages || []).map(stage => `<li><strong>${escapeHtml(stage.title)}</strong><span class="severity">${escapeHtml(stageStatus[stage.status] || stage.status)} · ${stage.agent_mode === 'llm' ? 'LLM 사용' : '규칙 기반 실행'}</span>
+    ${(stage.findings || []).map(item => `<p>${escapeHtml(item)}</p>`).join('')}
+    ${(stage.unknowns || []).map(item => `<p class="report-text">미확인: ${escapeHtml(item)}</p>`).join('')}</li>`).join('');
   return `<p class="message-label">근거 기반 조사 결과${report.demo === true ? ' · 데모 데이터' : ''}</p>
     <h2>${escapeHtml([context.equipment, context.chamber, context.recipe].filter(Boolean).join(' / ') || '조사')} 분석 결과</h2>
     <p class="answer-summary report-text">${escapeHtml(text(report.summary))}</p>
     <div class="analysis-grid">${metrics || '<p>계측값 미제공</p>'}</div>
+    ${stages ? `<section class="answer-section"><h3>조사 단계별 결과</h3><p>데모 사례 분석, 사용자 입력값, 아직 연결되지 않은 실제 시스템 데이터를 구분했습니다.</p><ol>${stages}</ol></section>` : ''}
     <section class="answer-section"><h3>우선 확인할 항목</h3><div class="cause-list">${causes || '<p>원인 후보를 좁힐 근거가 부족합니다.</p>'}</div></section>
+    ${checks ? `<section class="answer-section"><h3>임시 SOP 조사 순서</h3><p>승인된 SOP 검색 결과가 아닌 임시 가이드입니다. 실제 정비·센서 데이터의 확인 결과가 아닙니다.</p><ol>${checks}</ol></section>` : ''}
     <section class="answer-section"><h3>문서 근거</h3>${(report.docIds || []).map(citation).join(' ')}</section>
     ${review ? '' : '<div class="record-cta"><p><strong>조사 결과를 기록으로 남길까요?</strong><br>서버 검토 상태와 권한을 확인해 승인 또는 수정을 요청합니다.</p><button class="record-button" type="button" data-review>조사 기록 만들기</button></div>'}`;
 }

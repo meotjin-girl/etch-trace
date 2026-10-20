@@ -55,6 +55,25 @@ class Document(Model):
     text: str
 
 
+class InvestigationCheck(Model):
+    """Provisional local checklist, never presented as retrieved evidence."""
+    title: str
+    rationale: str
+    source: Literal["provisional_sop"] = "provisional_sop"
+
+
+class InvestigationStage(Model):
+    """One specialist node's traceable result and its evidence boundary."""
+    key: Literal["scope", "run_comparison", "sensor", "maintenance", "recommendation"]
+    title: str
+    status: Literal["sample_based", "partial", "unavailable", "provisional"]
+    agent_mode: Literal["llm", "rule_based"] = "rule_based"
+    findings: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    caseIds: list[str] = Field(default_factory=list)
+    docIds: list[str] = Field(default_factory=list)
+
+
 class Report(Model):
     context: Context
     scored: list[Case]
@@ -62,6 +81,8 @@ class Report(Model):
     causeCases: list[Case]
     docIds: list[str]
     documents: list[Document]
+    checks: list[InvestigationCheck]
+    stages: list[InvestigationStage]
     summary: str
     unknowns: list[str]
     feedback: list[str]
