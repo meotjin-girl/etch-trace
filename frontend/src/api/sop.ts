@@ -1,6 +1,21 @@
 // Replace these two functions with authenticated API calls when the SOP API is ready.
 // List responses omit markdown; detail responses include the original markdown string.
-const documents = [
+export interface SopSummary {
+  id: string
+  title: string
+  category: string
+  version: string
+  updatedAt: string
+  owner: string
+  description: string
+  tags: string[]
+  demo: boolean
+}
+export interface Sop extends SopSummary {
+  markdown: string
+}
+
+const documents: Omit<Sop, 'demo'>[] = [
   {
     id:'SOP-ETCH-12', title:'식각 공정 이상 대응 절차', category:'공정 이상 대응',
     version:'1.2', updatedAt:'2026-10-12', owner:'공정기술팀',
@@ -93,11 +108,11 @@ RF 반사전력 상승이 관찰된 식각 공정의 이력을 검토합니다.
   }
 ];
 
-export async function listSops() {
+export async function listSops(): Promise<SopSummary[]> {
   return documents.map(({markdown, ...summary}) => ({...summary, demo:true}));
 }
 
-export async function getSop(id) {
+export async function getSop(id: string): Promise<Sop> {
   const document = documents.find(item => item.id === id);
   if (!document) throw new Error('문서를 찾을 수 없습니다.');
   return {...document, demo:true};

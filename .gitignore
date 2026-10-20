@@ -46,3 +46,6 @@ investigation_report.md
 # Project data (PHM 2018, 수업 자료)
 data/
 *.pdf
+
+# Frontend build
+frontend/dist/

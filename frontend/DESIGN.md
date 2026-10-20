@@ -4,10 +4,11 @@
 Preserve the existing quiet industrial investigation workspace: dark forest
 navigation, white conversation, pale evidence rail, mint highlights, compact
 Korean labels. This is an extraction of the shipped HTML/CSS, not a redesign.
-No framework, font download, new brand, or component library is required.
+Implemented as Vue 3 SFCs with the same global stylesheet (`src/assets/styles.css`);
+no font download, new brand, or component library is added.
 
 ## 2. Color
-The authoritative palette remains `styles.css :root`: ink #17211d, muted #66736c,
+The authoritative palette remains `src/assets/styles.css :root`: ink #17211d, muted #66736c,
 line #dfe5e1, surface #ffffff, canvas #f4f6f3, nav #15231d, nav-muted #94a39b,
 mint #b9f3d1, green #18794e / soft #eaf8ef, amber #9a5b13 / soft #fff5df,
 red #b93b3b / soft #fff0ef, blue #245d9b / soft #eef6ff.
@@ -57,4 +58,4 @@ HTML escaping for all backend/user/legacy content. Long values wrap; hidden
 sections must remain hidden despite their display layout rules.
 Existing compact typography and sidebar geometry are preserved, not audited
 as a new design. Parent owns real Aside desktop/mobile visual and interaction
-QA; this implementation supplies dependency-free contract tests.
+QA; this implementation supplies Vitest contract tests.
