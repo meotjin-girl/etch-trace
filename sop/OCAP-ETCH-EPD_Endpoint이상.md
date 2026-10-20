@@ -1,18 +1,8 @@
----
-id: OCAP-ETCH-EPD
-title: Endpoint 지연·미검출 대응
-category: 설비 알람 대응
-version: "1.0"
-status: 시행
-owner: Etch공정기술팀
-author: Etch공정기술팀 엔지니어
-approver: Etch공정기술팀장
-updatedAt: 2026-10-20
-description: OES endpoint가 늦거나 검출되지 않을 때 실제 식각 지연을 먼저 가려낸 뒤 검출 계통을 확인하는 순서입니다.
-tags: [Endpoint, OES, Window, Gain]
----
+# OCAP-ETCH-EPD Endpoint 지연·미검출 대응
 
-> **샘플 문서**: 시연용 예시입니다. `[예시]` 수치는 확정 전에는 판정에 쓰지 않습니다.
+| 담당 팀 | 버전 | 최근 개정 |
+| --- | --- | --- |
+| Etch공정기술팀 | 1.0 | 2026-10-20 |
 
 ## 1. 적용 범위
 
@@ -20,7 +10,7 @@ tags: [Endpoint, OES, Window, Gain]
 
 ## 2. Activator
 
-- Endpoint 시간이 기준 run 중앙값 대비 5% `[예시]` 이상 지연
+- Endpoint 시간이 기준 run 중앙값 대비 5% 이상 지연
 - 최대 시간 도달(timeout)로 강제 종료
 
 ## 3. 즉시 조치
@@ -57,7 +47,7 @@ Endpoint 신호 지연 시 window 오염, gain 설정, 광원 상태를 순차 �
 
 ## 5. Terminator
 
-- Endpoint 시간이 기준 run 중앙값 대비 5% `[예시]` 이내, timeout 없음
+- Endpoint 시간이 기준 run 중앙값 대비 5% 이내, timeout 없음
 - 판정 시점 신호 변화 폭이 기준 run과 비슷함
 - engineer 승인 후 Productive 복귀, hold lot은 SOP-ETCH-20으로 처분
 
@@ -71,6 +61,6 @@ Endpoint 신호 지연 시 window 오염, gain 설정, 광원 상태를 순차 �
 
 ## 8. 개정 이력
 
-| 버전 | 날짜 | 작성 | 승인 | 내용 |
-| --- | --- | --- | --- | --- |
-| 1.0 | 2026-10-20 | Etch공정기술팀 | Etch공정기술팀장 | 제정 |
+| 버전 | 날짜 | 내용 |
+| --- | --- | --- |
+| 1.0 | 2026-10-20 | 제정 |

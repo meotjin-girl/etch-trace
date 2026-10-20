@@ -1,30 +1,20 @@
----
-id: OCAP-ETCH-TMP
-title: 온도·후면 냉각 이상 대응
-category: 설비 알람 대응
-version: "1.0"
-status: 시행
-owner: Etch설비기술팀
-author: Etch설비기술팀 엔지니어
-approver: Etch설비기술팀장
-updatedAt: 2026-10-20
-description: He 후면 냉각(이온 밀 FlowCool 포함) 압력·유량 또는 척 온도가 기준을 벗어났을 때 확인 순서와 조치입니다.
-tags: [온도, He 후면 냉각, FlowCool, O-ring, PHM]
----
+# OCAP-ETCH-TMP 온도·후면 냉각 이상 대응
 
-> **샘플 문서**: 시연용 예시입니다. PHM 2018 센서값은 표준화 값이므로 이 문서는 PHM 데이터에 물리 단위를 붙이지 않고 z-score로만 판정합니다.
+| 담당 팀 | 버전 | 최근 개정 |
+| --- | --- | --- |
+| Etch설비기술팀 | 1.0 | 2026-10-20 |
 
 ## 1. 적용 범위
 
-공정 단계: 식각. 감시 항목: He 후면 냉각 압력·유량, 척 온도, 이온 밀 FlowCool(FLOWCOOLPRESSURE, FLOWCOOLFLOWRATE)과 챔버 압력(IONGAUGEPRESSURE).
+공정 단계: 식각. 감시 항목: He 후면 냉각 압력·유량, 척 온도, 이온 밀 FlowCool(FLOWCOOLPRESSURE, FLOWCOOLFLOWRATE)과 챔버 압력(IONGAUGEPRESSURE). 이온 밀 FlowCool 센서는 표준화 값으로 수집되므로 물리 단위 없이 z-score로만 판정합니다.
 
 ## 2. Activator
 
 - He 후면 냉각 압력·유량 또는 척 온도 인터락
 - Step별 냉각 압력·유량 평균이 기준 run 대비 |z| ≥ 3
-- PHM 고장 기록: FlowCool Pressure Dropped Below Limit, Flowcool Pressure Too High Check Flowcool Pump, Flowcool leak
+- FlowCool 고장 알람: FlowCool Pressure Dropped Below Limit, Flowcool Pressure Too High Check Flowcool Pump, Flowcool leak
 
-**주의:** PHM 고장 기록 시각은 운영자가 정비하려고 장비를 멈춘 시각입니다. 실제 이상은 그보다 먼저 시작됐을 수 있으므로 고장 시작 시각으로 쓰지 않습니다.
+**주의:** FlowCool 고장 기록 시각은 운영자가 정비하려고 장비를 멈춘 시각입니다. 실제 이상은 그보다 먼저 시작됐을 수 있으므로 고장 시작 시각으로 쓰지 않습니다.
 
 ## 3. 즉시 조치
 
@@ -60,7 +50,7 @@ tags: [온도, He 후면 냉각, FlowCool, O-ring, PHM]
 ### 4.4 O-ring과 척 오염
 
 - 확인: SOP-ETCH-01 §4.1 LOTO 후 O-ring 손상·변형, 척 접촉면 퇴적물
-- 이상 판정: 같은 압력에서 He 유량이 새 O-ring 장착 직후 기준값보다 `[예시]` 30% 넘게 높음
+- 이상 판정: 같은 압력에서 He 유량이 새 O-ring 장착 직후 기준값보다 30% 넘게 높음
 - 원인 분류: O-ring 열화 또는 척 오염
 - 조치: O-ring 교체, 척 세정, 새 기준 유량 기록
 
@@ -74,7 +64,7 @@ tags: [온도, He 후면 냉각, FlowCool, O-ring, PHM]
 ## 5. Terminator
 
 - 냉각 압력·유량이 설정값에서 안정
-- Monitor wafer `[예시]` 2매에서 냉각 압력·유량·챔버 압력의 step별 z-score가 모두 |z| < 2
+- Monitor wafer 2매에서 냉각 압력·유량·챔버 압력의 step별 z-score가 모두 |z| < 2
 - engineer 승인 후 Productive 복귀, hold lot은 SOP-ETCH-20으로 처분
 
 ## 6. 에스컬레이션
@@ -87,6 +77,6 @@ tags: [온도, He 후면 냉각, FlowCool, O-ring, PHM]
 
 ## 8. 개정 이력
 
-| 버전 | 날짜 | 작성 | 승인 | 내용 |
-| --- | --- | --- | --- | --- |
-| 1.0 | 2026-10-20 | Etch설비기술팀 | Etch설비기술팀장 | 제정 |
+| 버전 | 날짜 | 내용 |
+| --- | --- | --- |
+| 1.0 | 2026-10-20 | 제정 |

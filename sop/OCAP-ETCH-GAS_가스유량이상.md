@@ -1,27 +1,17 @@
----
-id: OCAP-ETCH-GAS
-title: 가스 유량 이상 대응
-category: 설비 알람 대응
-version: "1.0"
-status: 시행
-owner: Etch설비기술팀
-author: Etch설비기술팀 엔지니어
-approver: Etch설비기술팀장
-updatedAt: 2026-10-20
-description: MFC 유량 readback이 설정값을 벗어났을 때 확인 순서와 조치입니다.
-tags: [가스, MFC, Zero drift, Leak-by]
----
+# OCAP-ETCH-GAS 가스 유량 이상 대응
 
-> **샘플 문서**: 시연용 예시입니다. MFC 교정 기준은 업체 매뉴얼과 사내 교정 표준을 따릅니다.
+| 담당 팀 | 버전 | 최근 개정 |
+| --- | --- | --- |
+| Etch설비기술팀 | 1.0 | 2026-10-20 |
 
 ## 1. 적용 범위
 
-공정 단계: 식각. 감시 항목: 공정 가스 MFC readback(sccm), 가스 공급 압력. 이온 밀의 Ar 유량(ETCHGASCHANNEL1READBACK, ETCHPBNGASREADBACK)도 포함합니다.
+공정 단계: 식각. 감시 항목: 공정 가스 MFC readback(sccm), 가스 공급 압력. 이온 밀의 Ar 유량(ETCHGASCHANNEL1READBACK, ETCHPBNGASREADBACK)도 포함합니다. MFC 교정 기준은 장비 업체 매뉴얼과 사내 교정 표준을 따릅니다.
 
 ## 2. Activator
 
 - MFC 유량 알람
-- Readback이 설정값 대비 `[예시]` ±2% F.S. 초과
+- Readback이 설정값 대비 ±2% F.S. 초과
 - Step별 유량 평균이 기준 run 대비 |z| ≥ 3
 
 ## 3. 즉시 조치
@@ -41,15 +31,15 @@ tags: [가스, MFC, Zero drift, Leak-by]
 
 ### 4.2 MFC zero
 
-- 확인: 유량 0 설정, 밸브 상태와 입구 압력을 매번 같은 조건으로 맞춘 뒤 `[예시]` 5분 안정화 후 판독
-- 이상 판정: `[예시]` ±0.5% F.S. 초과
+- 확인: 유량 0 설정, 밸브 상태와 입구 압력을 매번 같은 조건으로 맞춘 뒤 5분 안정화 후 판독
+- 이상 판정: ±0.5% F.S. 초과
 - 원인 분류: MFC zero drift
 - 조치: zero 재조정 후 §4.3 재확인
 
 ### 4.3 유량 검증 (rate-of-rise)
 
 - 확인: 알려진 부피의 배기를 닫고 설정 유량을 흘려 압력·온도 상승률로 실제 유량 계산
-- 이상 판정: 실제 유량이 설정값 대비 `[예시]` ±1% 초과
+- 이상 판정: 실제 유량이 설정값 대비 ±1% 초과
 - 원인 분류: MFC 교정 이탈
 - 조치: MFC 교정, 불가하면 교체
 
@@ -83,6 +73,6 @@ tags: [가스, MFC, Zero drift, Leak-by]
 
 ## 8. 개정 이력
 
-| 버전 | 날짜 | 작성 | 승인 | 내용 |
-| --- | --- | --- | --- | --- |
-| 1.0 | 2026-10-20 | Etch설비기술팀 | Etch설비기술팀장 | 제정 |
+| 버전 | 날짜 | 내용 |
+| --- | --- | --- |
+| 1.0 | 2026-10-20 | 제정 |

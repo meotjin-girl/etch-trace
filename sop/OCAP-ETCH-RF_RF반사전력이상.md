@@ -1,18 +1,8 @@
----
-id: OCAP-ETCH-RF
-title: RF 반사전력 이상 대응
-category: 설비 알람 대응
-version: "1.0"
-status: 시행
-owner: Etch설비기술팀
-author: Etch설비기술팀 엔지니어
-approver: Etch설비기술팀장
-updatedAt: 2026-10-20
-description: RF reflected power가 상승했을 때 match network와 RF 전달 계통의 확인 순서와 조치입니다.
-tags: [RF, 반사전력, Match network, Calibration]
----
+# OCAP-ETCH-RF RF 반사전력 이상 대응
 
-> **샘플 문서**: 시연용 예시입니다. `[예시]` 수치는 확정 전에는 판정에 쓰지 않습니다.
+| 담당 팀 | 버전 | 최근 개정 |
+| --- | --- | --- |
+| Etch설비기술팀 | 1.0 | 2026-10-20 |
 
 ## 1. 적용 범위
 
@@ -22,11 +12,11 @@ tags: [RF, 반사전력, Match network, Calibration]
 
 | 항목 | 주의 | 이상 |
 | --- | --- | --- |
-| reflected / forward | `[예시]` 2~5% | 5% 이상 또는 인터락 |
+| reflected / forward | 2~5% | 5% 이상 또는 인터락 |
 | reflected (기준 run 대비) | +20~50% | +50% 이상 |
 | match 위치 | 한쪽 끝으로 치우침 | 끝단 도달 |
 
-점화 직후와 step 전환 직후 `[예시]` 2초는 판정에서 뺍니다. 펄스 RF recipe는 같은 펄스 recipe 기준 run끼리만 비교합니다.
+점화 직후와 step 전환 직후 2초는 판정에서 뺍니다. 펄스 RF recipe는 같은 펄스 recipe 기준 run끼리만 비교합니다.
 
 ## 3. 즉시 조치
 
@@ -53,7 +43,7 @@ tags: [RF, 반사전력, Match network, Calibration]
 
 Reflected power 상승이 반복될 경우 match network 접점과 calibration 상태를 확인한다.
 
-- 반복: 같은 챔버·recipe step에서 주의 이상이 연속 3 run `[예시]` 또는 24시간 내 5 run `[예시]`
+- 반복: 같은 챔버·recipe step에서 주의 이상이 연속 3 run 또는 24시간 내 5 run
 - 확인: SOP-ETCH-01 §4.1 LOTO 후 match 출력 접점, RF 스트랩, 케이블 커넥터의 변색·마모·토크, generator 출력·reflected 측정 calibration
 - 원인 분류: 접점 열화 또는 calibration 이탈
 - 조치: 접점 교체, 토크 재조정, RF calibration
@@ -88,6 +78,6 @@ Reflected power 상승이 반복될 경우 match network 접점과 calibration �
 
 ## 8. 개정 이력
 
-| 버전 | 날짜 | 작성 | 승인 | 내용 |
-| --- | --- | --- | --- | --- |
-| 1.0 | 2026-10-20 | Etch설비기술팀 | Etch설비기술팀장 | 제정 |
+| 버전 | 날짜 | 내용 |
+| --- | --- | --- |
+| 1.0 | 2026-10-20 | 제정 |
