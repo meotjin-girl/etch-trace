@@ -1,6 +1,0 @@
-{
-  "equipment_id": "ETCH-07",
-  "symptom": "etch rate 저하",
-  "metrics": {"etch_rate_nm_min": 430}
-}
-
