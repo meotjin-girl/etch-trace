@@ -2,7 +2,7 @@
 
 | 담당 팀 | 버전 | 최근 개정 |
 | --- | --- | --- |
-| Etch공정기술팀 | 1.0 | 2026-10-20 |
+| Etch공정기술팀 | 1.1 | 2026-10-20 |
 
 ## 1. 목적 및 적용 범위
 
@@ -31,9 +31,9 @@ FDC 또는 SPC가 식각 설비 이상을 감지했을 때, 엔지니어가 장�
 ### 4.1 감지와 격리
 
 1. FDC 알람, SPC OOC, 후속 계측 이상 중 하나가 나면 이 절차를 시작합니다.
-2. 인터락 abort는 재시작하지 않고, SPC 이탈은 현재 웨이퍼 처리 후 다음 lot 투입을 멈춥니다.
-3. 영향 가능 lot은 SOP-ETCH-20에 따라 hold합니다.
-4. 장비 상태를 Unscheduled downtime으로 바꿉니다 (SOP-ETCH-01 §4.2).
+2. 경고는 원본 데이터와 조건을 보존하고 해당 OCAP의 반복 조건을 감시합니다.
+3. 이상이면 영향 가능 lot을 SOP-ETCH-20에 따라 hold하고, 중대 이상·인터락 abort는 재시작하지 않습니다.
+4. 해당 OCAP이 정지를 요구하면 장비 상태를 Unscheduled downtime으로 바꿉니다 (SOP-ETCH-01 §4.2).
 5. 아래 표로 해당 OCAP를 열고, TRACE에 장비·챔버·recipe·알람 코드·발생 시각·영향 lot을 접수합니다.
 
 | 이탈 신호 | OCAP |
@@ -43,6 +43,20 @@ FDC 또는 SPC가 식각 설비 이상을 감지했을 때, 엔지니어가 장�
 | 온도, He 후면 냉각, FlowCool | OCAP-ETCH-TMP |
 | RF reflected power | OCAP-ETCH-RF |
 | Endpoint 지연·미검출 | OCAP-ETCH-EPD |
+| 식각 속도·깊이 | OCAP-ETCH-RATE |
+| 식각 균일도 | OCAP-ETCH-UNI |
+| 파티클·스크래치·표면 결함 | OCAP-ETCH-DEF |
+| CD·식각 profile | OCAP-ETCH-CD |
+| PM·세정·부품 교체 이후 변화 | OCAP-ETCH-PM |
+| 기저 압력, pump down, 진공 누설 | OCAP-ETCH-VAC |
+| 점화 실패, plasma loss, arc | OCAP-ETCH-ARC |
+| Ion Mill beam 전압·전류 | OCAP-ETCH-BEAM |
+| Suppressor·source grid | OCAP-ETCH-GRID |
+| 회전·기울기·고정구 | OCAP-ETCH-MOTION |
+| ESC 흡착·dechuck | OCAP-ETCH-ESC |
+| OES 발광 신호 | OCAP-ETCH-OES |
+| Shutter·PBN | OCAP-ETCH-SHT |
+| Step 시간·sequence | OCAP-ETCH-STEP |
 
 ### 4.2 Endpoint 지연 시 동시 비교
 
@@ -92,14 +106,14 @@ Endpoint가 기준 대비 10% 이상 지연되면 RF, 압력, 가스 유량 이�
 
 ### 4.7 원인 후보와 점검 순서
 
-1. 원인 후보를 확인 가설로 정리하고, 해당 OCAP의 Checkpoint 순서대로 점검합니다.
+1. 원인 후보를 확인 가설로 정리하고, 해당 OCAP의 Checkpoint 순서대로 점검합니다. 지지 근거, 반대 근거와 미확인 사항을 함께 기록합니다.
 2. 장비를 열지 않는 점검(설정·이력·calibration 기록)을 먼저 하고, 장비를 여는 점검은 SOP-ETCH-01 §4.1 후에 합니다.
 3. 조사 보고서는 FACTS(비교 조건과 계산 결과), EVIDENCE(근거 run ID와 문서 조항 ID), NEXT ACTION(추가 점검과 사람이 판단할 지점), UNKNOWN(확인하지 못한 것)으로 나눕니다.
 4. 각 가설에는 근거 조항 ID를 최소 1개 붙이고, 없으면 "근거 문서 없음"이라고 씁니다.
 
 ### 4.8 검토·승인과 종결
 
-1. engineer가 보고서를 승인해야 조치를 시작합니다. 수정 요청이 오면 반영 후 다시 승인받습니다.
+1. 비상정지·격리·lot hold 같은 즉시 안전·보호 조치는 먼저 수행합니다. 설정 변경·정비·부품 교체 같은 시정 조치는 engineer가 보고서를 승인한 뒤 시작합니다.
 2. 조치 후 OCAP의 Terminator 조건과 SOP-ETCH-01 §4.8 재인증을 통과하면 생산에 복귀합니다.
 3. Hold lot은 SOP-ETCH-20에 따라 처분합니다.
 
@@ -120,16 +134,17 @@ Endpoint가 기준 대비 10% 이상 지연되면 RF, 압력, 가스 유량 이�
 
 ## 6. 기록 관리
 
-조사 기록에 아래를 남깁니다: 장비·챔버·recipe, 이상 run과 기준 run ID, 알람 코드·발생 시각·상태 전환 시각, 실행한 OCAP ID와 이상이 확인된 Checkpoint, 원인 분류, 조치, 조치 전후 값, 근거 조항 ID, 재인증 결과, 승인자. 승인된 기록만 조사 이력으로 저장합니다.
+조사 기록에 아래를 남깁니다: 장비·챔버·recipe, 이상 run과 기준 run ID, 알람 코드·발생 시각·상태 전환 시각, 실행한 OCAP ID와 이상이 확인된 Checkpoint, 원인 후보와 지지·반대 근거·미확인 사항, 현장 확인으로 확정된 원인, 조치, 조치 전후 값, 근거 조항 ID, 재인증 결과, 승인자. 승인된 기록만 조사 이력으로 저장합니다.
 
 ## 7. 참고 문서
 
 - SOP-ETCH-01 식각 설비 운영
 - SOP-ETCH-20 Lot Hold/Release
-- OCAP-ETCH-PRS, OCAP-ETCH-GAS, OCAP-ETCH-TMP, OCAP-ETCH-RF, OCAP-ETCH-EPD
+- OCAP 전체 목록과 적용 범위는 sop/README의 문서 목록을 따릅니다.
 
 ## 8. 개정 이력
 
 | 버전 | 날짜 | 내용 |
 | --- | --- | --- |
 | 1.0 | 2026-10-20 | 제정 |
+| 1.1 | 2026-10-20 | 19종 OCAP 분기, 경고·이상·중대 이상 조치와 즉시 보호 조치 예외 반영 |

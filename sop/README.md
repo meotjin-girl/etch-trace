@@ -14,8 +14,33 @@ TRACE 조사 Agent가 근거로 인용하고 SOP 화면에 표시하는 문서�
 | [OCAP-ETCH-TMP](OCAP-ETCH-TMP_온도냉각이상.md) | OCAP | 온도·후면 냉각 이상 대응 | Etch설비기술팀 | He 후면 냉각, FlowCool |
 | [OCAP-ETCH-RF](OCAP-ETCH-RF_RF반사전력이상.md) | OCAP | RF 반사전력 이상 대응 | Etch설비기술팀 | reflected power 상승 |
 | [OCAP-ETCH-EPD](OCAP-ETCH-EPD_Endpoint이상.md) | OCAP | Endpoint 지연·미검출 대응 | Etch공정기술팀 | endpoint 지연, timeout |
+| [OCAP-ETCH-RATE](OCAP-ETCH-RATE_식각속도이상.md) | OCAP | 식각 속도 이상 대응 | Etch공정기술팀 | etch rate·식각 깊이 이탈 |
+| [OCAP-ETCH-UNI](OCAP-ETCH-UNI_식각균일도이상.md) | OCAP | 식각 균일도 이상 대응 | Etch공정기술팀 | wafer 내·wafer 간 균일도 이탈 |
+| [OCAP-ETCH-DEF](OCAP-ETCH-DEF_표면결함이상.md) | OCAP | 파티클·스크래치·표면 결함 대응 | Etch공정기술팀 | defect 검사 이상 |
+| [OCAP-ETCH-CD](OCAP-ETCH-CD_CD프로파일이상.md) | OCAP | CD·식각 프로파일 이상 대응 | Etch공정기술팀 | CD·profile·residue 이탈 |
+| [OCAP-ETCH-PM](OCAP-ETCH-PM_정비이후이상.md) | OCAP | 정비·세정 이후 이상 대응 | Etch설비기술팀 | PM·부품 교체 이후 변화 |
+| [OCAP-ETCH-VAC](OCAP-ETCH-VAC_진공이상.md) | OCAP | 진공 배기·기저 압력·누설 대응 | Etch설비기술팀 | base pressure·pump down·누설 이상 |
+| [OCAP-ETCH-ARC](OCAP-ETCH-ARC_점화아크이상.md) | OCAP | 플라즈마 점화 실패·아크 대응 | Etch설비기술팀 | ignition failure·arc 인터락 |
+| [OCAP-ETCH-BEAM](OCAP-ETCH-BEAM_이온빔이상.md) | OCAP | 이온 빔 전압·전류 이상 대응 | Etch설비기술팀 | Ion Mill beam 이상 |
+| [OCAP-ETCH-GRID](OCAP-ETCH-GRID_그리드이상.md) | OCAP | Suppressor·이온 소스 그리드 이상 대응 | Etch설비기술팀 | suppressor·grid 이상 |
+| [OCAP-ETCH-MOTION](OCAP-ETCH-MOTION_웨이퍼구동이상.md) | OCAP | 웨이퍼 회전·기울기·고정구 이상 대응 | Etch설비기술팀 | Ion Mill motion 이상 |
+| [OCAP-ETCH-ESC](OCAP-ETCH-ESC_정전척이상.md) | OCAP | 정전척 흡착·Dechuck 이상 대응 | Etch설비기술팀 | ESC·chuck/dechuck 이상 |
+| [OCAP-ETCH-OES](OCAP-ETCH-OES_발광신호이상.md) | OCAP | 플라즈마 발광 신호 이상 대응 | Etch공정기술팀 | OES 신호 이상 |
+| [OCAP-ETCH-SHT](OCAP-ETCH-SHT_ShutterPBN이상.md) | OCAP | Shutter·PBN 이상 대응 | Etch설비기술팀 | Ion Mill shutter·PBN 이상 |
+| [OCAP-ETCH-STEP](OCAP-ETCH-STEP_공정시퀀스이상.md) | OCAP | 공정 Step 지속 시간·시퀀스 이상 대응 | Etch공정기술팀 | timeout·sequence error |
 
 [00_식각공정_조사.md](00_식각공정_조사.md)는 작성 근거를 모은 조사 메모입니다.
+
+## 권장 구현 우선순위
+
+아래 우선순위는 문서 작성 순서가 아니라 TRACE 데이터 연결·검증 구현의 권장 순서입니다. 기존 5종은 현재 흐름에 이미 연결된 대상으로 봅니다.
+
+| 우선순위 | 추가 OCAP |
+| --- | --- |
+| 매우 높음 | OCAP-ETCH-BEAM |
+| 높음 | OCAP-ETCH-RATE, OCAP-ETCH-UNI, OCAP-ETCH-DEF, OCAP-ETCH-PM, OCAP-ETCH-GRID, OCAP-ETCH-VAC, OCAP-ETCH-MOTION, OCAP-ETCH-CD, OCAP-ETCH-ARC |
+| 중간 | OCAP-ETCH-ESC, OCAP-ETCH-OES |
+| 첨부 기준 미지정 | OCAP-ETCH-SHT, OCAP-ETCH-STEP |
 
 ## 문서 머리
 
@@ -43,9 +68,19 @@ TRACE 조사 Agent가 근거로 인용하고 SOP 화면에 표시하는 문서�
 
 `1 목적 및 적용 범위 · 2 용어 · 3 역할과 책임 · 4 절차 · 5 판정 기준·검증 · 6 기록 관리 · 7 참고 문서 · 8 개정 이력`
 
-**OCAP** — Activator·Checkpoint·Terminator 3요소와 반도체 OCAP 특허(US 12062558)의 "순서 있는 점검 항목 → 원인 분류 → 조치" 구조를 따릅니다. 각 Checkpoint는 `확인 / 이상 판정 / 원인 분류 / 조치` 네 줄로 씁니다. OCAP ID는 `OCAP-{공정}-{항목}`입니다.
+**OCAP** — Activator·Checkpoint·Terminator 3요소와 반도체 OCAP 특허(US 12062558)의 순서 있는 점검 구조를 따릅니다. Checkpoint에는 `확인`, 관측된 `이상`, 아직 검증되지 않은 `원인 후보`, `추가 검증 또는 조치`를 필요한 만큼 씁니다. OCAP ID는 `OCAP-{공정}-{항목}`입니다.
 
 `1 적용 범위 · 2 Activator · 3 즉시 조치 · 4 Checkpoints · 5 Terminator · 6 에스컬레이션 · 7 기록 항목 · 8 개정 이력`
+
+각 OCAP의 적용 범위에는 `장비 유형`, `공정·감시 항목`, `필요 데이터`, `검증 가능 범위`를 씁니다. Activator는 가능한 경우 경고와 중대 이상을 나누고, 승인된 장비 알람·공정 스펙·통계 편차를 서로 구분합니다.
+
+Checkpoint는 확인 순서를 제시하되 관측 사실만으로 원인을 확정하지 않습니다. `원인 후보`, 후보를 지지하거나 반박하는 근거, 미확인 사항과 추가 검증을 기록합니다. 현장 점검이나 승인된 정비 절차로 확인되기 전에는 `확인된 원인`으로 바꾸지 않습니다.
+
+Terminator는 아래 세 결정을 분리합니다.
+
+1. 조사 종결: 필요한 비교·원인 후보·미확인 사항·후속 조치가 기록됨
+2. 장비 복귀: 계통별 복구 조건과 SOP-ETCH-01 §4.8 재인증을 통과하고 engineer가 승인함
+3. Lot 처분: SOP-ETCH-20에 따라 별도로 Release·추가 계측·Rework·Scrap을 결정함
 
 ## 조항 ID 규칙
 
@@ -70,6 +105,10 @@ TRACE 조사 Agent가 근거로 인용하고 SOP 화면에 표시하는 문서�
 - 안전 경고는 해당 단계 바로 앞에 **경고:**로 씁니다 (EPA G-6 §4.1 d).
 - 원인은 "확인 가설"로 쓰고 단정하지 않습니다.
 - 표준화 값으로 수집되는 센서는 물리 단위 없이 z-score로만 씁니다. 고장 기록 시각은 장비 정지 시각입니다.
+- 센서는 같은 recipe·step과 실제 운전 조건에서 비교하며 대상 시점 이후 데이터는 기준 run으로 쓰지 않습니다.
+- 데이터가 없으면 추정값을 만들지 않고 `추가 데이터 필요` 또는 `현장 점검 필요`로 기록합니다.
+- OCAP 간 이동 시 이동 사유와 출발·도착 조항 ID를 기록합니다.
+- 안전·장비 조작은 사업장과 제조사의 승인된 절차가 이 문서보다 우선합니다.
 
 ## 근거 자료
 

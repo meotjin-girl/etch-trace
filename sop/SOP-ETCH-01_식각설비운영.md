@@ -2,11 +2,11 @@
 
 | 담당 팀 | 버전 | 최근 개정 |
 | --- | --- | --- |
-| Etch설비기술팀 | 1.0 | 2026-10-20 |
+| Etch설비기술팀 | 1.1 | 2026-10-20 |
 
 ## 1. 목적 및 적용 범위
 
-플라즈마 식각 설비를 정상 상태로 운전하고, 점검·정비 후 생산에 복귀시키는 기준을 정합니다. 이상이 감지되면 SOP-ETCH-12와 해당 OCAP를 따릅니다.
+Plasma Etch와 Ion Mill 설비를 정상 상태로 운전하고, 점검·정비 후 생산에 복귀시키는 공통 기준을 정합니다. 장비별 조작·분해·정비는 제조사와 사업장의 승인된 WI를 따르며, 이상이 감지되면 SOP-ETCH-12와 해당 OCAP를 적용합니다.
 
 ## 2. 용어
 
@@ -75,6 +75,9 @@
 | RF forward·reflected power | FDC step별 평균 | OCAP-ETCH-RF |
 | Endpoint 시간 | SPC 관리도 | OCAP-ETCH-EPD |
 | Etch rate, 균일도 | monitor wafer SPC | SOP-ETCH-12 |
+| Ion Mill beam·suppressor·motion·shutter | FDC step별 시계열·이벤트 | 해당 BEAM·GRID·MOTION·SHT OCAP |
+| 파티클·CD·profile | 후속 계측·wafer map | 해당 DEF·CD OCAP |
+| Step 시간·sequence | 실행 이력·이벤트 | OCAP-ETCH-STEP |
 
 ### 4.5 예방정비 주기
 
@@ -95,6 +98,8 @@
 - 이 값이 없으면 PM 효과를 다음 조사에서 판단할 수 없으므로 PM을 완료 처리하지 않습니다.
 
 ### 4.7 Wet clean과 seasoning
+
+아래 단계는 Plasma Etch chamber의 공통 흐름입니다. Ion Mill은 제조사 승인 PM·conditioning 절차를 따르고 동일한 전후 값과 부품 이력을 보존합니다.
 
 1. §4.1에 따라 에너지를 차단하고 챔버를 N2로 vent합니다.
 2. 상부 전극, 라이너, focus ring, endpoint window를 분리하고 오염 상태를 사진으로 남깁니다.
@@ -124,10 +129,11 @@
 
 - SOP-ETCH-12 식각 장비 이상 대응
 - SOP-ETCH-20 Lot Hold/Release
-- OCAP-ETCH-PRS, OCAP-ETCH-GAS, OCAP-ETCH-TMP, OCAP-ETCH-RF, OCAP-ETCH-EPD
+- OCAP 전체 목록과 적용 범위는 sop/README의 문서 목록을 따릅니다.
 
 ## 8. 개정 이력
 
 | 버전 | 날짜 | 내용 |
 | --- | --- | --- |
 | 1.0 | 2026-10-20 | 제정 |
+| 1.1 | 2026-10-20 | Ion Mill 공통 운영 범위와 신규 OCAP 감시 항목 반영 |
