@@ -60,7 +60,7 @@ test('owner identity survives a role change and citations close the review dialo
   expect(investigation.review.task).not.toBeNull()
   ui.openEvidence('DOC#1')
   expect(investigation.review.task).toBeNull()
-  expect(ui.highlightId).toBe('DOC#1')
+  expect(ui.highlight.id).toBe('DOC#1')
 })
 
 test('old local records stay read-only and never become authoritative approvals', () => {

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
 import { mergeEvents } from '@/api/client'
 import type { Task, TaskEvent } from '@/api/types'
-import { statuses, terminal, text } from '@/lib/format'
+import { progressStep, statuses, terminal, text } from '@/lib/format'
 import { useIdentityStore } from './identity'
 import { useRecordsStore } from './records'
 import { useUiStore } from './ui'
@@ -39,15 +39,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
   const placeholder = computed(() => task.value?.status === 'WAITING_INPUT' ?
     (isOwner(task.value) ? '추가 정보를 입력해 주세요…' : '조사 소유자만 추가 정보를 보낼 수 있습니다') :
     task.value ? '새 질문은 새 조사를 시작해 주세요' : '특정 이상에 대해 질문해 주세요…')
-  const step = computed(() => {
-    let value = 1
-    for (const event of events.value) {
-      if (event.type === 'SEARCH_STARTED') value = 2
-      if (event.type === 'ANALYSIS_STARTED') value = 3
-      if (['REPORT_STARTED', 'APPROVAL_REQUIRED', 'DONE'].includes(event.type)) value = 4
-    }
-    return task.value?.report ? 4 : value
-  })
+  const step = computed(() => progressStep(events.value, Boolean(task.value?.report)))
   // QUESTION is the authoritative follow-up prompt, including missing fields.
   const followUps = computed(() => events.value.filter(event => event.type === 'QUESTION' &&
     !(task.value?.messages || []).some(item => item.role === 'assistant' &&

@@ -8,6 +8,17 @@ export const statuses: Record<string, string> = {
 }
 export const terminal = new Set(['DONE', 'INCOMPLETE', 'FAILED'])
 
+// Sidebar progress (1-4) derived only from backend events and the report.
+export function progressStep(events: {type: string}[], hasReport: boolean): number {
+  let value = 1
+  for (const event of events) {
+    if (event.type === 'SEARCH_STARTED') value = 2
+    if (event.type === 'ANALYSIS_STARTED') value = 3
+    if (['REPORT_STARTED', 'APPROVAL_REQUIRED', 'DONE'].includes(event.type)) value = 4
+  }
+  return hasReport ? 4 : value
+}
+
 export function text(value: unknown): string {
   return typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value, null, 2)
 }

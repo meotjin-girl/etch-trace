@@ -23,6 +23,7 @@
 
 ## 규칙
 
+- 아이콘은 Flaticon UIcons(`@flaticon/flaticon-uicons`, regular rounded, `fi-rr-*` 클래스)를 쓴다. 무료 라이선스 조건인 출처 표기("Uicons by Flaticon")를 사이드바 하단에 유지한다.
 - backend·사용자·로컬 기록 값은 Vue 보간으로만 출력한다. `v-html`은 `renderMarkdown` 결과에만 쓴다.
 - 상태는 backend detail이 기준이고, 이벤트 replay는 진행 표시와 이력만 만든다. 늦게 도착한 응답·콜백은 `epoch`/`syncVersion`으로 버린다.
 - `/messages`는 소유자 + `WAITING_INPUT`, 검토는 engineer + `WAITING_APPROVAL`일 때만 UI에서 허용한다. 최종 권한 검사는 backend가 한다.
