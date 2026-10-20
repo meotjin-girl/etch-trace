@@ -1,4 +1,5 @@
 import {createApi, mergeEvents} from './api.js';
+import {mountSops} from './sop.js';
 
 const $ = id => document.getElementById(id);
 const labels = {endpoint_sec:'Endpoint', etch_rate_nm_min:'Etch rate', rf_reflected_w:'RF reflected', pressure_mtorr:'Pressure'};
@@ -58,13 +59,19 @@ function stopTask() {
   state.reviewTask = null;
   $('reportDialog').close();
 }
-function setPage(records) {
+function setPage(page) {
+  const records = page === true;
+  const sop = page === 'sop';
   $('recordsPage').hidden = !records;
-  $('conversation').hidden = records;
-  $('questionForm').hidden = records;
+  $('sopPage').hidden = !sop;
+  $('conversation').hidden = records || sop;
+  $('questionForm').hidden = records || sop;
   $('recordsNav').classList.toggle('active', records);
-  $('investigationNav').classList.toggle('active', !records);
-  document.querySelector('.topbar h1').textContent = records ? '조사 기록' : '식각 장비 이상 조사';
+  $('sopNav').classList.toggle('active', sop);
+  $('investigationNav').classList.toggle('active', !records && !sop);
+  document.querySelector('.app-shell').classList.toggle('sop-open', sop);
+  document.querySelector('.topbar-actions').hidden = sop;
+  document.querySelector('.topbar h1').textContent = sop ? 'SOP 목록' : records ? '조사 기록' : '식각 장비 이상 조사';
 }
 function resetInvestigation() {
   stopTask();
@@ -121,7 +128,6 @@ function renderReport(report, review = false) {
     <div class="analysis-grid">${metrics || '<p>계측값 미제공</p>'}</div>
     <section class="answer-section"><h3>우선 확인할 항목</h3><div class="cause-list">${causes || '<p>원인 후보를 좁힐 근거가 부족합니다.</p>'}</div></section>
     <section class="answer-section"><h3>문서 근거</h3>${(report.docIds || []).map(citation).join(' ')}</section>
-    <section class="answer-section"><h3>피드백</h3><p class="report-text">${escapeHtml(text(report.feedback) || '미제공')}</p></section>
     ${review ? '' : '<div class="record-cta"><p><strong>조사 결과를 기록으로 남길까요?</strong><br>서버 검토 상태와 권한을 확인해 승인 또는 수정을 요청합니다.</p><button class="record-button" type="button" data-review>조사 기록 만들기</button></div>'}`;
 }
 function message(role, content) {
@@ -441,6 +447,7 @@ document.addEventListener('click', event => {
 for (const id of ['newInvestigation', 'mobileNew']) $(id).addEventListener('click', resetInvestigation);
 for (const id of ['investigationNav', 'mobileInvestigation', 'emptyStartInvestigation']) $(id).addEventListener('click', () => { setPage(false); renderEvidence(state.task?.report); });
 for (const id of ['recordsNav', 'mobileRecords']) $(id).addEventListener('click', () => { setPage(true); refreshRecords(); });
+for (const id of ['sopNav', 'mobileSop']) $(id).addEventListener('click', () => setPage('sop'));
 $('refreshRecords').addEventListener('click', () => { clearError(); refreshRecords(); });
 $('openEvidence').addEventListener('click', () => openEvidence());
 $('closeEvidence').addEventListener('click', () => {
@@ -473,3 +480,4 @@ window.addEventListener('pagehide', () => {
 });
 updateControls();
 refreshRecords();
+mountSops();
