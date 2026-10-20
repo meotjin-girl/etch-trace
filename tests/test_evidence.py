@@ -17,8 +17,8 @@ import anyio
 import psycopg
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
-from pydantic import TypeAdapter
 from psycopg.rows import class_row
+from pydantic import TypeAdapter
 
 ROOT = Path(__file__).resolve().parents[1]
 # These are script directories, not a local package named "mcp": that name
@@ -29,7 +29,13 @@ sys.path.insert(0, str(ROOT / "db"))
 import business
 import rag
 from evidence import (
-    Case, Context, MetricAnalysis, ScoredCase, analyze_metrics, search_cases, similarity,
+    Case,
+    Context,
+    MetricAnalysis,
+    ScoredCase,
+    analyze_metrics,
+    search_cases,
+    similarity,
 )
 from seed import seed
 
@@ -78,6 +84,97 @@ def backend(
             thread.join(timeout=5)
             if thread.is_alive():
                 raise RuntimeError("Test backend did not shut down")
+
+
+class InvestigationTest(unittest.TestCase):
+    def test_history_reads_forward_identity_and_internal_key(self):
+        from urllib.parse import parse_qs, urlsplit
+        from uuid import uuid4
+        seen = []
+        tid = str(uuid4())
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                target = urlsplit(self.path)
+                seen.append((target.path, parse_qs(target.query), self.headers["X-Internal-Key"]))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"id":"saved"}' if target.path.endswith(tid) else b'[]')
+
+            def log_message(self, *args):
+                pass
+
+        async def read():
+            async with Client(business.mcp) as client:
+                args = {"user_name": "작업자 / A", "user_role": "worker"}
+                listing = await client.call_tool("list_investigations", args)
+                detail = await client.call_tool("get_investigation", {**args, "task_id": tid})
+                self.assertEqual(listing.structured_content, {"result": []})
+                self.assertEqual(detail.structured_content, {"id": "saved"})
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                with patch.dict(os.environ, {
+                    "BACKEND_URL": f"http://127.0.0.1:{server.server_port}",
+                    "INTERNAL_API_KEY": "test-secret",
+                }):
+                    anyio.run(read)
+            finally:
+                server.shutdown()
+                thread.join(timeout=5)
+        self.assertEqual([row[0] for row in seen], [
+            "/internal/investigations", f"/internal/investigations/{tid}",
+        ])
+        for _, query, key in seen:
+            self.assertEqual(query, {"user_name": ["작업자 / A"], "user_role": ["worker"]})
+            self.assertEqual(key, "test-secret")
+
+    def test_save_forwards_ids_payload_and_propagates_backend_rejection(self):
+        from uuid import uuid4
+        seen = []
+        status = [200]
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                seen.append((self.path, self.headers, json.loads(
+                    self.rfile.read(int(self.headers["Content-Length"])))))
+                self.send_response(status[0])
+                self.end_headers()
+                self.wfile.write(b'{"accepted":true,"duplicate":false}')
+
+            def log_message(self, *args):
+                pass
+
+        async def call():
+            async with Client(business.mcp) as client:
+                return await client.call_tool("save_investigation", args)
+
+        tid, cid = str(uuid4()), str(uuid4())
+        args = {"task_id": tid, "command_id": cid, "event_id": "done-1",
+                "payload": {"report": {"summary": "승인 보고서", "demo": True}}}
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                with patch.dict(os.environ, {
+                    "BACKEND_URL": f"http://127.0.0.1:{server.server_port}",
+                    "INTERNAL_API_KEY": "test-secret",
+                }):
+                    result = anyio.run(call)
+                    self.assertEqual(result.structured_content, {"accepted": True, "duplicate": False})
+                    status[0] = 409
+                    with self.assertRaises(ToolError):
+                        anyio.run(call)
+            finally:
+                server.shutdown()
+                thread.join(timeout=5)
+        path, headers, body = seen[0]
+        self.assertEqual(path, f"/internal/tasks/{tid}/investigation")
+        self.assertEqual(headers["X-Command-ID"], cid)
+        self.assertEqual(headers["X-Internal-Key"], "test-secret")
+        self.assertEqual(body, {"type": "DONE", "event_id": "done-1", "payload": args["payload"]})
 
 
 class EvidenceTest(unittest.TestCase):

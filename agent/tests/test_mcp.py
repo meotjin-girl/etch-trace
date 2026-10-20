@@ -50,3 +50,24 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
     assert seen == [
         ("search_cases", context), ("analyze_metrics", 5), ("search_documents", ["DOC#1"]),
     ]
+
+
+def test_completion_uses_investigation_mcp_and_keeps_retry_ids(monkeypatch):
+    from agent.main import Callback
+    from agent.models import Event
+    business = FastMCP("business")
+    seen = []
+
+    @business.tool
+    def save_investigation(task_id: str, command_id: str, event_id: str,
+                           payload: dict[str, JsonValue]) -> dict[str, bool]:
+        seen.append((task_id, command_id, event_id, payload))
+        return {"accepted": True, "duplicate": False}
+
+    monkeypatch.setattr("agent.main.Client", lambda url: Client(business))
+    monkeypatch.setattr("agent.main.get_config", lambda: {"configurable": {"command_id": "cmd-1"}})
+    callback = Callback("http://unused", "internal", "http://business")
+    event = Event(type="DONE", event_id="done-1", payload={"report": {"demo": True}})
+    callback("task-1", event)
+    callback("task-1", event)
+    assert seen == [("task-1", "cmd-1", "done-1", event.payload)] * 2

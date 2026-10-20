@@ -338,3 +338,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .cause-item { grid-template-columns: 24px 1fr; }
   .cause-item .citation { grid-column: 2; justify-self: start; }
 }
+
+/* Keep the saved report visible while its latest copy is fetched. */
+.record-detail { position: relative; }
+.record-detail.is-refreshing::before {
+  content: ""; position: absolute; top: 0; left: 18px; right: 18px;
+  height: 2px; border-radius: 2px; background: var(--green-soft);
+}
+.record-list-item { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease, transform .18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .record-list-item { transition: none; }
+  .record-list-item:hover { transform: none; }
+}

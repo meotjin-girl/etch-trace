@@ -52,6 +52,8 @@ export function createApi(identity, transport = {}) {
     return data;
   }
   return {
+    history: signal => request("/api/ai/investigations", {signal}),
+    historyDetail: (id, signal) => request(`/api/ai/investigations/${encodeURIComponent(id)}`, {signal}),
     list: signal => request(root, {signal}),
     detail: (id, signal) => request(path(id), {signal}),
     events: (id, after, signal) => request(`${path(id)}/events?after=${after}`, {signal}),

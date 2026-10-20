@@ -99,3 +99,26 @@ The database tests require an explicitly supplied disposable database: they
 seed twice there. Without that variable, they are skipped.
 The remaining tests exercise real MCP dispatch, backend HTTP authentication,
 frontend numeric parity, case/document links and missing-data behavior.
+
+## Approved investigation storage
+
+`save_investigation(task_id, command_id, event_id, payload)` forwards a DONE
+callback to `POST /internal/tasks/{task_id}/investigation` with the internal key
+and command ID. The agent calls it after approval. Payload is the original DONE
+payload, including the reviewed report. Replays must preserve both IDs.
+The backend checks the current command, engineer approval and exact report,
+then saves the reviewed snapshot and DONE event in one transaction. Reviewer,
+lot and event time come from the backend review. Duplicate requests do not
+create another investigation. HTTP/auth/validation failures propagate as tool
+errors. MCP has no investigation database write access.
+
+## History panel reads
+
+The browser calls `GET /api/ai/investigations` and
+`GET /api/ai/investigations/{task_id}`. Backend forwards the authenticated
+identity to Business MCP `list_investigations(user_name,user_role)` or
+`get_investigation(task_id,user_name,user_role)`. MCP calls the corresponding
+`/internal/investigations` endpoint with the internal key. The internal API
+filters to saved approved investigations and enforces worker ownership;
+engineers/admins can read all. Detail contains only the approved report and existing storage metadata;
+conversation, progress events and review timelines are excluded. MCP failures surface as 502, never as an empty history list.
