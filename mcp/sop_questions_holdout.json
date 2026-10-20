@@ -1,0 +1,62 @@
+[
+  {
+    "id": "H1",
+    "category": "paraphrase",
+    "query": "입사 전력에 비해 되돌아오는 전력의 비율로 정상과 경고를 나누는 기준표가 있나?",
+    "expected_ids": ["SPEC-RF-03#2.2"]
+  },
+  {
+    "id": "H2",
+    "category": "paraphrase",
+    "query": "플라즈마에 불을 붙인 직후 반사파가 튀는데 그 구간까지 이상 판정에 넣어야 하나?",
+    "expected_ids": ["SPEC-RF-03#2.3"]
+  },
+  {
+    "id": "H3",
+    "category": "paraphrase",
+    "query": "식각 종료를 알리는 신호가 아예 안 잡혀 제한 시간을 넘겼어. 웨이퍼와 챔버는 어떻게 처리해?",
+    "expected_ids": ["SPEC-EPD-01#6.1"]
+  },
+  {
+    "id": "H4",
+    "category": "paraphrase",
+    "query": "유량계 영점만 틀어진 경우와 실제 가스 공급량이 틀어진 경우, 재조정과 교체를 어떻게 구분하나?",
+    "expected_ids": ["WI-MFC-02#5.5"]
+  },
+  {
+    "id": "H5",
+    "category": "paraphrase",
+    "query": "이온 밀 냉각 가스 유량은 그대로인데 냉각 회로 압력만 기준에서 벗어났다면 무엇을 의심할까?",
+    "expected_ids": ["SOP-FC-01#4.3"]
+  },
+  {
+    "id": "H6",
+    "category": "paraphrase",
+    "query": "습식 세정 뒤 생산 대신 더미 기판을 돌리고 있어. 마지막 기판들의 식각 속도가 얼마나 안정돼야 끝내나?",
+    "expected_ids": ["WI-PM-07#3.6"]
+  },
+  {
+    "id": "H7",
+    "category": "multi",
+    "query": "장비 내부 정비 전에 전기와 가스 등 어떤 에너지원을 확인하고, 잠금과 잔류 에너지 검증은 어떤 순서로 하나?",
+    "expected_ids": ["SOP-SAFE-01#3.1", "SOP-SAFE-01#3.2"]
+  },
+  {
+    "id": "H8",
+    "category": "paraphrase",
+    "query": "플라즈마 식각의 같은 장비·챔버·레시피에서 정상 비교용 run을 찾았는데 두 건뿐이야. 그대로 비교해도 되나?",
+    "expected_ids": ["SOP-ETCH-12#4.3"]
+  },
+  {
+    "id": "H9",
+    "category": "out_of_scope",
+    "query": "이 SOP에서 장비 Z123의 정확한 MFC 교정 인증서 번호와 제조사 교정식을 알려줘.",
+    "expected_ids": []
+  },
+  {
+    "id": "H10",
+    "category": "out_of_scope",
+    "query": "반도체 노광기 투영 렌즈를 교체하는 표준 토크와 부품 번호는?",
+    "expected_ids": []
+  }
+]

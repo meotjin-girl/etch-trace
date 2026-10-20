@@ -11,6 +11,13 @@ dependencies = [
 [tool.uv]
 package = false
 
+[dependency-groups]
+rag-experiment = [
+    "openai>=2,<3",
+    "python-dotenv>=1,<2",
+    "typer>=0.16,<1",
+]
+
 [tool.basedpyright]
 include = ["*.py", "../db/seed.py", "../tests/test_evidence.py"]
 extraPaths = [".", "../db"]

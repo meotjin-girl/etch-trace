@@ -1,0 +1,92 @@
+[
+  {
+    "id": "D1",
+    "category": "direct",
+    "query": "RF reflected power 상승이 반복되면 무엇을 확인해야 하나?",
+    "expected_ids": ["SPEC-RF-03#2.4"]
+  },
+  {
+    "id": "D2",
+    "category": "direct",
+    "query": "압력 변동과 etch rate 저하가 동반되면 무엇을 먼저 점검하나?",
+    "expected_ids": ["WI-MFC-02#5.3"]
+  },
+  {
+    "id": "D3",
+    "category": "direct",
+    "query": "Endpoint 신호 지연 시 window, gain, 광원은 어떤 순서로 점검하나?",
+    "expected_ids": ["SPEC-EPD-01#6.2"]
+  },
+  {
+    "id": "D4",
+    "category": "direct",
+    "query": "챔버 폴리머 누적이나 endpoint window 오염으로 세정할 때 전후 어떤 값을 보존해야 하나?",
+    "expected_ids": ["WI-PM-07#3.1"]
+  },
+  {
+    "id": "D5",
+    "category": "direct",
+    "query": "FlowCool 이상 조사에서 먼저 볼 센서 이름과 순서는?",
+    "expected_ids": ["SOP-FC-01#4.2"]
+  },
+  {
+    "id": "P1",
+    "category": "paraphrase",
+    "query": "반사 전력이 커졌는데 장비를 열기 전에 설정이나 이력에서 확인할 것은?",
+    "expected_ids": ["SPEC-RF-03#3"]
+  },
+  {
+    "id": "P2",
+    "category": "paraphrase",
+    "query": "식각 종료 신호가 점점 늦고 검출되는 빛도 약해졌어. 어디부터 살펴볼까?",
+    "expected_ids": ["SPEC-EPD-01#6.2"]
+  },
+  {
+    "id": "P3",
+    "category": "paraphrase",
+    "query": "가스 유량을 영으로 설정했을 때 계측기 영점이 맞는지 확인하는 절차는?",
+    "expected_ids": ["WI-MFC-02#5.1"]
+  },
+  {
+    "id": "P4",
+    "category": "paraphrase",
+    "query": "챔버 세척 후 더미 웨이퍼로 상태를 안정화하는 작업은 언제 끝내도 돼?",
+    "expected_ids": ["WI-PM-07#3.6"]
+  },
+  {
+    "id": "P5",
+    "category": "paraphrase",
+    "query": "웨이퍼 뒷면 냉각 압력과 진공 챔버 압력이 같이 변하면 어디가 새는지 의심해야 해?",
+    "expected_ids": ["SOP-FC-01#4.3"]
+  },
+  {
+    "id": "M1",
+    "category": "multi",
+    "query": "Endpoint가 12% 지연됐고 RF reflected power도 반복 상승해. 함께 비교할 이력과 RF 점검 대상은?",
+    "expected_ids": ["SOP-ETCH-12#4.2", "SPEC-RF-03#2.4"]
+  },
+  {
+    "id": "M2",
+    "category": "multi",
+    "query": "정상 비교 기준 run을 고를 때 PM 전후를 섞어도 되나? seasoning run 제외와 seasoning 종료 조건도 알려줘.",
+    "expected_ids": ["SOP-ETCH-12#4.3", "WI-PM-07#3.6"]
+  },
+  {
+    "id": "M3",
+    "category": "multi",
+    "query": "독성 가스 MFC를 분리하기 위한 사전 조건은? 가스 차단과 퍼지를 포함한 LOTO 절차도 알려줘.",
+    "expected_ids": ["WI-MFC-02#4", "SOP-SAFE-01#3.2"]
+  },
+  {
+    "id": "O1",
+    "category": "out_of_scope",
+    "query": "포토레지스트 노광 장비의 초점 보정 절차를 알려줘.",
+    "expected_ids": []
+  },
+  {
+    "id": "O2",
+    "category": "out_of_scope",
+    "query": "최신 스마트폰의 출시 가격과 사전 예약 일정은?",
+    "expected_ids": []
+  }
+]
