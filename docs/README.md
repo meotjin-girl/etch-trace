@@ -30,7 +30,7 @@ etch-trace/
 │  ├─ branches.py             # 🆕 분기별 서브그래프 (장비 / 공정 / 불명확)
 │  ├─ tools.py                #   조사 도구 (숫자 계산은 전부 여기)
 │  ├─ db.py                   #   DB 연결 · 이벤트 기록
-│  ├─ schema.sql              #   테이블 정의
+│  ├─ schema.sql              #   테이블 정의 (+ 🆕 engineers, tasks.category·assignee)
 │  ├─ prompts/                #   LLM 지시문 (코드와 분리해 버전 관리)
 │  │  ├─ classify.md          # 🆕 분류 기준
 │  │  ├─ plan_equipment.md    # 🆕 장비 에이전트
@@ -54,10 +54,12 @@ etch-trace/
 
 | # | 작업 | 산출물 | 완료 기준 |
 |---|---|---|---|
-| 1 | 문서·파일 트리 정리, dev 프론트 `frontend/`로 이동 | `docs/*` | 팀이 api.md 보고 연동 시작 가능 |
-| 2 | 장비용 도구 2개 추가 | `tools.py`: `fault_history`, `signal_trend` | `uv run python tools.py` 통과 |
-| 3 | 분류 노드 + 분기 서브그래프 + 분류 검증 | `graph.py`, `branches.py`, `prompts/*` | 장비·공정 run 각 1건이 다른 분기로 감 |
-| 4 | API 반영: `category` 필드, `CLASSIFIED` 이벤트, 분류 정정, CORS | `main.py`, `schema.sql` | `e2e_check.py` 통과 |
-| 5 | 서버 재배포 | EC2 | 외부에서 `/api/ai/tasks` 호출 성공 |
+| 1 | 문서·파일 트리 정리 | `docs/*` | 팀이 api.md 보고 연동 시작 가능 |
+| 2 | 장비용 도구 2개 | `tools.py`: `fault_history`, `signal_trend` | `uv run python tools.py` 통과 |
+| 3 | 대화형 접수: 정보 추출 + 재질문 | `graph.py`: `intake`, `ask` · `POST /messages` | run_id 없이 요청 → QUESTION → 답변 → 진행 |
+| 4 | 분류 + 분기 서브그래프 + 분류 검증 | `graph.py`, `branches.py`, `prompts/*` | 장비·공정 run 각 1건이 다른 분기로 감 |
+| 5 | 담당자 배정 + 접근 제한 | `engineers` 테이블, `assign` 노드, `main.py` 권한 | 비배정 엔지니어 조회 404 · 승인 403, 분류 정정 시 재배정 |
+| 6 | API 마무리: 새 필드·이벤트, CORS, 관리자 배정 | `main.py`, `schema.sql` | `e2e_check.py` 통과 |
+| 7 | 서버 재배포 | EC2 | 외부에서 `/api/ai/tasks` 호출 성공 |
 
 나중에(오늘 범위 밖): MCP 서버 분리, Spring Boot 게이트웨이, Supabase 인증, Kafka 대기열, 장비 데이터 추가 적재.
