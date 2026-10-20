@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SKALA 3일 프로젝트를 위한 반도체 공정 이상 조사 지원 Agent의 기획 의도와 LangGraph 설계 공유 페이지" />
+  <meta name="theme-color" content="#0b1425" />
+  <title>TRACE — 식각 공정 이상 조사 Agent | 팀 기획 공유</title>
+  <style>
+    :root {
+      --ink:#142034; --muted:#5d6b7e; --muted2:#758297; --line:#dfe7f0; --canvas:#f5f8fc;
+      --navy:#0b1425; --teal:#087c83; --teal-light:#d9f7f2; --blue:#2c64cf; --blue-light:#e8efff;
+      --violet:#704bc5; --violet-light:#f0eaff; --amber:#ad6a16; --amber-light:#fff3dc;
+      --red:#bc5962; --red-light:#fff0f0; --white:#ffffff; --radius:18px;
+    }
+    * { box-sizing:border-box; }
+    html {scroll-behavior:smooth; scroll-padding-top:93px}
+    body {margin:0; background:var(--canvas); color:var(--ink); font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size:15px; line-height:1.7; letter-spacing:-.025em;}
+    a {color:inherit; text-decoration:none} button {font:inherit} button:focus-visible,a:focus-visible,[role="button"]:focus-visible {outline:3px solid #3cb3e6;outline-offset:3px}
+    .container {width:min(1180px, calc(100% - 48px)); margin:0 auto;}
+    .topbar {background:rgba(10,19,34,.95); color:#fff; position:sticky; top:0; z-index:50; backdrop-filter:blur(15px);border-bottom:1px solid rgba(255,255,255,.1)}
+    .top-inner {display:flex; gap:28px; align-items:center; height:69px;}
+    .brand {display:flex; align-items:center; gap:11px; flex:0 0 auto; font-size:17px; font-weight:800; letter-spacing:.06em;}
+    .brand-mark {width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#54f1de,#9cb6ff); display:grid;place-items:center;color:#13253d;font-size:19px; font-weight:900;}
+    .brand small {display:block;font-size:9px;font-weight:650;letter-spacing:.18em;color:#a4b7cc;line-height:1.1}
+    .nav-links {display:flex;align-items:center;gap:27px; margin-left:auto; font-size:12.5px;color:#bac8da;font-weight:650;white-space:nowrap}
+    .nav-links a:hover,.nav-links a.active {color:#82e8dc}
+    .header-cta {border:1px solid rgba(162,202,237,.3);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:750;cursor:pointer; background:rgba(255,255,255,.07);color:#fff;white-space:nowrap}
+    .header-cta:hover {background:rgba(255,255,255,.15)}
+    .hero {background:radial-gradient(ellipse at 83% 12%,rgba(19,128,145,.23),transparent 37%),radial-gradient(ellipse at 25% 100%,rgba(69,78,179,.2),transparent 46%),#0b1425;color:#fff;position:relative;overflow:hidden}
+    .hero::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.26;background-image:radial-gradient(#a1d9ea 1px, transparent 1px);background-size:23px 23px;mask-image:linear-gradient(90deg,transparent 30%,#000 100%)}
+    .hero-grid {min-height:484px;display:grid;grid-template-columns:1.13fr .87fr;gap:54px;align-items:center;padding:66px 0 81px;position:relative}
+    .eyebrow {display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#66e3d3}
+    .eyebrow .dot {width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 14px currentColor}
+    h1 {font-size:clamp(34px,4.2vw,56px);line-height:1.28;letter-spacing:-.062em;margin:22px 0 17px;font-weight:850;word-break:keep-all}
+    h1 .accent {color:#74e7db}
+    .hero-copy {color:#becadd;font-size:16px;line-height:1.95;max-width:550px;word-break:keep-all}
+    .hero-actions {display:flex; gap:11px; flex-wrap:wrap; margin-top:27px}
+    .btn {border:0; border-radius:12px; padding:12px 18px; display:inline-flex; align-items:center; justify-content:center;gap:9px;font-weight:770;font-size:13px;cursor:pointer;transition:transform .18s,background .18s;white-space:nowrap}
+    .btn:hover {transform:translateY(-2px)}
+    .btn.primary {background:#77e8dc;color:#082437}.btn.primary:hover{background:#b0f5ed}
+    .btn.ghost {background:rgba(255,255,255,.075);border:1px solid rgba(205,226,240,.25);color:#e5f0fa}
+    .hero-keywords {display:flex;gap:9px;flex-wrap:wrap;margin-top:28px;color:#a8bad0;font-size:11px;font-weight:720}
+    .hero-keywords span {border:1px solid rgba(198,224,246,.18);background:rgba(255,255,255,.045);border-radius:100px;padding:5px 10px}
+    .mock-panel {width:100%;border:1px solid rgba(182,225,242,.23);border-radius:21px;padding:18px;background:linear-gradient(135deg,rgba(23,45,69,.96),rgba(13,29,50,.97));box-shadow:0 26px 90px rgba(0,0,0,.25);transform:rotate(.6deg)}
+    .mock-head {display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(192,216,238,.14);padding-bottom:13px;margin-bottom:14px}
+    .mock-title {display:flex;gap:9px;align-items:center;font-size:12px;font-weight:800;letter-spacing:.04em;color:#e0ebf4}
+    .mock-title::before {content:"";display:inline-block;background:#55d5c7;width:8px;height:8px;border-radius:3px}
+    .mock-badge {color:#f8bc9b;background:rgba(224,117,91,.13);border:1px solid rgba(248,188,155,.28);border-radius:6px;padding:3px 7px;font-size:9px;font-weight:850;letter-spacing:.07em}
+    .signal-head {display:flex;justify-content:space-between;align-items:end;margin-bottom:7px}
+    .signal-head b {font-size:16px;letter-spacing:-.02em} .signal-head small{color:#95a9c2;font-size:10px}
+    .signal-chart {background:rgba(1,15,27,.4);border:1px solid rgba(153,188,211,.1);border-radius:10px;overflow:hidden;height:119px}
+    .mock-rows {display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+    .mock-cell {padding:10px 12px;border:1px solid rgba(170,205,226,.13);border-radius:9px;background:rgba(255,255,255,.035)}
+    .mock-cell small {display:block;color:#91a7bf;font-size:10px;margin-bottom:2px}.mock-cell strong{font-size:13px;letter-spacing:0;color:#dbe8f2}
+    .mock-foot {margin-top:12px;padding:9px 10px;border-radius:8px;background:rgba(49,182,164,.12);color:#94ebda;font-size:10.5px;line-height:1.6}
+    .hero-note {font-size:10px;color:#8dabc0; margin:10px 3px 0}
+    main section {scroll-margin-top:91px}
+    .stats-strip {position:relative;margin-top:-30px;z-index:3;background:#fff;border:1px solid var(--line);box-shadow:0 12px 34px rgba(20,42,71,.08);border-radius:16px;padding:22px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+    .stat {padding:3px 23px;display:flex;gap:16px;align-items:center;border-right:1px solid var(--line)}.stat:last-child{border:0}
+    .stat .stat-num {font-size:28px;font-weight:850;letter-spacing:-.06em;line-height:1.15;color:#0e5065;white-space:nowrap}
+    .stat .stat-text{font-size:12px;color:var(--muted);line-height:1.55}.stat .stat-text strong{display:block;color:#243750;font-size:13px}
+    .section {padding:87px 0 0}
+    .section-kicker{color:var(--teal);font-size:11px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+    .section-heading{margin:0 0 12px;font-size:clamp(26px,3vw,35px);font-weight:850;line-height:1.36;letter-spacing:-.055em;word-break:keep-all}
+    .section-lead{color:var(--muted);font-size:14px;max-width:830px;line-height:1.9;word-break:keep-all}
+    .hypothesis {margin-top:24px;display:flex;align-items:start;gap:13px;background:#e8f3f8;border:1px solid #cce6ee;border-radius:13px;padding:15px 18px;color:#355769;font-size:12.5px;line-height:1.8}
+    .hypothesis .h-icon{font-size:18px;color:#17798d}
+    .hypothesis strong {color:#164a5b}
+    .split-cards{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-top:28px}
+    .surface-card {background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 4px 20px rgba(25,45,73,.025)}
+    .before,.after{padding:28px 26px 25px}
+    .card-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:850;font-size:17px}
+    .head-tag {font-size:10px;font-weight:850;letter-spacing:.08em;border-radius:100px;padding:4px 9px}
+    .before .head-tag{background:#f1f3f6;color:#687386}.after .head-tag{background:#d8f7ed;color:#077f6d}
+    .process-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+    .process-list li{position:relative;display:flex;gap:12px;align-items:center;padding:11px 13px;border:1px solid #e5ebf2;border-radius:10px;background:#fbfdff;font-size:13px;font-weight:650}
+    .process-list .index {background:#edf1f6;color:#68798d;border-radius:7px;padding:2px 8px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+    .after .process-list .index{background:#e1f6f2;color:#168177}
+    .process-list .actor {font-size:10px;color:#79889c;margin-left:auto;text-align:right;white-space:nowrap}
+    .card-foot {margin:18px 2px 0;color:var(--muted);font-size:12px;line-height:1.8}
+    .principles {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px}
+    .principle{background:#fff;border:1px solid var(--line);border-radius:15px;padding:23px}
+    .principle .pnum{display:block;font-size:11px;font-weight:850;color:var(--teal);letter-spacing:.09em;margin-bottom:13px}
+    .principle strong{font-size:15px;line-height:1.6}.principle p{font-size:12.5px;color:var(--muted);line-height:1.85;margin:9px 0 0;word-break:keep-all}
+    .scope-grid {display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:27px}
+    .scope-panel {padding:26px;border:1px solid var(--line);border-radius:16px;background:#fff}
+    .scope-panel.good{border-top:3px solid #16ac96}.scope-panel.no{border-top:3px solid #e7a061}
+    .scope-panel h3{font-size:15px;margin:0 0 13px;display:flex;gap:8px;align-items:center}
+    .scope-panel ul{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+    .scope-panel li{display:flex;align-items:start;gap:9px;font-size:12.5px;color:#48596d}
+    .tick{font-size:13px;font-weight:900;color:#109885}.scope-panel.no .tick{color:#bb7b33}
+    .graph-section {padding:88px 0 0}
+    .graph-header-row{display:flex;gap:22px;justify-content:space-between;align-items:end}
+    .graph-card {position:relative;left:50%;transform:translateX(-50%);width:min(1500px,calc(100vw - 44px));margin-top:27px;border:1px solid #d8e4ee;border-radius:19px;background:#fff;overflow:hidden;box-shadow:0 18px 52px rgba(17,40,66,.08)}
+    .graph-top {padding:16px 19px;display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border-bottom:1px solid #e7edf4}
+    .graph-top .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .mono-tag{border-radius:8px;background:#0f2335;color:#7be0d2;padding:6px 10px;font-size:11px;font-weight:800;letter-spacing:.03em}
+    .graph-top .hint{font-size:12px;color:#728196}
+    .legend{display:flex;gap:13px;flex-wrap:wrap;font-size:10.5px;color:#697b8e}
+    .legend span{display:flex;align-items:center;gap:5px;white-space:nowrap}.legend b{width:8px;height:8px;border-radius:3px;display:inline-block}
+    .graph-body{display:grid;grid-template-columns:minmax(0,1fr) 310px;min-height:790px}
+    .graph-viewport{overflow:auto;background-color:#f9fbfd;background-image:radial-gradient(#d9e3ee 1px, transparent 1px);background-size:18px 18px;position:relative;}
+    .graph-canvas{width:1150px;height:812px;display:block;max-width:none}
+    .svg-edge{fill:none;stroke:#97a9b9;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .svg-edge.branch{stroke:#90a6ba;stroke-dasharray:6 5}
+    .svg-edge.label-end{stroke:#6e849a}
+    .svg-label rect{fill:#f8fbff;stroke:#e4ebf2;rx:7}
+    .svg-label text{fill:#526679;font-family:inherit;font-size:11px;font-weight:730;letter-spacing:-.02em}
+    .graph-node {cursor:pointer;outline:none;}
+    .graph-node .nbox,.graph-node .ndiamond{stroke-width:1.5;transition:stroke-width .16s,stroke .16s,filter .16s}
+    .graph-node:hover .nbox,.graph-node:hover .ndiamond{stroke-width:2.5;filter:drop-shadow(0px 3px 6px rgba(15,45,73,.1))}
+    .graph-node.selected .nbox,.graph-node.selected .ndiamond{stroke:#176ea8;stroke-width:3.5;filter:drop-shadow(0px 5px 9px rgba(22,110,168,.18))}
+    .graph-node text{pointer-events:none;font-family:inherit;fill:#192c40;letter-spacing:-.04em}
+    .graph-node .node-title{font-weight:850;font-size:14px}
+    .graph-node .node-sub{font-size:10.5px;fill:#62778a;font-weight:600;letter-spacing:0}
+    .graph-node.human .node-title{fill:#6d4514}
+    .graph-node.tool .node-title{fill:#146c72}
+    .graph-node .node-cap{fill:#fff!important;font-size:12px;font-weight:850;letter-spacing:.04em}
+    .graph-node.start .node-title,.graph-node.end .node-title{fill:#fff}
+    .graph-node.start .node-sub,.graph-node.end .node-sub{fill:#bedbdc}
+    .inspector{background:#fff;border-left:1px solid #e5ecf3;display:flex;flex-direction:column;min-width:0}
+    .inspector-head{padding:23px 22px 19px;border-bottom:1px solid #edf1f5}
+    .inspector-counter{font-size:10px;color:#8291a4;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+    .inspector-badge {display:inline-flex;align-items:center;border-radius:100px;padding:4px 9px;font-size:10px;font-weight:800;margin:12px 0 8px;background:#edf3ff;color:#3b64a3}
+    .inspector h3{margin:0;font-size:22px;letter-spacing:-.05em;line-height:1.4;word-break:keep-all}
+    .inspector p{font-size:12.5px;color:#516278;line-height:1.85;margin:10px 0 0;word-break:keep-all}
+    .inspector-body{padding:20px 22px;flex:1}
+    .info-label{margin:0 0 5px;font-size:10px;font-weight:850;color:#8091a3;text-transform:uppercase;letter-spacing:.12em}
+    .info-content{font-size:12px;color:#31445b;line-height:1.75;margin:0 0 17px;white-space:pre-line;word-break:keep-all}
+    .info-example{padding:13px;border-radius:10px;background:#f4f7fc;border:1px solid #e5ebf3;color:#30475d;font-size:11.5px;line-height:1.8;white-space:pre-line;word-break:keep-all}
+    .inspector-controls{display:flex;gap:7px;padding:14px 20px;border-top:1px solid #e8eef5}
+    .inspector-controls button {border:1px solid #dae5f0;background:#fff;color:#33506e;padding:9px 10px;flex:1;border-radius:9px;cursor:pointer;font-weight:800;font-size:11.5px}
+    .inspector-controls button:last-child{background:#12293e;color:#fff;border-color:#12293e}.inspector-controls button:hover{background:#e8f3f8;color:#163852}.inspector-controls button:last-child:hover{background:#1f4962;color:white}
+    .graph-note{border-top:1px solid #e8eef5;background:#f7fafc;padding:15px 21px;color:#687b8c;font-size:11.5px;line-height:1.8}
+    .graph-note strong{color:#245169}
+    .toolset {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:18px}
+    .tool-item{background:#fff;border:1px solid var(--line);padding:17px 16px;border-radius:14px;min-width:0}
+    .tool-item code{display:block;color:#057c7e;font-size:11px;font-weight:760;white-space:normal;overflow-wrap:anywhere;line-height:1.5;margin-bottom:12px}
+    .tool-item strong{font-size:12.5px}.tool-item p{font-size:11.5px;line-height:1.7;color:#66778a;margin:8px 0 0}
+    .tool-item:last-child{background:#f7f5ff;border-color:#e5dbfc}.tool-item:last-child code{color:#744eb0}
+    .mini-note{color:#728196;font-size:11.5px;line-height:1.85;margin:17px 2px 0}
+    .scenario-card{margin-top:26px;border:1px solid var(--line);border-radius:18px;background:#fff;overflow:hidden;display:grid;grid-template-columns:.85fr 1.15fr}
+    .scenario-sidebar{padding:28px;background:#10263b;color:#f0f8fd;display:flex;flex-direction:column;gap:13px}
+    .scenario-label {font-size:10px;color:#64e2d0;letter-spacing:.1em;font-weight:850}
+    .scenario-sidebar blockquote{padding:0;border:0;margin:2px 0;font-size:22px;line-height:1.6;font-weight:750;letter-spacing:-.05em;word-break:keep-all}
+    .scenario-sidebar .scenario-caption{color:#a0b5ca;font-size:11.5px;line-height:1.8;margin-top:auto}
+    .scenario-stage{display:grid;gap:0;padding:23px 27px}
+    .scenario-step{display:grid;grid-template-columns:42px 1fr;gap:15px;position:relative;padding:8px 0 20px}
+    .scenario-step:not(:last-child)::before{content:"";position:absolute;left:20px;top:42px;bottom:2px;width:1px;background:#dde6ed}
+    .scenario-num{width:41px;height:41px;border:1px solid #cfe2ee;background:#eff7fb;color:#187080;display:grid;place-items:center;border-radius:12px;font-size:12px;font-weight:900}
+    .scenario-step strong{font-size:14px;line-height:1.5}.scenario-step p{margin:5px 0 0;font-size:12px;color:#627589;line-height:1.8;word-break:keep-all}
+    .output-preview{margin-top:23px;padding:22px;border:1px solid #dbe7ef;border-radius:16px;background:linear-gradient(130deg,#fff,#f9fcff)}
+    .output-preview h3{margin:0 0 15px;font-size:15px;display:flex;gap:9px;align-items:center}
+    .output-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .output-box{border:1px solid #e2eaf2;background:#fff;padding:15px;border-radius:11px}
+    .output-box span{color:#718095;font-size:10px;font-weight:750}.output-box strong{display:block;font-size:13px;margin-top:6px;line-height:1.6}.output-box small{font-size:11px;color:#6d8090;display:block;margin-top:6px}
+    .datasources{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-top:25px}
+    .data-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:9px}
+    .data-card header{display:flex;align-items:center;gap:9px}.data-card header b{font-size:15px}.source-tag{display:inline-block;border-radius:7px;background:#eaf3f6;color:#23707b;font-size:10px;padding:3px 7px;font-weight:850;letter-spacing:.01em}
+    .data-card p {font-size:12.5px;color:#5c6f81;line-height:1.8;margin:0;flex:1}
+    .data-card .data-alert{border-radius:9px;background:#fff9eb;border:1px solid #f2e6c6;padding:10px 12px;color:#8c6c3c;font-size:11px;line-height:1.7}
+    .data-card a{color:#146b92;font-size:11.5px;font-weight:800;text-decoration:underline;text-underline-offset:3px;align-self:start}
+    .evaluation{margin-top:24px;overflow-x:auto;border:1px solid var(--line);border-radius:15px;background:#fff}
+    .evaluation table{border-collapse:collapse;width:100%;min-width:680px}
+    .evaluation th{text-align:left;font-size:11.5px;color:#5f7286;background:#f2f6fa;padding:15px 18px;font-weight:800;border-bottom:1px solid #e0e8f0}
+    .evaluation td{font-size:12px;line-height:1.75;padding:17px 18px;border-bottom:1px solid #e9eef4;color:#45596d;vertical-align:top}
+    .evaluation tr:last-child td{border:0}.evaluation td:first-child{font-weight:750;color:#1a3a4e;white-space:nowrap}
+    .roadmap{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:24px}
+    .daycard{border:1px solid var(--line);border-radius:16px;background:#fff;padding:25px;position:relative;overflow:hidden}
+    .daycard::after{content:"";width:110px;height:110px;border-radius:50%;position:absolute;top:-54px;right:-55px;background:#d9f6f1;opacity:.72}
+    .daycard:nth-child(2)::after{background:#e7eaff}.daycard:nth-child(3)::after{background:#ffedda}
+    .day{font-size:11px;color:#18847b;font-weight:850;letter-spacing:.12em}.daycard h3{font-size:18px;line-height:1.5;letter-spacing:-.04em;margin:7px 0 13px}.daycard ul{margin:0;padding-left:18px;color:#5c6e82;font-size:12px;line-height:2}
+    .success{margin-top:18px;border-top:1px solid #e6ecf2;padding-top:12px;font-size:11.5px;font-weight:770;color:#1d687b;line-height:1.7}
+    .decisions{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-top:24px}
+    .decision{border:1px solid #e2eaf1;border-radius:13px;background:#fff;padding:18px;display:flex;gap:12px;align-items:start}
+    .decision i{font-style:normal;border-radius:50%;font-size:11px;display:inline-grid;place-items:center;height:23px;width:23px;background:#eaf3f8;color:#24718e;font-weight:900;flex:0 0 auto}
+    .decision strong{font-size:12.5px;line-height:1.65}.decision p{font-size:11.5px;color:#667a8c;margin:6px 0 0;line-height:1.75}
+    .footer{margin-top:94px;background:#0b1425;padding:49px 0 38px;color:#aebbd0}
+    .footer-inner{display:flex;justify-content:space-between;gap:30px;align-items:end}.footer h2{font-size:22px;color:#e9f8fb;margin:0 0 7px;letter-spacing:-.035em}.footer p{font-size:12px;line-height:1.8;margin:0}.footer .footnote{text-align:right;color:#8196ad;font-size:11px}
+    .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media (min-width:1071px) { .graph-canvas{width:100%;height:auto;min-width:1010px} }
+    @media (max-width:1070px) {
+      .top-inner{gap:16px}.nav-links{gap:16px}
+      .hero-grid{grid-template-columns:1fr .95fr;gap:28px}
+      .graph-body{grid-template-columns:1fr}.graph-viewport{max-height:590px}.inspector{border-top:1px solid #e6edf5;border-left:0;display:grid;grid-template-columns:1fr 1fr}
+      .inspector-head{border-bottom:0;border-right:1px solid #edf1f5}.inspector-controls{grid-column:1 / -1}
+      .toolset{grid-template-columns:repeat(3,1fr)}
+      .stats-strip .stat{padding:2px 13px}
+    }
+    @media (max-width:740px) {
+      html{scroll-padding-top:74px}.container{width:min(100% - 30px,1180px)}.top-inner{height:60px}.topbar .nav-links{display:none}.header-cta{margin-left:auto}
+      .hero-grid{grid-template-columns:1fr;gap:27px;padding:48px 0 62px}.hero h1{margin-top:15px}.hero-copy{font-size:14px}.mock-panel{max-width:500px;transform:none}.hero-keywords{margin-top:22px}
+      .stats-strip{grid-template-columns:1fr;margin-top:-18px;padding:8px 16px}.stat{padding:13px 7px!important;border-right:0;border-bottom:1px solid #e5edf4}.stat:last-child{border:0}.stat .stat-num{font-size:22px;min-width:78px}
+      .section,.graph-section{padding-top:65px}.split-cards,.scope-grid,.scenario-card,.datasources{grid-template-columns:1fr}.principles,.roadmap,.decisions{grid-template-columns:1fr}.toolset{grid-template-columns:1fr 1fr}
+      .graph-top{padding:13px}.graph-viewport{max-height:545px}.graph-canvas{width:1150px}.inspector{display:block}.inspector-head{border-right:0;border-bottom:1px solid #edf1f5;padding:21px}.inspector-body{padding:17px 21px}.legend{gap:8px}.output-grid{grid-template-columns:1fr}
+      .scenario-sidebar{min-height:200px;padding:24px}.scenario-stage{padding:19px}.section-lead{font-size:13px}.footer-inner{display:block}.footer .footnote{text-align:left;margin-top:15px}
+    }
+    @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.btn{transition:none}}
+    @media print {
+      @page {size:A4;margin:12mm}body{background:white!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;font-size:11px}
+      .topbar,.hero-actions,.header-cta,.inspector-controls{display:none!important}.hero{background:#0b1425!important}.hero-grid{min-height:0;padding:35px 0}.mock-panel{display:none}.stats-strip{margin-top:0;box-shadow:none}
+      .section,.graph-section{padding-top:35px;break-inside:auto}.surface-card,.principle,.scope-panel,.data-card,.daycard,.decision{break-inside:avoid}
+      .graph-body{display:block}.graph-viewport{overflow:visible;max-height:none}.graph-canvas{width:100%;height:auto;max-width:100%}.inspector{display:none}.graph-note{display:block}.footer{margin-top:40px}
+      .scope-grid,.split-cards,.datasources{grid-template-columns:1fr 1fr}.principles,.roadmap,.decisions{grid-template-columns:repeat(3,1fr)}
+      a[href]:after{content:""}
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container top-inner">
+      <a class="brand" href="#top" aria-label="TRACE 홈">
+        <span class="brand-mark" aria-hidden="true">⌁</span>
+        <span>TRACE<small>ETCH INVESTIGATION AGENT</small></span>
+      </a>
+      <nav class="nav-links" aria-label="페이지 목차">
+        <a href="#why">기획 의도</a><a href="#scope">MVP 범위</a><a href="#graph">LangGraph</a><a href="#demo">사용 시나리오</a><a href="#plan">개발 계획</a>
+      </nav>
+      <button class="header-cta" id="printBtn" type="button" aria-label="이 페이지 인쇄 또는 PDF 저장">↗ PDF로 공유</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <div class="hero">
+      <div class="container hero-grid">
+        <div>
+          <div class="eyebrow"><span class="dot"></span> SKALA · TEAM PROJECT CONCEPT · v0.1</div>
+          <h1>이상을 발견한 뒤,<br />엔지니어가 하는 <span class="accent">‘조사’</span>를<br />줄인다.</h1>
+          <div class="hero-copy">식각 공정의 이상 징후가 나타났을 때, 관련 run을 찾고 수치를 비교하고 문서 근거를 모으는 반복 업무. <strong style="color:#eafefc">LangGraph Agent가 조사 과정을 수행하고, 사람은 판단과 승인에 집중</strong>하도록 설계합니다.</div>
+          <div class="hero-actions"><a class="btn primary" href="#graph">LangGraph 살펴보기 <span aria-hidden="true">↗</span></a><a class="btn ghost" href="#scope">3일 MVP 범위 보기 <span aria-hidden="true">↓</span></a></div>
+          <div class="hero-keywords"><span>LangGraph</span><span>공개 데이터 기반</span><span>Data + RAG</span><span>Human-in-the-loop</span></div>
+        </div>
+        <div>
+          <div class="mock-panel" aria-label="조사 화면 목업">
+            <div class="mock-head"><div class="mock-title">INVESTIGATION / RUN-184</div><span class="mock-badge">REVIEW NEEDED</span></div>
+            <div class="signal-head"><div><small>ET-02 · RECIPE R-17</small><br /><b>Signal comparison</b></div><small>reference vs current</small></div>
+            <div class="signal-chart">
+              <svg viewBox="0 0 470 118" width="100%" height="100%" aria-hidden="true" preserveAspectRatio="none">
+                <g stroke="#28465d" stroke-width=".8" opacity=".6"><path d="M0 28H470M0 58H470M0 88H470M45 0V118M95 0V118M145 0V118M195 0V118M245 0V118M295 0V118M345 0V118M395 0V118M445 0V118"/></g>
+                <path d="M0 72L22 73L42 69L63 72L82 71L101 68L122 71L142 70L164 68L185 70L204 67L227 71L249 72L268 69L292 70L312 72L338 70L364 72L387 70L410 73L435 70L470 71" fill="none" stroke="#3db49e" stroke-width="2.3" stroke-linejoin="round"/>
+                <path d="M0 74L22 72L42 69L63 73L82 71L101 69L122 72L142 70L164 72L185 67L204 62L227 51L249 41L268 44L292 31L312 37L338 27L364 32L387 26L410 37L435 31L470 36" fill="none" stroke="#f2b26e" stroke-width="2.4" stroke-linejoin="round"/>
+                <path d="M204 0V118" stroke="#f3ba89" stroke-width="1.2" stroke-dasharray="4 5"/>
+                <rect x="211" y="7" width="90" height="20" rx="5" fill="#56463b"/><text x="220" y="21" font-size="10" fill="#fbd6a8">관찰된 편차</text>
+              </svg>
+            </div>
+            <div class="mock-rows"><div class="mock-cell"><small>참조 조건</small><strong>동일 recipe · step</strong></div><div class="mock-cell"><small>증거 수집</small><strong>통계 + 문서 출처</strong></div><div class="mock-cell"><small>Agent의 역할</small><strong>비교 · 조회 · 정리</strong></div><div class="mock-cell"><small>사람의 역할</small><strong>검토 · 최종 승인</strong></div></div>
+            <div class="mock-foot">● 원인 확정 불가 — 확인된 관측값과 조사 가설을 구분해 보고합니다.</div>
+          </div>
+          <div class="hero-note">* 우측 화면·run·신호는 이해를 돕기 위한 가상 목업입니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="stats-strip" aria-label="프로젝트 핵심 정보">
+        <div class="stat"><span class="stat-num">03<span style="font-size:14px;letter-spacing:-.02em"> DAYS</span></span><span class="stat-text"><strong>교육용 MVP</strong>짧고 검증 가능한 범위</span></div>
+        <div class="stat"><span class="stat-num">01</span><span class="stat-text"><strong>주요 Agent</strong>조사 판단 + 검증된 도구</span></div>
+        <div class="stat"><span class="stat-num">HITL</span><span class="stat-text"><strong>사람의 검토</strong>근거 확인 후 기록 확정</span></div>
+      </div>
+    </div>
+
+    <section id="why" class="section container">
+      <p class="section-kicker">01 / Why this agent</p>
+      <h2 class="section-heading">문제는 ‘이상 감지’ 이후에 있습니다.</h2>
+      <p class="section-lead">이상이 감지되면 엔지니어는 여러 데이터와 문서를 오가며 원인을 탐색합니다. 우리는 그 과정에서 반복될 것으로 예상되는 <strong>조회·비교·근거 수집·보고서 초안 작성</strong>을 자동화 대상으로 봅니다.</p>
+      <div class="hypothesis"><span class="h-icon" aria-hidden="true">ⓘ</span><div><strong>검증 전 문제 가설입니다.</strong> 실제 반도체 팹의 평균 조사 시간이나 휴리스틱 의존 비율을 측정한 것은 아닙니다. 이 프로젝트는 공개 데이터로 조사 업무를 재현하고, 자동화 가능성을 시험합니다.</div></div>
+      <div class="split-cards">
+        <article class="surface-card before"><div class="card-head"><span class="head-tag">AS-IS · 가정한 업무</span> 조사자가 직접 수행</div>
+          <ol class="process-list"><li><span class="index">01</span> 이상 run의 조건·이력 확인 <span class="actor">사람</span></li><li><span class="index">02</span> 비교 가능한 과거 run 탐색 <span class="actor">사람</span></li><li><span class="index">03</span> 신호 차이 계산 및 시각화 <span class="actor">사람</span></li><li><span class="index">04</span> 관련 문서 검색, 조사 결과 정리 <span class="actor">사람</span></li></ol>
+          <p class="card-foot">사람은 데이터를 찾고 정리하는 시간과 실제 현상을 판단하는 시간을 함께 사용하게 됩니다.</p>
+        </article>
+        <article class="surface-card after"><div class="card-head"><span class="head-tag">TO-BE · 제안</span> Agent가 조사 지원</div>
+          <ol class="process-list"><li><span class="index">01</span> 대상과 조건 확인 <span class="actor">Agent</span></li><li><span class="index">02</span> 비교 대상 자동 탐색 <span class="actor">Tool</span></li><li><span class="index">03</span> 통계 분석 및 문서 근거 검색 <span class="actor">Tool + RAG</span></li><li><span class="index">04</span> 근거 기반 보고서 작성 및 검토 <span class="actor">Agent → 사람</span></li></ol>
+          <p class="card-foot">Agent가 단순 반복 작업을 맡되, 원인 확정과 공정 변경은 자동으로 수행하지 않습니다.</p>
+        </article>
+      </div>
+      <div class="principles">
+        <div class="principle"><span class="pnum">PRINCIPLE 01</span><strong>숫자는 코드가 계산</strong><p>LLM이 CSV를 읽고 수치를 추측하지 않습니다. 통계 함수의 결과를 근거로 표현합니다.</p></div>
+        <div class="principle"><span class="pnum">PRINCIPLE 02</span><strong>정보를 찾되, 원인을 단정하지 않음</strong><p>관측 사실, 관련 후보, 미확인 가설을 구분합니다. 데이터가 부족하면 부족하다고 답합니다.</p></div>
+        <div class="principle"><span class="pnum">PRINCIPLE 03</span><strong>반복 조사는 Agent, 기록 확정은 사람</strong><p>상태를 유지하면서 추가 조회하고, 승인 이후에만 최종 조사 기록을 저장합니다.</p></div>
+      </div>
+    </section>
+
+    <section id="scope" class="section container">
+      <p class="section-kicker">02 / Product boundary</p>
+      <h2 class="section-heading">우리는 ‘원인 판정 AI’를 만들지 않습니다.</h2>
+      <p class="section-lead">3일 안에 구현하고 평가할 수 있는 부분을 명시적으로 제한합니다. 도메인 전문지식이 부족한 상태에서 실제 공정 판단을 대신하는 척하지 않습니다.</p>
+      <div class="scope-grid">
+        <div class="scope-panel good"><h3><span style="color:#06967e;font-size:20px">✓</span> 이번 MVP에 포함</h3><ul>
+          <li><span class="tick">✓</span><span>장비·run·recipe·step 등 분석 맥락 확인</span></li>
+          <li><span class="tick">✓</span><span>비교 가능한 참조 run 탐색</span></li>
+          <li><span class="tick">✓</span><span>결측률·변화량·기초 통계 비교</span></li>
+          <li><span class="tick">✓</span><span>공개 매뉴얼 또는 데이터 설명서 근거 검색</span></li>
+          <li><span class="tick">✓</span><span>추가 조사 / 재질문 / 보고서 작성 분기</span></li>
+          <li><span class="tick">✓</span><span>사람 승인 이후 조사 기록 저장</span></li>
+        </ul></div>
+        <div class="scope-panel no"><h3><span style="color:#b87937;font-size:20px">—</span> 이번 MVP에서 제외</h3><ul>
+          <li><span class="tick">—</span><span>식각 선택비 예측 또는 최적 레시피 추천</span></li>
+          <li><span class="tick">—</span><span>원인에 대한 인과적 확정</span></li>
+          <li><span class="tick">—</span><span>실제 장비 제어 및 공정 조건 변경</span></li>
+          <li><span class="tick">—</span><span>실제 팹의 생산성 개선 효과 주장</span></li>
+          <li><span class="tick">—</span><span>대규모 멀티 Agent·복잡한 인증 인프라</span></li>
+          <li><span class="tick">—</span><span>고장 기록의 시점을 실제 고장 시작 시점으로 단정</span></li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="graph" class="graph-section container">
+      <p class="section-kicker">03 / LangGraph architecture</p>
+      <h2 class="section-heading">LangGraph 실행 흐름</h2>
+      <p class="section-lead">핵심은 <strong>“어떤 정보를 다음에 확인할지 Agent가 결정한다”</strong>는 점입니다. 분석·검색은 결정론적인 도구가 담당하며, 결과를 검증한 뒤 계속 조사할지 종료할지 분기합니다. <strong>노드를 클릭하면 각 단계의 책임을 확인할 수 있습니다.</strong></p>
+      <div class="graph-card">
+        <div class="graph-top"><div class="left"><span class="mono-tag">StateGraph / proposal</span><span class="hint">← 그래프를 가로로 스크롤할 수 있습니다 · 노드 선택 가능</span></div>
+          <div class="legend" aria-label="그래프 범례"><span><b style="background:#7e55cf"></b>Agent 판단</span><span><b style="background:#39a6ae"></b>도구</span><span><b style="background:#3d7bd1"></b>검증·작성</span><span><b style="background:#e1a94e"></b>사람 개입</span><span><b style="background:#dc7d8b"></b>조건 분기</span></div>
+        </div>
+        <div class="graph-body">
+          <div class="graph-viewport" id="graphViewport" tabindex="0" aria-label="LangGraph 실행 흐름도. 가로 스크롤하여 탐색 가능">
+            <svg class="graph-canvas" id="graphSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 812" aria-label="실행 흐름: 시작, 요청확인, 조사계획, 네 가지 조회 분석 도구, 검증 및 증거 축적, 조사 지속 여부, 결과 작성, 사람 검토, 승인 후 저장, 종료"></svg>
+          </div>
+          <aside class="inspector" aria-live="polite" aria-atomic="true">
+            <div class="inspector-head"><div class="inspector-counter" id="inspectCounter">STEP 03 / 13</div><div class="inspector-badge" id="inspectBadge">AGENT · 판단</div><h3 id="inspectTitle">다음 조사 행동 선택</h3><p id="inspectDesc">현재 상태를 보고 어떤 도구를 호출할지 선택합니다.</p></div>
+            <div class="inspector-body"><div class="info-label">입력 / 조건</div><p class="info-content" id="inspectInput"></p><div class="info-label">출력 / 효과</div><p class="info-content" id="inspectOutput"></p><div class="info-label">실행 예시</div><div class="info-example" id="inspectExample"></div></div>
+            <div class="inspector-controls"><button type="button" id="prevNode">← 이전 노드</button><button type="button" id="nextNode">다음 노드 →</button></div>
+          </aside>
+        </div>
+        <div class="graph-note"><strong>설계상 안전장치:</strong> 조회는 지정된 시점의 데이터로 제한하고, 통계는 코드가 계산합니다. 조사 횟수가 소진되거나 근거가 부족하면 미완료 상태를 명시합니다. <strong>save_investigation은 최초 도구 선택 목록에서 제외하고, 사람 승인 이후에만 호출</strong>합니다. 이 흐름은 실행 코드가 아닌 설계도입니다.</div>
+      </div>
+      <div class="toolset">
+        <div class="tool-item"><code>get_run_context()</code><strong>대상 정보 조회</strong><p>run, 장비, recipe, step, 시점 등 분석 맥락 확보</p></div>
+        <div class="tool-item"><code>find_reference_runs()</code><strong>참조 구간 선택</strong><p>비교 조건이 일치하는 데이터 선별</p></div>
+        <div class="tool-item"><code>compare_signals()</code><strong>측정 신호 비교</strong><p>결측률, 분포, 차이 등을 Python으로 계산</p></div>
+        <div class="tool-item"><code>search_knowledge()</code><strong>근거 문서 검색</strong><p>데이터 사전, 설명서, 관련 문구 검색(RAG)</p></div>
+        <div class="tool-item"><code>save_investigation()</code><strong>승인 후 기록 저장</strong><p>근거와 불확실성을 포함한 결과 보관</p></div>
+      </div>
+      <p class="mini-note">MCP 사용은 배포 방식의 선택입니다. 도구를 Python 함수로 직접 연결해도 LangGraph MVP 구현이 가능하며, 과제 요구가 있으면 일부 도구를 MCP Server로 분리할 수 있습니다.</p>
+    </section>
+
+    <section id="demo" class="section container">
+      <p class="section-kicker">04 / User journey</p>
+      <h2 class="section-heading">사용자가 요청하면 이렇게 동작합니다.</h2>
+      <p class="section-lead">아래는 실측 분석 결과가 아니라, 기능을 설명하기 위한 <strong>가상 데모 시나리오</strong>입니다. 실제 데이터셋의 필드와 라벨에 따라 시연 내용은 조정합니다.</p>
+      <div class="scenario-card">
+        <div class="scenario-sidebar"><span class="scenario-label">DEMO REQUEST · FICTIONAL</span><blockquote>“장비 ET-02의 run-184가 이상해 보여요. 같은 레시피의 이전 run과 비교하고 조사 보고서를 만들어 주세요.”</blockquote><p class="scenario-caption">사용자는 복잡한 SQL이나 분석 스크립트를 모르더라도 조사를 시작할 수 있습니다. 최종 판단은 사용자에게 남습니다.</p></div>
+        <div class="scenario-stage">
+          <div class="scenario-step"><div class="scenario-num">01</div><div><strong>조건 확인</strong><p>실제 비교를 위해 같은 recipe뿐 아니라 step과 측정 시점을 확인합니다. 빠진 조건이 있다면 물어봅니다.</p></div></div>
+          <div class="scenario-step"><div class="scenario-num">02</div><div><strong>데이터 조회 + 계산</strong><p>참조 run을 고르고 압력·유량 등의 가용한 신호를 비교합니다. 수치 계산과 데이터 검증은 Python 코드가 수행합니다.</p></div></div>
+          <div class="scenario-step"><div class="scenario-num">03</div><div><strong>문서 근거 검색</strong><p>해당 신호의 정의·제약·의미를 데이터 사전과 공개 문서에서 찾습니다. 관련 근거가 없다면 불확실성을 남깁니다.</p></div></div>
+          <div class="scenario-step"><div class="scenario-num">04</div><div><strong>보고서 → 사람 승인</strong><p>비교 사실, 가능한 추가 확인 사항, 모르는 부분을 정리합니다. 사용자가 검토한 후 기록합니다.</p></div></div>
+        </div>
+      </div>
+      <div class="output-preview"><h3>▤ &nbsp; 최종 조사 보고서에 담길 내용</h3><div class="output-grid">
+        <div class="output-box"><span>01 / FACTS</span><strong>어떤 조건을 비교했는가?</strong><small>선택한 run ID·recipe·step·통계 결과와 계산 기준</small></div>
+        <div class="output-box"><span>02 / EVIDENCE</span><strong>무슨 근거로 말하는가?</strong><small>분석 데이터 경로·문서 ID·미확인 정보</small></div>
+        <div class="output-box"><span>03 / NEXT ACTION</span><strong>무엇을 추가 확인해야 하는가?</strong><small>가능한 후속 조회와 사람의 판단이 필요한 지점</small></div>
+      </div></div>
+    </section>
+
+    <section id="data" class="section container">
+      <p class="section-kicker">05 / Data strategy</p>
+      <h2 class="section-heading">공개 데이터로 검증하되, 한계를 숨기지 않습니다.</h2>
+      <p class="section-lead">우선순위는 ‘반도체’라는 이름보다 <strong>분석 가능한 구조와 해석 가능한 필드</strong>입니다. 첫날 자료를 실제로 내려받아 열어본 뒤 어떤 주장을 할 수 있는지 결정합니다.</p>
+      <div class="datasources">
+        <article class="data-card"><header><span class="source-tag">우선 검토</span><b>PHM Society 2018 Data Challenge</b></header><p>이온 밀 식각 장비 관련 시계열·운영 맥락을 제공하는 공개 과제 자료. 장비·recipe·step 등 설명 가능한 항목이 있는지 확인하고, 소수 run부터 분석합니다.</p><div class="data-alert">주의: 데이터 접근·로딩을 첫날 확인해야 합니다. 원본 기록에 없는 물리 단위·정확한 고장 시작 시각·인과 관계를 만들어 내지 않습니다.</div><a href="https://phmsociety.org/wp-content/uploads/2018/05/PHM-Data-Challenge-2018-vFinal-v2_0.pdf" target="_blank" rel="noopener noreferrer">공식 데이터 설명서 ↗</a></article>
+        <article class="data-card"><header><span class="source-tag">대체 검토</span><b>UCI SECOM</b></header><p>반도체 제조 측정 변수와 품질 판정 라벨로 구성된 데이터셋. 통계적 이상 조사 흐름은 시험할 수 있지만, 익명화된 특징을 실제 장비 변수처럼 해석해서는 안 됩니다.</p><div class="data-alert">주의: 이 경우 프로젝트 제목을 ‘제조 품질 데이터 조사 지원’으로 낮추고, 구체적인 식각 원인 분석은 주장하지 않습니다.</div><a href="https://archive.ics.uci.edu/dataset/179/secom" target="_blank" rel="noopener noreferrer">UCI 데이터 페이지 ↗</a></article>
+      </div>
+    </section>
+
+    <section id="eval" class="section container">
+      <p class="section-kicker">06 / Success criteria</p>
+      <h2 class="section-heading">성공은 ‘그럴듯한 답변’이 아니라<br />검증 가능한 조사 수행으로 측정합니다.</h2>
+      <p class="section-lead">이상 원인에 대한 확정 정답 라벨이 없다면 ‘원인 진단 정확도’를 만들지 않습니다. 평가 가능한 수준을 명확히 나눕니다.</p>
+      <div class="evaluation"><table><thead><tr><th>평가 축</th><th>측정 방법</th><th>비교 대상 및 주의사항</th></tr></thead><tbody>
+        <tr><td>조회 정확성</td><td>질문에 맞는 대상과 참조 구간을 선택했는지 정답 세트와 대조</td><td>같은 recipe·step 필터를 사용하는 고정 로직과 비교</td></tr>
+        <tr><td>수치·근거 정합성</td><td>보고서 수치와 Python 분석 결과의 일치, 문서 ID와 주장 간 대응 확인</td><td>확인되지 않은 단위·원인 생성은 실패로 판정</td></tr>
+        <tr><td>예외 처리</td><td>참조 데이터 없음·결측 과다·조건 누락·도구 실패 시 응답 평가</td><td>모른다고 멈추거나 추가 질문하는 것도 올바른 행동</td></tr>
+        <tr><td>조사 과제 효율</td><td>동일 난도의 과제에서 완료까지 걸린 시간·도구 호출·사용자 조작 수</td><td>교육용 비교 결과이며 실제 팹 생산성 개선으로 해석하지 않음</td></tr>
+        <tr><td>승인 흐름</td><td>수정 요청 반영·미승인 저장 시도 차단 여부 확인</td><td>승인 이전 저장 0건이 목표 — 구현 테스트 기준</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="plan" class="section container">
+      <p class="section-kicker">07 / Three-day build plan</p>
+      <h2 class="section-heading">3일 안에 작동하고, 설명하고, 평가하는 계획</h2>
+      <p class="section-lead">프레임워크보다 데이터 검증을 먼저 수행합니다. 첫날에 성립하지 않는 가설을 발견하면 범위를 바꾸고, 그래프는 그대로 재사용하는 전략입니다.</p>
+      <div class="roadmap">
+        <article class="daycard"><span class="day">DAY 01 / DATA FIRST</span><h3>데이터·도구 준비</h3><ul><li>원본 일부 다운로드·스키마 확인</li><li>조사 과제 5~10개 정의</li><li>run 조회·비교 Python 함수 작성</li><li>문서 인덱스 최소 구축</li></ul><div class="success">완료 기준: Agent 없이도 조사 1건 계산 가능</div></article>
+        <article class="daycard"><span class="day">DAY 02 / GRAPH</span><h3>Agent 흐름 구현</h3><ul><li>LangGraph StateGraph 연결</li><li>다음 행동 판단·반복 상한 구현</li><li>RAG/분석 도구 호출</li><li>사용자 재질문·승인 인터럽트</li></ul><div class="success">완료 기준: 결과를 근거와 함께 작성·승인 가능</div></article>
+        <article class="daycard"><span class="day">DAY 03 / EVALUATION</span><h3>실패 사례와 데모</h3><ul><li>조건 누락·조회 실패 테스트</li><li>계산·문서 출처 검증</li><li>고정 흐름 대비 완료율 비교</li><li>시연·성과·한계 발표 정리</li></ul><div class="success">완료 기준: 성공뿐 아니라 실패·미완료도 설명 가능</div></article>
+      </div>
+      <div style="margin-top:24px;background:#eaf2fa;border:1px solid #d0e0ed;border-radius:15px;padding:19px 22px;color:#36566c;font-size:12.5px;line-height:1.9"><strong style="color:#24475b">팀 구현 분담 예시:</strong> 데이터 파이프라인/검증 · LangGraph/도구 설계 · API/UI · 평가/발표. 팀 규모에 따라 겸임할 수 있습니다. MCP나 Spring Backend는 수업 요구사항에 따라 적용하되, 초기에는 인터페이스를 단순하게 유지합니다.</div>
+    </section>
+
+    <section id="decide" class="section container">
+      <p class="section-kicker">08 / Team decisions</p>
+      <h2 class="section-heading">킥오프에서 결정해야 할 세 가지</h2>
+      <div class="decisions">
+        <div class="decision"><i>1</i><div><strong>어떤 데이터셋이 실제로 열리는가?</strong><p>PHM 접근·필드 확인 → 실패 시 SECOM으로 전환</p></div></div>
+        <div class="decision"><i>2</i><div><strong>보고서의 품질을 누가 평가할 것인가?</strong><p>계산 결과 일치 검사 + 팀원이 검토할 사례 정의</p></div></div>
+        <div class="decision"><i>3</i><div><strong>3일 동안 어디까지 연동할 것인가?</strong><p>우선 단일 Agent + 도구, MCP/Spring은 필수 여부 확인</p></div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer"><div class="container footer-inner"><div><h2>TRACE <span style="font-weight:400;color:#74e7db">/ Investigation, not speculation.</span></h2><p>반도체 공정 이상 조사 지원 Agent · SKALA 팀 기획 공유용 · 2026.10</p></div><div class="footnote">기획 초안 v0.1 · 검증 이전 제안서<br />이 페이지는 단일 HTML로 동작하며 외부 라이브러리가 필요하지 않습니다.</div></div></footer>
+
+  <script>
+  (function(){
+    'use strict';
+    const NS='http://www.w3.org/2000/svg';
+    const definitions = [
+      {id:'start',title:'START',sub:'__start__',category:'start',x:50,y:57,w:122,h:50,desc:'조사 요청을 받아 상태 그래프를 시작합니다.',input:'사용자 질문, 조사 대상(알려져 있다면)',output:'빈 조사 상태 초기화',example:'“run-184의 이상을 조사해 줘.”'},
+      {id:'scope',title:'요청·대상 확인',sub:'resolve_scope',category:'code',x:229,y:50,w:216,h:63,desc:'분석 범위를 정하고 비교에 필요한 식별자와 시점을 확인합니다.',input:'run ID, 장비, recipe, step, 조사 시점',output:'확정된 target 및 조회 제약',example:'“장비 ET-02, recipe R-17, step 2로 확인했습니다.”'},
+      {id:'plan',title:'다음 조사 행동 선택',sub:'choose_next_action',category:'agent',x:506,y:50,w:239,h:63,desc:'현재 증거를 확인하고 다음에 호출할 도구를 동적으로 선택합니다. 이 노드가 Agent의 핵심 판단 지점입니다.',input:'확인된 맥락, 수집된 증거, 미확인 항목, 남은 조사 예산',output:'하나의 tool call 또는 필요한 추가 질문',example:'“동일 recipe와 step의 참조 run부터 찾아야겠다.”'},
+      {id:'context',title:'대상 run 조회',sub:'get_run_context',category:'tool',x:61,y:224,w:240,h:80,desc:'분석할 run의 메타데이터를 데이터 저장소에서 가져옵니다.',input:'대상 run ID, as_of_time',output:'장비·recipe·step·측정 구간 및 데이터 경로',example:'장비 ET-02 / recipe R-17 / step 2 / 유효 구간 확인'},
+      {id:'reference',title:'비교 run 탐색',sub:'find_reference_runs',category:'tool',x:321,y:224,w:240,h:80,desc:'비교 가능한 참조 run을 조건에 따라 찾습니다.',input:'장비, recipe, step, 시점, 허용 비교 범위',output:'비교 run ID 목록 및 선택 이유',example:'“동일 recipe·step의 run 8건을 참조 구간으로 선정.”'},
+      {id:'compare',title:'신호 통계 비교',sub:'compare_signals',category:'tool',x:581,y:224,w:240,h:80,desc:'정해진 분석 코드로 차이·분포·결측값 등을 계산합니다. LLM이 수치를 임의로 생성하지 않습니다.',input:'대상·참조 신호 데이터, 선택한 통계',output:'구간별 요약 통계와 출처',example:'“신호 X의 참조 분포와 현재 측정 구간 사이에 편차가 확인됨.”'},
+      {id:'knowledge',title:'설명서·문서 검색',sub:'search_knowledge',category:'tool',x:841,y:224,w:240,h:80,desc:'데이터 사전과 관련 공개 문서를 검색합니다. 검색되지 않은 근거를 만들어 내지 않습니다.',input:'검색 질문, 관련 신호와 증거',output:'문서 내용·출처 ID·검색 실패 여부',example:'“설명서의 신호 정의는 찾았지만, 정비 이력은 존재하지 않음.”'},
+      {id:'validate',title:'결과 검증·증거 축적',sub:'validate_evidence',category:'code',x:466,y:357,w:234,h:70,desc:'도구 반환값을 검증하고 상태에 근거·불확실성·미확인 질문을 누적합니다.',input:'도구 반환값, 조회 시점, 기존 evidence',output:'갱신된 조사 상태 / 오류·결측 기록',example:'데이터 ID 및 계산 결과 확인 → evidence[]에 출처와 함께 기록'},
+      {id:'gate',title:'조사를 더 할까?',sub:'should_continue',category:'decision',x:472,y:456,w:223,h:111,desc:'현재 근거 수준과 남은 조사 예산을 검토해 계속 조사, 사용자 재질문, 보고서 작성 중 하나로 분기합니다.',input:'수집 근거, 부족한 항목, 남은 반복 횟수',output:'continue / ask_user / summarize',example:'“참조 구간이 부적절합니다. 범위를 확인받겠습니다.”'},
+      {id:'clarify',title:'사용자에게 확인',sub:'interrupt / resume',category:'human',x:91,y:482,w:226,h:78,desc:'입력이 부족하거나 비교 범위 변경에 사용자 동의가 필요하면 실행을 일시 정지하고 재개합니다.',input:'구체적인 확인 질문, 상태 스냅샷',output:'사용자 선택 후 갱신된 상태',example:'“동일 장비의 과거 run이 없습니다. 다른 장비를 포함할까요?”'},
+      {id:'report',title:'조사 보고서 초안',sub:'compose_report',category:'code',x:470,y:628,w:224,h:70,desc:'확인한 사실과 근거, 아직 모르는 것, 추가 확인할 항목을 분리해 작성합니다.',input:'검증된 분석 결과·문서 출처·미해결 질문',output:'검토용 보고서 초안',example:'“압력 신호 편차 확인. 원인 미확정. 유량 기록 추가 확인 권고.”'},
+      {id:'review',title:'사람 검토·수정 요청',sub:'human_review',category:'human',x:777,y:631,w:225,h:70,desc:'사용자에게 초안을 보여주고 승인·수정 요청을 받습니다. 필요하면 보고서 초안으로 되돌아갑니다.',input:'보고서 초안과 근거 목록',output:'approved 또는 revision_requested',example:'“이 표현은 원인 단정처럼 들립니다. 관측 사실만 남겨 주세요.”'},
+      {id:'save',title:'승인된 조사 기록 저장',sub:'save_investigation',category:'persistence',x:781,y:730,w:219,h:60,desc:'사람이 승인한 보고서만 데이터 저장소에 확정 기록합니다. 앞선 조회 단계에서 저장하지 않습니다.',input:'승인 상태 + 보고서 내용 + 근거',output:'조사 기록 ID, 저장 성공/실패 상태',example:'“승인된 보고서 #INV-024를 저장했습니다.”'},
+      {id:'end',title:'END',sub:'__end__',category:'end',x:1041,y:737,w:93,h:47,desc:'조사 흐름을 완료합니다.',input:'저장 결과 또는 명시적 미완료 상태',output:'최종 사용자에게 결과 반환',example:'승인 및 저장 완료. (또는 저장 실패를 명시적으로 반환)'},
+    ];
+    const definitionsById=Object.fromEntries(definitions.map(n=>[n.id,n]));
+    const displayOrder=['start','scope','plan','context','reference','compare','knowledge','validate','gate','clarify','report','review','save','end'];
+    const palette={
+      start:{fill:'#126d70',stroke:'#1c8d8e',badge:'START',type:'시작'},
+      end:{fill:'#126d70',stroke:'#1c8d8e',badge:'END',type:'종료'},
+      agent:{fill:'#f0eaff',stroke:'#9775d6',badge:'AGENT',type:'Agent · 판단'},
+      tool:{fill:'#e8f7f8',stroke:'#73c3c9',badge:'TOOL',type:'도구 · 실행'},
+      code:{fill:'#e8f0ff',stroke:'#8fb4ef',badge:'NODE',type:'코드 · 검증/작성'},
+      human:{fill:'#fff1dd',stroke:'#e4b870',badge:'HUMAN',type:'사람 개입'},
+      decision:{fill:'#fff0f0',stroke:'#de8c9b',badge:'ROUTE',type:'조건 분기'},
+      persistence:{fill:'#f0eaff',stroke:'#a28ad8',badge:'SAVE',type:'승인 후 저장'},
+    };
+    const svg=document.getElementById('graphSvg');
+    const make=(tag,attrs={},parent=svg)=>{const el=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attrs))el.setAttribute(key,String(value));parent.appendChild(el);return el;};
+    const defs=make('defs');
+    const arrow=make('marker',{id:'arrow',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'5.5',markerHeight:'5.5',orient:'auto-start-reverse'},defs);
+    make('path',{d:'M 1 1 L 9 5 L 1 9 z',fill:'#8ea2b3'},arrow);
+    const edge=(d,cls='svg-edge')=>make('path',{d,class:cls,'marker-end':'url(#arrow)'});
+    const wire=(d)=>make('path',{d,class:'svg-edge'});
+    const label=(x,y,t,width=60)=>{const g=make('g',{class:'svg-label'});make('rect',{x:x-width/2,y:y-11,width,height:22,rx:7},g);const tx=make('text',{x,y:y+4,'text-anchor':'middle'},g);tx.textContent=t;};
+    // Source -> scope -> decision
+    edge('M 172 82 H 229');
+    edge('M 445 82 H 506');
+    // Tool fan-out from the agent; dashed branches mean one or more tools are chosen dynamically.
+    wire('M 625 113 V 167');wire('M 181 167 H 961');
+    [181,441,701,961].forEach(x=>edge(`M ${x} 167 V 224`,'svg-edge branch'));
+    // Tool outputs converge into evidence validation.
+    [181,441,701,961].forEach(x=>wire(`M ${x} 304 V 331`));
+    wire('M 181 331 H 961');edge('M 583 331 V 357');
+    edge('M 583 427 V 456');
+    // Gate branches: clarify, continue, and report. Loops are visually distinct.
+    edge('M 472 511 H 317');label(394,493,'조건 부족',75);
+    edge('M 91 520 H 33 V 144 H 332 V 113');label(104,135,'사용자 응답',88);
+    edge('M 695 512 H 1115 V 142 H 625 V 113');label(964,497,'추가 조사',75);
+    edge('M 583 567 V 628');label(646,593,'작성 / 미완료',103);
+    edge('M 694 664 H 777');
+    edge('M 888 701 V 730');label(936,717,'승인',55);
+    edge('M 777 666 H 739 V 718 H 582 V 698');label(665,737,'수정 요청',78);
+    edge('M 1000 760 H 1041');
+    const nodeEls=new Map();
+    for(const node of definitions){
+      const p=palette[node.category]; const g=make('g',{class:`graph-node ${node.category}`,'data-id':node.id,tabindex:'0',role:'button','aria-label':`${node.title}: ${node.desc}`});nodeEls.set(node.id,g);
+      if(node.category==='decision'){
+        const mx=node.x+node.w/2,my=node.y+node.h/2;
+        make('polygon',{points:`${mx},${node.y} ${node.x+node.w},${my} ${mx},${node.y+node.h} ${node.x},${my}`,fill:p.fill,stroke:p.stroke,class:'ndiamond'},g);
+        const title=make('text',{x:mx,y:my-4,'text-anchor':'middle',class:'node-title'},g);title.textContent=node.title;
+        const sub=make('text',{x:mx,y:my+16,'text-anchor':'middle',class:'node-sub'},g);sub.textContent=node.sub;
+      } else {
+        const isPill=node.category==='start'||node.category==='end';
+        make('rect',{x:node.x,y:node.y,width:node.w,height:node.h,rx:isPill?26:13,fill:p.fill,stroke:p.stroke,class:'nbox'},g);
+        const title=make('text',{x:node.x+node.w/2,y:node.y+(isPill?22:30),'text-anchor':'middle',class:'node-title'},g);title.textContent=node.title;
+        const sub=make('text',{x:node.x+node.w/2,y:node.y+(isPill?37:50),'text-anchor':'middle',class:'node-sub'},g);sub.textContent=node.sub;
+      }
+      g.addEventListener('click',()=>select(node.id));
+      g.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select(node.id);}});
+    }
+    let current='plan';
+    function select(id){
+      const n=definitionsById[id]; if(!n)return; current=id;
+      for(const [k,v] of nodeEls) v.classList.toggle('selected',k===id);
+      document.getElementById('inspectCounter').textContent=`NODE ${String(displayOrder.indexOf(id)+1).padStart(2,'0')} / ${displayOrder.length}`;
+      const badge=document.getElementById('inspectBadge');badge.textContent=palette[n.category].type;badge.style.background=palette[n.category].fill;badge.style.color=(n.category==='start'||n.category==='end')?'white':palette[n.category].stroke;
+      document.getElementById('inspectTitle').textContent=n.title;
+      document.getElementById('inspectDesc').textContent=n.desc;
+      document.getElementById('inspectInput').textContent=n.input;
+      document.getElementById('inspectOutput').textContent=n.output;
+      document.getElementById('inspectExample').textContent=n.example;
+      const viewport=document.getElementById('graphViewport');const bounds=viewport.getBoundingClientRect();
+      if(bounds.width < 900){const center=n.x+n.w/2;viewport.scrollTo({left:Math.max(0,center-bounds.width/2),behavior:'smooth'});}
+    }
+    document.getElementById('prevNode').addEventListener('click',()=>select(displayOrder[(displayOrder.indexOf(current)-1+displayOrder.length)%displayOrder.length]));
+    document.getElementById('nextNode').addEventListener('click',()=>select(displayOrder[(displayOrder.indexOf(current)+1)%displayOrder.length]));
+    document.getElementById('printBtn').addEventListener('click',()=>window.print());
+    select('plan');
+    // Scroll-spy only updates link emphasis; it does not change navigation behavior.
+    if('IntersectionObserver' in window){const anchors=[...document.querySelectorAll('.nav-links a')]; const observer=new IntersectionObserver(entries=>{const active=entries.filter(x=>x.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(active){anchors.forEach(a=>a.classList.toggle('active',a.hash==='#'+active.target.id));}},{rootMargin:'-20% 0px -62% 0px',threshold:[0,.1,.5]});['why','scope','graph','demo','plan'].forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el)});}
+  })();
+  </script>
+</body>
+</html>

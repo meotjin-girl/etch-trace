@@ -1,0 +1,397 @@
+<title>TRACE 아키텍처</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: 왼쪽 고정 목차 + 본문 한 열, 다이어그램·표는 자체 가로 스크롤 */
+:root {
+  --bg: #f3f6f7; --surface: #ffffff; --ink: #142026; --muted: #56656d; --line: #d6dfe3;
+  --accent: #126d70; --accent-soft: #e0f0f0; --amber: #9a5b00; --amber-soft: #fff1da; --code: #e9eef0;
+  --sans: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', system-ui, sans-serif; --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1517; --surface: #152024; --ink: #e3ecef; --muted: #93a5ad; --line: #2a3a40;
+  --accent: #5cc7c9; --accent-soft: #163536; --amber: #f1b65a; --amber-soft: #372810; --code: #1d2b30; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1517; --surface: #152024; --ink: #e3ecef; --muted: #93a5ad; --line: #2a3a40;
+  --accent: #5cc7c9; --accent-soft: #163536; --amber: #f1b65a; --amber-soft: #372810; --code: #1d2b30; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.7 var(--sans); }
+.shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px; max-width: 1240px; margin: 0 auto;
+  padding-block: 32px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px; font-size: 13px; border-left: 1px solid var(--line); }
+nav .eyebrow { font: 500 11px var(--mono); letter-spacing: .08em; color: var(--accent); padding: 0 12px 8px; text-transform: uppercase; }
+nav a { color: var(--muted); text-decoration: none; padding: 3px 12px; border-left: 2px solid transparent; margin-left: -1px; }
+nav a.l3 { padding-left: 24px; font-size: 12px; }
+nav a:hover, nav a:focus-visible { color: var(--accent); border-left-color: var(--accent); outline: none; }
+article { min-width: 0; }
+h1 { font-size: 30px; line-height: 1.25; margin: 0 0 16px; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font-size: 21px; margin: 56px 0 14px; padding-top: 14px; border-top: 1px solid var(--line); text-wrap: balance; }
+h3 { font-size: 16px; margin: 32px 0 10px; color: var(--accent); }
+p, li { max-width: 72ch; } ul { padding-left: 20px; }
+blockquote { margin: 0 0 16px; padding: 14px 18px; background: var(--accent-soft); border-radius: 8px; font-weight: 500; max-width: 80ch; }
+code { font: 13px var(--mono); background: var(--code); padding: 1px 5px; border-radius: 4px; }
+.table-wrap { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 12px var(--mono); color: var(--muted); background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.diagram { overflow-x: auto; margin: 14px 0 22px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.diagram pre { margin: 0; min-width: 640px; }
+.st { font-style: normal; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.legend span { font: 12px var(--mono); padding: 3px 10px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); }
+@media (max-width: 860px) { .shell { grid-template-columns: 1fr; } nav { display: none; } }
+</style>
+<div class="shell">
+  <nav aria-label="목차"><div class="eyebrow">TRACE · Architecture v0.2</div><a class="l2" href="#s0">1. 이해관계자와 역할</a><a class="l2" href="#s1">2. 전체 구성도 (Container 관점) — PDF 그림 5-2 대응</a><a class="l3" href="#s2">번호별 처리 (PDF 표 5-3 대응)</a><a class="l3" href="#s3">구성 요소별 목적·책임·금지 사항 (PDF 표 5-4)</a><a class="l2" href="#s4">3. 논리 아키텍처 (Layered) — PDF 그림 5-3</a><a class="l2" href="#s5">4. 런타임 뷰 — 시퀀스 다이어그램</a><a class="l3" href="#s6">4.1 동기 경로 vs 비동기 경로</a><a class="l3" href="#s7">S1. 조사 요청 → 데이터 조회·비교 (Agent 루프)</a><a class="l3" href="#s8">S2. 문서 근거 검색 (RAG) — PDF 그림 5-6</a><a class="l3" href="#s9">S3. 보고서 → 사람 검토 → 수정 요청 → 승인 → 저장 (HITL) — PDF 그림 5-7</a><a class="l3" href="#s10">S4. (📐 설계) Kafka 대기열 · 재시도 · DLQ — 평가 가산점 항목</a><a class="l3" href="#s11">S5. 오늘 POC의 실제 경로 (생략된 것 표시)</a><a class="l2" href="#s12">5. Agent 설계 — LangGraph StateGraph (설계 이미지와 1:1)</a><a class="l3" href="#s13">State</a><a class="l3" href="#s14">도구 (→ MCP Tool로 그대로 승격)</a><a class="l2" href="#s15">6. Harness 8요소 ↔ 구현 위치 (PDF 표 6-3)</a><a class="l2" href="#s16">7. 배포 뷰 (N-tier) — PDF 그림 5-9, 표 5-10</a><a class="l2" href="#s17">8. 데이터 설계</a><a class="l3" href="#s18">8.1 원본 데이터: PHM Society 2018 Data Challenge (이온 밀 식각)</a><a class="l3" href="#s19">8.2 ERD</a><a class="l3" href="#s20">8.3 RAG 문서 색인 (Pipe and Filter)</a><a class="l2" href="#s21">9. API · 이벤트 계약 (PDF 표 5-8, 5-9)</a><a class="l2" href="#s22">10. 품질 속성 (ISO/IEC 25010) ↔ 설계 결정</a><a class="l2" href="#s23">11. 로드맵</a></nav>
+  <article>
+    <div class="legend"><span>✅ 오늘 POC 구현</span><span>🔜 다음 단계</span><span>📐 설계만</span></div>
+<h1>TRACE — 식각 공정 이상 조사 AI Agent 아키텍처</h1>
+<blockquote>이상을 <strong>판정</strong>하지 않고, 이상 이후의 <strong>조사</strong>(조회·비교·근거 수집·보고서 초안)를 Agent가 수행하고 사람이 검토·승인한다.</blockquote>
+<blockquote>기준 문서: 팀 기획서 <code>etch_trace_agent_brief.html</code>, Agent 그래프 설계 이미지, AI Agent Capstone(+MCP) 5장 레퍼런스 아키텍처·6장 Harness.</blockquote>
+<ul><li>문서 버전: v0.2 (2026-10-19) — POC 구현 반영</li><li>상태 표기: <span class="st ok">✅</span> 오늘 POC 구현 · <span class="st next">🔜</span> 다음 단계 · <span class="st plan">📐</span> 설계만</li></ul>
+<h2 id="s0">1. 이해관계자와 역할</h2>
+<div class="table-wrap"><table><thead><tr><th>이해관계자</th><th>시스템 역할</th><th>목표</th><th>화면</th><th>할 수 있는 것</th><th>할 수 없는 것</th></tr></thead><tbody><tr><td>설비 작업자 (Operator)</td><td><code>worker</code></td><td>이상 징후를 빨리 넘기고 결과를 받는다</td><td><code>/worker</code></td><td>조사 요청, 내 요청 상태·승인된 결과 조회</td><td>다른 사람 요청 열람, 승인, 운영 지표</td></tr><tr><td>공정 엔지니어 (Process Engineer)</td><td><code>engineer</code></td><td>근거를 보고 판단·승인 (HITL)</td><td><code>/engineer/:id</code></td><td>전체 조사 열람, 실시간 진행 관찰, 수정 요청, <strong>승인</strong></td><td>운영 지표</td></tr><tr><td>관리자 (Admin / 품질·운영)</td><td><code>admin</code></td><td>시스템이 믿을 만하게 돌아가는지 관리</td><td><code>/admin</code></td><td>전체 이력, 승인 기록, 문서 색인 현황, 도구 호출 지표, 실패 작업</td><td>조사 승인 (직무 분리)</td></tr><tr><td>LLM Provider (외부)</td><td>—</td><td>다음 행동 제안, 보고서 문장 작성</td><td>—</td><td>도구 <strong>제안</strong></td><td>도구 실행, 수치 계산, 저장</td></tr><tr><td>데이터 제공자 (PHM Society)</td><td>—</td><td>공개 데이터셋</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div>
+<p>권한은 <strong>서버에서</strong> 검사하고(<code>main.py</code> <code>user()</code>), 화면은 router guard로 역할별 홈만 보여준다(<code>router.js</code>).</p>
+<h2 id="s1">2. 전체 구성도 (Container 관점) — PDF 그림 5-2 대응</h2>
+<div class="diagram"><pre class="mermaid">flowchart LR
+  subgraph Browser["사용자 브라우저"]
+    VUE["Vue 3 + Vite&lt;br/&gt;역할별 화면&lt;br/&gt;작업자 · 엔지니어 · 관리자"]
+  end
+
+  subgraph DN["docker network (Trust Boundary) — 공개 포트는 frontend · backend 뿐"]
+    direction LR
+    subgraph BE["Backend · Spring Boot 3 🔜"]
+      API["업무 API /api/**"]
+      TASK["작업 API 202 · SSE 중계"]
+      INT["내부 API /internal/**"]
+      AUTH["Supabase JWT 검증"]
+    end
+    subgraph AG["AI Agent · FastAPI ✅"]
+      subgraph H["Harness"]
+        LG["LangGraph StateGraph&lt;br/&gt;plan → tool_router → update_state&lt;br/&gt;→ summarize → human_review → finalize"]
+        MC["MCP Client (FastMCP) 🔜"]
+      end
+    end
+    BMCP["business-mcp 🔜&lt;br/&gt;run 조회 · 비교 · 조사기록 저장"]
+    RMCP["rag-mcp 🔜&lt;br/&gt;search_knowledge"]
+    KAFKA[["Kafka 📐&lt;br/&gt;trace.tasks.* "]]
+    PG[("PostgreSQL 16&lt;br/&gt;업무·작업·이벤트&lt;br/&gt;checkpointer ✅")]
+    VDB[("pgvector&lt;br/&gt;doc_chunks ✅")]
+  end
+  LLM(["LLM Provider&lt;br/&gt;OpenAI gpt-5.4-mini&lt;br/&gt;fallback gpt-4.1-mini"])
+  SUPA(["Supabase Auth 🔜"])
+  PIPE["RAG Pipeline (오프라인)&lt;br/&gt;Documents → Chunking → Embedding → Indexing ✅"]
+
+  VUE -- "① POST /api/ai/tasks → 202" --&gt; TASK
+  TASK -. "⑦ SSE /stream" .-&gt; VUE
+  VUE -- 로그인 --&gt; SUPA
+  TASK -- "② 작업 발행" --&gt; KAFKA
+  KAFKA -- "② 소비" --&gt; LG
+  LG -- "③ 모델 호출 HTTPS" --&gt; LLM
+  LG --&gt; MC
+  MC -- "④ tools/call /mcp" --&gt; BMCP
+  MC -- "④ tools/call /mcp" --&gt; RMCP
+  BMCP -- "⑤ /internal/**" --&gt; INT
+  RMCP -- "⑥ 유사도 검색" --&gt; VDB
+  LG -- "진행 이벤트" --&gt; KAFKA
+  KAFKA -- "⑦ 이벤트" --&gt; TASK
+  API -- JDBC --&gt; PG
+  INT -- JDBC --&gt; PG
+  LG -- checkpointer --&gt; PG
+  PIPE --&gt; VDB</pre></div>
+<h3 id="s2">번호별 처리 (PDF 표 5-3 대응)</h3>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>구간</th><th>처리</th><th>프로토콜</th></tr></thead><tbody><tr><td>①</td><td>Vue → Spring Boot</td><td><code>POST /api/ai/tasks</code>, 202 <code>{taskId}</code> 즉시 반환</td><td>HTTPS</td></tr><tr><td>②</td><td>Spring Boot → Agent</td><td>작업 상태 저장 후 <code>trace.tasks.requested</code> 발행, Agent consumer가 실행</td><td>Kafka (POC: 내부 HTTP/BackgroundTask)</td></tr><tr><td>③</td><td>LangGraph → LLM</td><td>Harness가 Instructions·Context를 붙여 모델 호출, 모델이 다음 도구 제안</td><td>HTTPS</td></tr><tr><td>④</td><td>MCP Client → MCP Server</td><td>제안된 도구 <code>tools/call</code>. 저장 도구는 승인 전까지 호출 불가</td><td>MCP Streamable HTTP <code>/mcp</code></td></tr><tr><td>⑤</td><td>business-mcp → Spring Boot</td><td>업무 데이터는 <code>/internal/**</code> 경유 (업무 규칙 단일화)</td><td>내부 HTTP</td></tr><tr><td>⑥</td><td>rag-mcp → pgvector</td><td>질문 임베딩과 가까운 chunk + 출처</td><td>SQL <code>&lt;=&gt;</code></td></tr><tr><td>⑦</td><td>Agent → Spring Boot → Vue</td><td><code>QUEUED·PLAN·TOOL_START·TOOL_END·TOKEN·APPROVAL_REQUIRED·REVIEWED·DONE·FAILED</code></td><td>Kafka → SSE</td></tr></tbody></table></div>
+<h3 id="s3">구성 요소별 목적·책임·금지 사항 (PDF 표 5-4)</h3>
+<div class="table-wrap"><table><thead><tr><th>구성 요소</th><th>역할</th><th>금지 사항</th></tr></thead><tbody><tr><td>Vue 3</td><td>요청 입력, 진행·근거·승인 화면</td><td>권한 판단, AI 서버 직접 호출(Spring 단계 이후)</td></tr><tr><td>Spring Boot</td><td>업무 API, 작업 생성·상태, SSE 중계, <code>/internal/**</code>, 인증</td><td>LLM 호출</td></tr><tr><td>FastAPI Agent</td><td>Harness로 모델 감싸기, 도구 선택, 승인 대기·재개</td><td>DB 직접 쓰기 (POC는 예외, MCP 분리 시 제거)</td></tr><tr><td>business-mcp</td><td>run 조회·비교·조사기록 저장 도구 노출</td><td>업무 규칙 복제</td></tr><tr><td>rag-mcp</td><td>문서 검색, 출처 반환</td><td>업무 데이터 변경</td></tr><tr><td>PostgreSQL</td><td>공정 데이터 요약, 작업·이벤트·조사기록, checkpointer</td><td>—</td></tr><tr><td>pgvector</td><td>문서 chunk·임베딩·출처 메타데이터</td><td>—</td></tr></tbody></table></div>
+<h2 id="s4">3. 논리 아키텍처 (Layered) — PDF 그림 5-3</h2>
+<div class="diagram"><pre class="mermaid">flowchart TB
+  P["&lt;b&gt;Presentation&lt;/b&gt;&lt;br/&gt;Vue 3 · Vite · vue-router&lt;br/&gt;역할별 화면, SSE 구독"]
+  A["&lt;b&gt;Application&lt;/b&gt;&lt;br/&gt;Spring Boot 3 🔜 (POC: FastAPI가 같은 /api 계약 제공)&lt;br/&gt;업무 API · 작업 API · SSE 중계 · 인증"]
+  O["&lt;b&gt;Orchestration&lt;/b&gt;&lt;br/&gt;FastAPI · LangGraph · LangChain · Harness"]
+  T["&lt;b&gt;Tool&lt;/b&gt;&lt;br/&gt;business-mcp · rag-mcp (FastMCP) 🔜&lt;br/&gt;POC: tools.py 순수 함수"]
+  D["&lt;b&gt;Data&lt;/b&gt;&lt;br/&gt;PostgreSQL 16 · pgvector · checkpointer"]
+  P -- "HTTPS REST · SSE" --&gt; A
+  A -- "Kafka / 내부 HTTP" --&gt; O
+  O -- "MCP Streamable HTTP" --&gt; T
+  T -- "SQL / /internal/**" --&gt; D
+  O -. "HTTPS" .-&gt; LLM(["LLM Provider"])</pre></div>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>아래 layer와의 인터페이스</th><th>금지</th></tr></thead><tbody><tr><td>Presentation</td><td><code>REST /api/**</code>, <code>SSE</code></td><td>권한 판단, AI 서버 직접 호출</td></tr><tr><td>Application</td><td>Kafka 발행 / 내부 HTTP, JDBC</td><td>LLM 호출</td></tr><tr><td>Orchestration</td><td>MCP <code>/mcp</code>, LLM API</td><td>DB 직접 쓰기</td></tr><tr><td>Tool</td><td>business-mcp → <code>/internal/**</code>, rag-mcp → pgvector</td><td>업무 규칙 복제</td></tr><tr><td>Data</td><td>—</td><td>—</td></tr></tbody></table></div>
+<blockquote>예외: business-mcp → Application <code>/internal/<strong></code> 호출은 아래→위 호출이지만, 업무 규칙을 Spring Boot 한 곳에 두려는 </strong>의도된 예외**이며 docker network 안에서만 열린다.</blockquote>
+<h2 id="s5">4. 런타임 뷰 — 시퀀스 다이어그램</h2>
+<h3 id="s6">4.1 동기 경로 vs 비동기 경로</h3>
+<div class="table-wrap"><table><thead><tr><th>경로</th><th>거치는 일</th><th>응답</th></tr></thead><tbody><tr><td>동기 (수백 ms)</td><td>run 검색, 작업 목록·상태 조회, 승인·거절 기록, 관리자 지표</td><td>200 즉시</td></tr><tr><td>비동기 (수 초~수십 초)</td><td>Agent 조사, 보고서 재작성, 문서 재색인, 승인 후 재개</td><td>202 후 SSE 이벤트</td></tr></tbody></table></div>
+<h3 id="s7">S1. 조사 요청 → 데이터 조회·비교 (Agent 루프)</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  autonumber
+  actor W as 작업자 (Vue)
+  participant B as Spring Boot&lt;br/&gt;(POC: FastAPI /api)
+  participant K as Kafka&lt;br/&gt;(POC: BackgroundTask)
+  participant A as Agent&lt;br/&gt;LangGraph + Harness
+  participant L as LLM API
+  participant M as business-mcp&lt;br/&gt;(POC: tools.py)
+  participant DB as PostgreSQL
+
+  W-&gt;&gt;B: POST /api/ai/tasks {tool, run_id, question}
+  B-&gt;&gt;DB: INSERT tasks(status=QUEUED), task_events(QUEUED)
+  B--&gt;&gt;W: 202 {taskId}
+  W-&gt;&gt;B: GET /api/ai/tasks/{id}/stream (SSE 구독)
+  B-&gt;&gt;K: trace.tasks.requested {taskId}
+  K-&gt;&gt;A: consume → graph.invoke(thread_id = taskId)
+  loop 최대 8턴 · 120초 · 같은 도구 3회 (Harness)
+    A-&gt;&gt;L: plan_node — Instructions(prompts/plan.md) + 지금까지의 근거
+    L--&gt;&gt;A: tool_call 제안 (예: find_reference_runs)
+    A-&gt;&gt;B: 이벤트 PLAN, TOOL_START
+    A-&gt;&gt;M: tools/call
+    M-&gt;&gt;DB: SELECT runs / run_steps / faults (run 종료 시점 이전만)
+    DB--&gt;&gt;M: 행
+    M--&gt;&gt;A: 결과 JSON (수치는 코드 계산)
+    A-&gt;&gt;A: update_state_node — 검증·근거 누적·턴 증가
+    A-&gt;&gt;B: 이벤트 TOOL_END {ok, ms, result}
+    B--&gt;&gt;W: SSE 중계
+  end
+  Note over A: should_continue = 아니오 → summarize_node</pre></div>
+<h3 id="s8">S2. 문서 근거 검색 (RAG) — PDF 그림 5-6</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  autonumber
+  participant A as Agent
+  participant L as LLM API
+  participant R as rag-mcp&lt;br/&gt;(POC: search_knowledge)
+  participant E as Embedding API
+  participant V as pgvector
+
+  A-&gt;&gt;L: 다음 행동? (편차 상위 센서: IONGAUGEPRESSURE …)
+  L--&gt;&gt;A: search_knowledge("FlowCool 압력 편차 확인 순서")
+  A-&gt;&gt;R: tools/call search_knowledge
+  R-&gt;&gt;E: 질문 임베딩 (text-embedding-3-small, 색인과 같은 모델)
+  E--&gt;&gt;R: vector(1536)
+  R-&gt;&gt;V: ORDER BY embedding &lt;=&gt; q LIMIT k (embed_model 일치)
+  V--&gt;&gt;R: chunk + source + section + score
+  R--&gt;&gt;A: {found, docs[]} 또는 {found:false} → "근거 없음"으로 기록
+  Note over R,V: 문서는 질문과 별개로 미리 색인 (index_docs.py, 문서 변경 시에만)</pre></div>
+<h3 id="s9">S3. 보고서 → 사람 검토 → 수정 요청 → 승인 → 저장 (HITL) — PDF 그림 5-7</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  autonumber
+  actor E as 공정 엔지니어 (Vue)
+  participant B as Spring Boot&lt;br/&gt;(POC: FastAPI)
+  participant A as Agent
+  participant CP as checkpointer&lt;br/&gt;(PostgreSQL)
+  participant L as LLM API
+  participant M as business-mcp
+  participant DB as PostgreSQL
+
+  A-&gt;&gt;L: summarize_node (prompts/summarize.md + 근거)
+  L--&gt;&gt;A: Report {summary, facts, evidence, next_actions, unknowns}
+  A-&gt;&gt;A: need_human_review = 비교 결과 있음 → 예
+  A-&gt;&gt;CP: human_review_node interrupt() — 상태 저장 후 정지
+  A-&gt;&gt;B: APPROVAL_REQUIRED {report, revision}
+  B-&gt;&gt;DB: tasks.status = WAITING_APPROVAL
+  B--&gt;&gt;E: SSE → 승인 카드
+  E-&gt;&gt;B: POST /approval {action: revise, comment}
+  B-&gt;&gt;DB: 조건부 UPDATE (WAITING_APPROVAL → RUNNING) — 중복 승인 차단
+  B--&gt;&gt;E: 202
+  B-&gt;&gt;A: Command(resume) · 같은 thread_id
+  A-&gt;&gt;CP: 상태 복원
+  A-&gt;&gt;A: apply_feedback_node → summarize_node (지적 반영)
+  A-&gt;&gt;B: APPROVAL_REQUIRED {revision: 1}
+  B--&gt;&gt;E: SSE → 수정본 승인 카드
+  E-&gt;&gt;B: POST /approval {action: approve}
+  B-&gt;&gt;A: Command(resume) · 같은 thread_id
+  A-&gt;&gt;M: finalize_node → save_investigation (LLM 도구 목록에는 없음)
+  M-&gt;&gt;DB: INSERT investigations (task_id UNIQUE)
+  A-&gt;&gt;B: DONE {saved: INV-0001}
+  B--&gt;&gt;E: SSE → 스트림 종료, 목록 갱신</pre></div>
+<h3 id="s10">S4. (<span class="st plan">📐</span> 설계) Kafka 대기열 · 재시도 · DLQ — 평가 가산점 항목</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  autonumber
+  participant B as Spring Boot
+  participant K as Kafka
+  participant A1 as Agent worker #1
+  participant A2 as Agent worker #2
+  participant DB as PostgreSQL
+
+  B-&gt;&gt;DB: INSERT tasks (QUEUED)
+  B-&gt;&gt;K: trace.tasks.requested key=taskId
+  K-&gt;&gt;A1: poll (consumer group: trace-agent)
+  A1-&gt;&gt;A1: graph.invoke
+  alt 일시 오류 (LLM 429/503, DB 연결)
+    A1-&gt;&gt;K: trace.tasks.retry {attempt+1, backoff}
+    K-&gt;&gt;A2: 지연 후 재소비 (같은 thread_id → checkpointer에서 이어서)
+  else 최대 재시도(3) 초과
+    A1-&gt;&gt;K: trace.tasks.dlq {taskId, error, trace_id}
+    A1-&gt;&gt;K: trace.tasks.events FAILED
+  end
+  A1-&gt;&gt;K: trace.tasks.events (PLAN/TOOL_*/APPROVAL_REQUIRED/DONE)
+  K-&gt;&gt;B: consume events
+  B-&gt;&gt;DB: INSERT task_events, UPDATE tasks
+  B--&gt;&gt;B: SseEmitter로 해당 taskId 구독자에게 push
+  Note over B,K: 승인 재개도 trace.tasks.resume 토픽으로 발행 → 아무 worker나 처리</pre></div>
+<div class="table-wrap"><table><thead><tr><th>토픽</th><th>key</th><th>생산자 → 소비자</th><th>비고</th></tr></thead><tbody><tr><td><code>trace.tasks.requested</code></td><td>taskId</td><td>Spring → Agent</td><td>파티션 key로 같은 작업 순서 보장</td></tr><tr><td><code>trace.tasks.resume</code></td><td>taskId</td><td>Spring → Agent</td><td>승인/수정 요청 <code>Command(resume)</code></td></tr><tr><td><code>trace.tasks.retry</code></td><td>taskId</td><td>Agent → Agent</td><td>attempt, backoff(2s·8s·30s)</td></tr><tr><td><code>trace.tasks.dlq</code></td><td>taskId</td><td>Agent → 관리자 화면</td><td>실패 원인 + trace id</td></tr><tr><td><code>trace.tasks.events</code></td><td>taskId</td><td>Agent → Spring</td><td>현 <code>task_events</code> 행과 1:1 (스키마 동일)</td></tr></tbody></table></div>
+<p>멱등성: checkpointer가 thread_id 단위로 진행을 저장하고, <code>investigations.task_id UNIQUE</code> + 조건부 상태 UPDATE로 재처리해도 중복 저장되지 않는다.</p>
+<h3 id="s11">S5. 오늘 POC의 실제 경로 (생략된 것 표시)</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  autonumber
+  actor U as Vue (5173)
+  participant F as FastAPI (8000)&lt;br/&gt;/api 계약 동일
+  participant G as LangGraph (BackgroundTask 스레드)
+  participant DB as PostgreSQL+pgvector (docker)
+  U-&gt;&gt;F: POST /api/ai/tasks (X-User-Name/Role 목업 인증)
+  F--&gt;&gt;U: 202
+  F-&gt;&gt;G: graph.run(taskId)
+  G-&gt;&gt;DB: 도구 SQL, task_events INSERT, checkpointer
+  U-&gt;&gt;F: GET /stream (EventSource)
+  loop 0.5초 폴링
+    F-&gt;&gt;DB: SELECT task_events WHERE seq &gt; last
+    F--&gt;&gt;U: event: TYPE / id: seq / data
+  end
+  Note over U,DB: 생략: Spring Boot · Supabase Auth · Kafka · MCP 프로세스 분리 · nginx&lt;br/&gt;교체 시 Vue 변경 없음 (vite proxy target만 8080)</pre></div>
+<h2 id="s12">5. Agent 설계 — LangGraph StateGraph (설계 이미지와 1:1)</h2>
+<div class="diagram"><pre class="mermaid">stateDiagram-v2
+  [*] --&gt; plan_node
+  plan_node --&gt; tool_router_node: 도구 선택 및 호출
+  state tool_router_node {
+    [*] --&gt; get_run_context
+    [*] --&gt; find_reference_runs
+    [*] --&gt; compare_signals
+    [*] --&gt; search_knowledge
+  }
+  tool_router_node --&gt; update_state_node: 결과 검증·상태 갱신
+  update_state_node --&gt; should_continue
+  state should_continue &lt;&lt;choice&gt;&gt;
+  should_continue --&gt; plan_node: 예 (추가 조사)
+  should_continue --&gt; summarize_node: 아니오 / 8턴·120초 소진
+  summarize_node --&gt; need_human_review
+  state need_human_review &lt;&lt;choice&gt;&gt;
+  need_human_review --&gt; human_review_node: 예 (비교 결과 있음)
+  need_human_review --&gt; finalize_node: 아니오 (근거 부족 → 미완료, 저장 안 함)
+  human_review_node --&gt; apply_feedback_node: 수정 요청
+  apply_feedback_node --&gt; summarize_node
+  human_review_node --&gt; finalize_node: 승인 → save_investigation
+  finalize_node --&gt; [*]</pre></div>
+<h3 id="s13">State</h3>
+<div class="table-wrap"><table><thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead><tbody><tr><td><code>task_id</code></td><td>str</td><td>= LangGraph <code>thread_id</code> = tasks.id</td></tr><tr><td><code>question</code>, <code>tool</code>, <code>run_id</code></td><td>str</td><td>조사 요청과 대상</td></tr><tr><td><code>started_at</code>, <code>turns</code></td><td>float, int</td><td>Harness 한도 판단</td></tr><tr><td><code>next_call</code></td><td>dict | None</td><td>plan이 고른 <code>{name, args, reason}</code>. None이면 조사 종료</td></tr><tr><td><code>last_result</code></td><td>dict</td><td>router → update_state 전달</td></tr><tr><td><code>evidence</code></td><td>list (append reducer)</td><td><code>{name, args, result, ok}</code> 누적 근거</td></tr><tr><td><code>report</code></td><td>dict</td><td><code>summary, facts[], evidence[], next_actions[], unknowns[]</code></td></tr><tr><td><code>feedback</code></td><td>list (append)</td><td>엔지니어 수정 요청 누적</td></tr><tr><td><code>approval</code></td><td>dict</td><td><code>{action, comment, by}</code> (interrupt 재개값)</td></tr><tr><td><code>saved</code></td><td>dict</td><td>저장 결과 <code>INV-xxxx</code></td></tr></tbody></table></div>
+<h3 id="s14">도구 (→ MCP Tool로 그대로 승격)</h3>
+<div class="table-wrap"><table><thead><tr><th>도구</th><th>위치(예정)</th><th>입력</th><th>출력</th><th>주의</th></tr></thead><tbody><tr><td><code>get_run_context</code></td><td>business-mcp</td><td>tool, run_id</td><td>recipe·stage·steps·<strong>run 종료 전</strong> 고장</td><td>미래 정보 누설 차단</td></tr><tr><td><code>find_reference_runs</code></td><td>business-mcp</td><td>tool, run_id, k</td><td>같은 recipe 이전 run, 고장 직전 24h 제외</td><td>3건 미만이면 error</td></tr><tr><td><code>compare_signals</code></td><td>business-mcp</td><td>tool, run_id, reference_run_ids</td><td>step×센서 z-score, 결측률 차이</td><td>숫자는 코드만, 누적 카운터 제외</td></tr><tr><td><code>search_knowledge</code></td><td>rag-mcp</td><td>query, k</td><td>chunk·출처·유사도</td><td>없으면 <code>found:false</code></td></tr><tr><td><code>save_investigation</code></td><td>business-mcp (<code>destructiveHint</code>)</td><td>task_id, report, approved_by</td><td>INV id</td><td><strong>LLM 도구 목록에서 제외</strong>, finalize에서만</td></tr></tbody></table></div>
+<h2 id="s15">6. Harness 8요소 ↔ 구현 위치 (PDF 표 6-3)</h2>
+<div class="table-wrap"><table><thead><tr><th>요소</th><th>구현 위치</th><th>기준</th><th>상태</th></tr></thead><tbody><tr><td>Instructions</td><td><code>agent/prompts/plan.md</code>, <code>summarize.md</code></td><td>역할·도구 규칙·금지·출력 형식, 코드 밖 버전관리</td><td><span class="st ok">✅</span></td></tr><tr><td>Tools</td><td><code>tools.py</code> <code>TOOLS</code> (→ MCP Client)</td><td>결과 3,000자 제한, 오류는 결과로 반환</td><td><span class="st ok">✅</span></td></tr><tr><td>Context</td><td><code>plan_node</code> 메시지 구성</td><td>이전 결과 1,200자 요약 주입, RAG 근거 주입</td><td><span class="st ok">✅</span> (요약 압축 <span class="st next">🔜</span>)</td></tr><tr><td>State·Memory</td><td><code>PostgresSaver</code> checkpointer</td><td>thread_id 단위 저장, 승인 대기 후 그대로 재개</td><td><span class="st ok">✅</span></td></tr><tr><td>Agent Loop</td><td><code>should_continue</code></td><td>최대 8턴 · 120초 · 같은 도구 3회</td><td><span class="st ok">✅</span></td></tr><tr><td>Guardrails</td><td><code>human_review_node</code> <code>interrupt()</code>, router 허용 목록</td><td>저장 도구는 승인 후에만, 역할 검사, 중복 승인 차단</td><td><span class="st ok">✅</span> (PII 마스킹 해당 없음)</td></tr><tr><td>Recovery</td><td><code>model()</code> <code>.with_fallbacks</code>, <code>_fallback_plan</code>, <code>_template_report</code></td><td>재시도 2회 → 대체 모델 → 고정 순서/템플릿 → FAILED</td><td><span class="st ok">✅</span></td></tr><tr><td>Observability</td><td><code>task_events</code>(단계·도구·ms·오류), 관리자 지표</td><td>LangSmith trace id 연결</td><td><span class="st ok">✅</span> / LangSmith <span class="st next">🔜</span> (env만 설정)</td></tr></tbody></table></div>
+<h2 id="s16">7. 배포 뷰 (N-tier) — PDF 그림 5-9, 표 5-10</h2>
+<div class="diagram"><pre class="mermaid">flowchart TB
+  subgraph U["사용자 영역"]
+    BR["Browser · Vue 3 앱"]
+  end
+  subgraph NET["docker network · Trust Boundary"]
+    subgraph T1["공개 tier · Client/Application"]
+      FE["frontend&lt;br/&gt;nginx :80 공개"]
+      BE["backend&lt;br/&gt;Spring Boot :8080 공개"]
+    end
+    subgraph T2["내부 AI tier · Agent/Tool"]
+      AG["agent&lt;br/&gt;FastAPI :8000"]
+      BM["business-mcp&lt;br/&gt;FastMCP :9101"]
+      RM["rag-mcp&lt;br/&gt;FastMCP :9102"]
+      KF["kafka :9092"]
+    end
+    subgraph T3["내부 Data tier"]
+      PG[("postgres + pgvector&lt;br/&gt;:5432")]
+    end
+  end
+  EXT(["LLM Provider · Supabase Auth&lt;br/&gt;외부"])
+  BR -- "HTTPS :80" --&gt; FE
+  BR -- "HTTPS :8080 /api · SSE" --&gt; BE
+  BE &lt;--&gt; KF
+  KF &lt;--&gt; AG
+  AG -- MCP --&gt; BM
+  AG -- MCP --&gt; RM
+  BM -- /internal --&gt; BE
+  RM --&gt; PG
+  BE --&gt; PG
+  AG -- checkpointer --&gt; PG
+  AG -- HTTPS --&gt; EXT
+  BE -- JWT 검증 --&gt; EXT</pre></div>
+<div class="table-wrap"><table><thead><tr><th>서비스</th><th>기술</th><th>포트</th><th>공개</th><th>먼저 떠 있어야</th><th>오늘</th></tr></thead><tbody><tr><td>frontend</td><td>Vue 3 + nginx</td><td>80 (dev 5173)</td><td>공개</td><td>backend</td><td><span class="st ok">✅</span> dev</td></tr><tr><td>backend</td><td>Spring Boot 3</td><td>8080</td><td>공개</td><td>postgres, kafka</td><td><span class="st next">🔜</span></td></tr><tr><td>agent</td><td>FastAPI + LangGraph</td><td>8000</td><td>내부</td><td>kafka, MCP</td><td><span class="st ok">✅</span> (공개 상태로 대체)</td></tr><tr><td>business-mcp</td><td>FastMCP</td><td>9101</td><td>내부</td><td>backend</td><td><span class="st next">🔜</span></td></tr><tr><td>rag-mcp</td><td>FastMCP</td><td>9102</td><td>내부</td><td>postgres</td><td><span class="st next">🔜</span></td></tr><tr><td>kafka</td><td>Kafka (KRaft)</td><td>9092</td><td>내부</td><td>—</td><td><span class="st plan">📐</span></td></tr><tr><td>postgres</td><td><code>pgvector/pgvector:pg16</code></td><td>5432</td><td>내부</td><td>—</td><td><span class="st ok">✅</span></td></tr></tbody></table></div>
+<h2 id="s17">8. 데이터 설계</h2>
+<h3 id="s18">8.1 원본 데이터: PHM Society 2018 Data Challenge (이온 밀 식각)</h3>
+<ul><li>장비 20대(train) × 장비당 1~1.9GB CSV, 압축 5.0GB / 해제 약 35GB. <strong>오늘 적재: 01M01 1대</strong> (311만 행, 460일)</li><li>컬럼: <code>time, Tool, stage, Lot, runnum, recipe, recipe_step</code> + 센서 17개 (IONGAUGEPRESSURE, ETCHBEAM*, ETCHSUPPRESSOR*, FLOWCOOLFLOWRATE, FLOWCOOLPRESSURE, …)</li><li>고장 3종: FlowCool Pressure Dropped Below Limit / Flowcool Pressure Too High Check Flowcool Pump / Flowcool leak (01M01: 13 / 5 / 1건)</li></ul>
+<p><strong>데이터를 열어보고 바뀐 설계 결정</strong></p>
+<div class="table-wrap"><table><thead><tr><th>기획 단계 가정</th><th>실제 데이터</th><th>결정</th></tr></thead><tbody><tr><td>run = runnum</td><td>runnum 안에 Lot 여러 개, recipe 여러 개 (3,757/3,776)</td><td>조사 단위 <code>run_id = '{runnum}-{Lot}'</code> → 11,475개, 모두 recipe 1개</td></tr><tr><td>Lot = 웨이퍼 1회 처리</td><td>같은 Lot이 다른 stage에서 재처리 (2,690건)</td><td>Lot 단독 키 사용 안 함</td></tr><tr><td>센서 원값·단위</td><td>이미 <strong>표준화된 값</strong>, 단위 없음</td><td>보고서에 단위 금지, "표준화 값" 명시</td></tr><tr><td>고장 시각 = 고장 시작</td><td>운영자 정지 시각</td><td>근거·unknowns에 명시, 참조 run에서 고장 직전 24h 제외</td></tr><tr><td>누적 카운터도 신호</td><td>ETCHSOURCEUSAGE 등은 단조 증가</td><td>편차 비교에서 제외</td></tr></tbody></table></div>
+<h3 id="s19">8.2 ERD</h3>
+<div class="diagram"><pre class="mermaid">erDiagram
+  runs ||--o{ run_steps : "step x 센서"
+  runs }o--o{ faults : "tool, time"
+  tasks ||--o{ task_events : "진행 이벤트"
+  tasks ||--o| investigations : "승인 후 1건"
+  runs {
+    text tool PK
+    text run_id PK "runnum-Lot"
+    bigint runnum
+    text lot
+    text stage
+    text recipe
+    float8 start_time
+    float8 end_time
+    int n_rows
+  }
+  run_steps {
+    text tool PK
+    text run_id PK
+    text recipe_step PK
+    text signal PK
+    int n
+    float8 mean
+    float8 std
+    float8 min
+    float8 max
+    float8 missing_rate
+  }
+  faults {
+    serial id PK
+    text tool
+    float8 time
+    text fault_name
+  }
+  doc_chunks {
+    serial id PK
+    text source
+    text section
+    text content
+    vector embedding "1536, HNSW cosine"
+    text embed_model
+  }
+  tasks {
+    uuid id PK "= thread_id"
+    text user_name
+    text user_role
+    text question
+    text tool
+    text run_id
+    text status "QUEUED RUNNING WAITING_APPROVAL DONE FAILED"
+    jsonb report
+    text error
+  }
+  task_events {
+    uuid task_id PK
+    int seq PK
+    text type
+    jsonb payload
+  }
+  investigations {
+    serial id PK
+    uuid task_id UK
+    text tool
+    text run_id
+    jsonb report
+    text approved_by
+    timestamptz approved_at
+  }</pre></div>
+<h3 id="s20">8.3 RAG 문서 색인 (Pipe and Filter)</h3>
+<div class="diagram"><pre class="mermaid">flowchart LR
+  D["knowledge/*.md&lt;br/&gt;PHM 데이터 사전 · 장비 개요 · 팀 조사 가이드"] --&gt; C["Chunking&lt;br/&gt;## 섹션 단위"] --&gt; E["Embedding&lt;br/&gt;text-embedding-3-small"] --&gt; I["Indexing&lt;br/&gt;source · section · embed_model"] --&gt; V[("pgvector doc_chunks")]</pre></div>
+<h2 id="s21">9. API · 이벤트 계약 (PDF 표 5-8, 5-9)</h2>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>역할</th><th>응답</th></tr></thead><tbody><tr><td>POST</td><td><code>/api/ai/tasks</code></td><td>worker, engineer</td><td>202 <code>{taskId}</code></td></tr><tr><td>GET</td><td><code>/api/ai/tasks/{id}</code></td><td>전체 (worker는 본인 것만)</td><td>task + 승인 정보</td></tr><tr><td>GET</td><td><code>/api/ai/tasks/{id}/stream</code></td><td>전체</td><td><code>text/event-stream</code>, <code>Last-Event-ID</code> 재연결 지원</td></tr><tr><td>POST</td><td><code>/api/ai/tasks/{id}/approval</code></td><td><strong>engineer만</strong></td><td>202, 대기 상태 아니면 409</td></tr><tr><td>GET</td><td><code>/api/ai/tasks?mine=true</code></td><td>전체</td><td>목록</td></tr><tr><td>GET</td><td><code>/api/runs</code>, <code>/api/runs/near-faults</code></td><td>전체</td><td>run 검색 (→ Spring 업무 API로 이관)</td></tr><tr><td>GET</td><td><code>/api/admin/overview</code></td><td><strong>admin만</strong></td><td>상태 집계·승인 기록·문서·도구 지표</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>이벤트</th><th>시점</th><th>화면</th></tr></thead><tbody><tr><td><code>QUEUED</code></td><td>접수</td><td>타임라인</td></tr><tr><td><code>PLAN</code></td><td>plan_node가 다음 행동 결정</td><td>타임라인 (Agent 판단 이유)</td></tr><tr><td><code>TOOL_START</code> / <code>TOOL_END</code></td><td>도구 실행 전후 (ms, ok, 결과)</td><td>타임라인 + 근거 패널</td></tr><tr><td><code>TOKEN</code></td><td>보고서 요약 생성</td><td>타임라인</td></tr><tr><td><code>APPROVAL_REQUIRED</code></td><td>interrupt로 정지</td><td>승인 카드 + 보고서</td></tr><tr><td><code>REVIEWED</code></td><td>승인/수정 요청 기록</td><td>타임라인</td></tr><tr><td><code>DONE</code> / <code>FAILED</code></td><td>종료</td><td>스트림 종료, 목록 갱신</td></tr></tbody></table></div>
+<h2 id="s22">10. 품질 속성 (ISO/IEC 25010) ↔ 설계 결정</h2>
+<div class="table-wrap"><table><thead><tr><th>품질 특성</th><th>설계 결정</th></tr></thead><tbody><tr><td>기능 적합성</td><td>수치는 코드 계산, 보고서 수치는 도구 결과에서만 → 정합성 검사 가능</td></tr><tr><td>성능 효율성</td><td>원시 311만 행 → step×센서 통계 121만 행 사전 집계, 도구 응답 수 ms~수십 ms</td></tr><tr><td>호환성</td><td><code>/api</code> 계약 고정 → FastAPI에서 Spring Boot로 바꿔도 Vue 변경 없음, 도구 → MCP 승격</td></tr><tr><td>사용성</td><td>역할별 화면, 실시간 진행, 근거 표·출처 함께 표시</td></tr><tr><td>신뢰성</td><td>checkpointer 재개, 재시도·대체 모델·폴백, (Kafka) 재시도·DLQ</td></tr><tr><td>보안</td><td>서버 측 역할 검사, 승인 전 저장 차단, 내부 서비스 비공개, 키는 <code>.env</code></td></tr><tr><td>유지보수성</td><td>프롬프트 코드 밖, 도구는 순수 함수, 계층별 금지 사항</td></tr><tr><td>이식성</td><td>docker compose 서비스 단위 배포</td></tr></tbody></table></div>
+<h2 id="s23">11. 로드맵</h2>
+<div class="table-wrap"><table><thead><tr><th>단계</th><th>내용</th><th>완료 기준</th></tr></thead><tbody><tr><td><span class="st ok">✅</span> 0. POC (오늘)</td><td>실데이터 01M01 적재, LangGraph Agent, RAG, HITL, SSE, 역할별 Vue</td><td><code>e2e_check.py</code> 통과</td></tr><tr><td><span class="st next">🔜</span> 1. MCP 분리</td><td><code>tools.py</code> → business-mcp(:9101) / rag-mcp(:9102), Agent에 FastMCP Client</td><td>Agent가 <code>list_tools</code>로 도구 발견</td></tr><tr><td><span class="st next">🔜</span> 2. Spring Boot + Supabase</td><td><code>/api/<strong></code> 이관, <code>/internal/</strong></code>, JWT 검증·역할 claim, SSE 중계</td><td>Vue proxy target 8080</td></tr><tr><td><span class="st plan">📐</span> 3. Kafka</td><td>requested/resume/retry/dlq/events 토픽, worker 수평 확장</td><td>장애 시연 스크립트로 재시도·DLQ 확인</td></tr><tr><td><span class="st plan">📐</span> 4. 확장·평가</td><td>장비 20대 적재, LangSmith, 평가셋(조회 정확성·수치 정합성·승인 흐름)</td><td>평가표 결과 비교</td></tr></tbody></table></div>
+  </article>
+</div>
