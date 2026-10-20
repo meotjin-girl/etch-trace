@@ -1,8 +1,8 @@
-import type { ApprovalBody, Identity, Task, TaskEvent } from './types'
+import type { ApprovalBody, Identity, Sop, SopSummary, Task, TaskEvent } from './types'
 
 export const EVENT_TYPES = [
   'QUEUED', 'RUNNING', 'SEARCH_STARTED', 'ANALYSIS_STARTED', 'REPORT_STARTED',
-  'QUESTION', 'APPROVAL_REQUIRED', 'DONE', 'INCOMPLETE', 'FAILED', 'REVIEWED'
+  'MESSAGE', 'QUESTION', 'APPROVAL_REQUIRED', 'DONE', 'INCOMPLETE', 'FAILED', 'REVIEWED'
 ] as const
 
 export class ApiError extends Error {
@@ -30,6 +30,8 @@ interface StreamHandlers {
   signal?: AbortSignal
   onEvent: (event: TaskEvent) => void
   onError: (error: ApiError) => void
+  // Proposed TOKEN events: unsaved text deltas without a sequence.
+  onToken?: (delta: string, target: string) => void
 }
 
 // EventSource cannot set headers. Keep its mock identity query transport here.
@@ -79,7 +81,9 @@ export function createApi(identity: Identity, transport: Transport = {}) {
     create: (question: string, signal?: AbortSignal) => request<{taskId: string}>(root, {method: 'POST', body: {question}, signal}),
     message: (id: string, text: string, signal?: AbortSignal) => request<unknown>(`${path(id)}/messages`, {method: 'POST', body: {text}, signal}),
     approval: (id: string, body: ApprovalBody, signal?: AbortSignal) => request<unknown>(`${path(id)}/approval`, {method: 'POST', body, signal}),
-    stream(id: string, after: number, {signal, onEvent, onError}: StreamHandlers) {
+    sops: (signal?: AbortSignal) => request<SopSummary[]>('/api/sops', {signal}),
+    sop: (id: string, signal?: AbortSignal) => request<Sop>(`/api/sops/${encodeURIComponent(id)}`, {signal}),
+    stream(id: string, after: number, {signal, onEvent, onError, onToken}: StreamHandlers) {
       if (signal?.aborted) return () => {}
       const source = new Source(streamUrl(id, identity, after))
       const close = () => {
@@ -103,6 +107,14 @@ export function createApi(identity: Identity, transport: Transport = {}) {
         }
       }
       EVENT_TYPES.forEach(type => source.addEventListener(type, receive))
+      // A lost or malformed token is harmless: the next saved event carries the full text.
+      source.addEventListener('TOKEN', event => {
+        if (signal?.aborted) return
+        try {
+          const data = JSON.parse(event.data)
+          if (typeof data.delta === 'string') onToken?.(data.delta, String(data.target || 'message'))
+        } catch { /* ignore */ }
+      })
       source.onmessage = receive
       source.onerror = () => {
         close()

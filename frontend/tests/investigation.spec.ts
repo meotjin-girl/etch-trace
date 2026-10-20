@@ -29,13 +29,37 @@ beforeEach(() => {
   useIdentityStore().api = api as unknown as Api
 })
 
-test('persisted clarification and its replay event yield one assistant follow-up', () => {
+test('chat follows saved event order across question, answer, report and judgement', () => {
   const {investigation} = stores()
-  investigation.task = {id:'a', status:'WAITING_INPUT', messages:[{role:'assistant', text:'fixture-followup'}]}
-  investigation.events = [{seq:1, type:'QUESTION', payload:{text:'fixture-followup'}}]
-  expect(investigation.followUps).toHaveLength(0)
-  investigation.events = [{seq:2, type:'QUESTION', payload:{text:'new-followup'}}]
-  expect(investigation.followUps).toHaveLength(1)
+  investigation.task = {id:'a', status:'WAITING_INPUT', question:'처음 질문', user_name:name,
+    messages:[{role:'assistant', text:'persisted copy is not drawn twice'}]}
+  investigation.events = [
+    {seq:1, type:'QUEUED', payload:{}}, {seq:2, type:'RUNNING', payload:{}},
+    {seq:3, type:'QUESTION', payload:{text:'장비는?'}}, {seq:4, type:'MESSAGE', payload:{text:'ETCH-07'}},
+    {seq:5, type:'APPROVAL_REQUIRED', payload:{report:{summary:'r1'}}},
+    {seq:6, type:'REVIEWED', payload:{action:'revise', comment:'RF 보강'}},
+    {seq:7, type:'QUESTION', payload:{text:'기록할 정보?', options:['건너뛰기']}},
+  ]
+  expect(investigation.chat.map(item => [item.role, item.kind, item.text ?? item.report?.summary])).toEqual([
+    ['user', 'text', '처음 질문'], ['assistant', 'question', '장비는?'], ['user', 'text', 'ETCH-07'],
+    ['assistant', 'report', 'r1'], ['user', 'text', '미승인 · RF 보강'], ['assistant', 'question', '기록할 정보?'],
+  ])
+  expect(investigation.pending).toEqual({seq:7, options:['건너뛰기'], decision:false})
+})
+
+test('quick replies only for the owner on the latest pending prompt, decisions default to 승인/미승인', () => {
+  const {investigation} = stores()
+  investigation.task = {id:'a', status:'WAITING_INPUT', user_name:name}
+  investigation.events = [{seq:1, type:'QUESTION', payload:{text:'?'}}]
+  expect(investigation.pending).toBeNull()
+  investigation.task = {id:'a', status:'WAITING_INPUT', user_name:'다른 사람'}
+  investigation.events = [{seq:1, type:'QUESTION', payload:{text:'?', options:['예']}}]
+  expect(investigation.pending).toBeNull()
+  investigation.task = {id:'a', status:'WAITING_APPROVAL', user_name:name}
+  investigation.events = [{seq:2, type:'APPROVAL_REQUIRED', payload:{report:{}}}]
+  expect(investigation.pending).toEqual({seq:2, options:['승인', '미승인'], decision:true})
+  investigation.task = {id:'a', status:'DONE', user_name:name}
+  expect(investigation.pending).toBeNull()
 })
 
 test('review permissions: engineer waiting only, not worker/admin/legacy', () => {
@@ -51,16 +75,14 @@ test('review permissions: engineer waiting only, not worker/admin/legacy', () =>
   expect(investigation.canReview({id:'a', status:'DONE'})).toBe(false)
 })
 
-test('owner identity survives a role change and citations close the review dialog', () => {
+test('owner identity survives a role change and citations highlight evidence', () => {
   const {investigation, identity, ui} = stores()
   identity.role = 'worker'
   expect(investigation.isOwner({id:'a', status:'DONE', user_name:name, user_role:'engineer'})).toBe(true)
   expect(investigation.isOwner({id:'a', status:'DONE', user_name:'another-worker', user_role:'worker'})).toBe(false)
-  investigation.openReview({id:'a', status:'WAITING_APPROVAL', report:{}})
-  expect(investigation.review.task).not.toBeNull()
   ui.openEvidence('DOC#1')
-  expect(investigation.review.task).toBeNull()
   expect(ui.highlight.id).toBe('DOC#1')
+  expect(ui.evidenceOpen).toBe(true)
 })
 
 test('old local records stay read-only and never become authoritative approvals', () => {
@@ -100,19 +122,47 @@ test('reset aborts in-flight requests', async () => {
   expect(signal!.aborted).toBe(true)
 })
 
-test('review sends server actor metadata and revise requires comment', async () => {
+test('chat judgement: buttons and typed text map to /approval without a reviewer field', async () => {
   const {investigation} = stores()
-  investigation.openReview({id:'a', status:'WAITING_APPROVAL', report:{}})
-  expect(await investigation.submitReview('revise')).toBe(false)
-  expect(calls).toHaveLength(0)
-  Object.assign(investigation.review, {comment:'다시 확인', time:'2026-10-20T10:00', lot:'LOT-1'})
-  await investigation.submitReview('revise')
-  const body = calls.find(item => item[0] === 'approval')![2] as Record<string, string>
-  expect(body.action).toBe('revise')
-  expect(body.comment).toBe('다시 확인')
-  expect(body.lot_id).toBe('LOT-1')
-  expect(body.event_time!.endsWith('Z')).toBe(true)
-  expect(body).not.toHaveProperty('by')
+  const waiting = () => {
+    investigation.task = {id:'a', status:'WAITING_APPROVAL', user_name:name, report:{}}
+    investigation.events = [{seq:1, type:'APPROVAL_REQUIRED', payload:{report:{}}}]
+  }
+  waiting()
+  await investigation.choose('승인')
+  waiting()
+  await investigation.choose('미승인')
+  waiting()
+  investigation.draft = 'RF 근거를 다시 확인'
+  await investigation.submitQuestion()
+  const bodies = calls.filter(item => item[0] === 'approval').map(item => item[2])
+  expect(bodies).toEqual([{action:'approve', comment:''}, {action:'revise', comment:''}, {action:'revise', comment:'RF 근거를 다시 확인'}])
+  expect(investigation.draft).toBe('')
+  expect(calls.some(item => item[0] === 'message')).toBe(false)
+})
+
+test('quick reply to a QUESTION is sent as a message and keeps the typed draft', async () => {
+  const {investigation} = stores()
+  investigation.task = {id:'a', status:'WAITING_INPUT', user_name:name}
+  investigation.events = [{seq:1, type:'QUESTION', payload:{text:'?', options:['건너뛰기']}}]
+  investigation.draft = '작성 중'
+  await investigation.choose('건너뛰기')
+  expect(calls.find(item => item[0] === 'message')).toEqual(['message', 'a', '건너뛰기'])
+  expect(investigation.draft).toBe('작성 중')
+})
+
+test('TOKEN deltas stream into one bubble and clear on the next saved event', () => {
+  const {investigation} = stores()
+  let handlers: {onEvent: (event: TaskEvent) => void, onToken: (delta: string, target: string) => void} | undefined
+  api.stream = (_id: string, _after: number, h: typeof handlers) => { handlers = h; return () => {} }
+  investigation.task = {id:'a', status:'RUNNING', user_name:name}
+  investigation.connectStream()
+  handlers!.onToken('유사 ', 'summary')
+  handlers!.onToken('사례', 'summary')
+  expect(investigation.streaming).toEqual({target:'summary', text:'유사 사례'})
+  handlers!.onEvent({seq:1, type:'APPROVAL_REQUIRED', payload:{report:{summary:'유사 사례'}}})
+  expect(investigation.streaming).toBeNull()
+  expect(investigation.task!.status).toBe('WAITING_APPROVAL')
 })
 
 test('detail status survives replay of an old approval after revision', async () => {

@@ -100,3 +100,28 @@ test('event replay merges and deduplicates numeric sequence', () => {
   ])
   expect(events.map(event => event.seq)).toEqual([1, 2, 3])
 })
+
+test('SOP routes carry the same identity headers', async () => {
+  const calls: {url: string, headers: Record<string, string>}[] = []
+  const api = createApi(identity, {fetch:(async (url: string, options: RequestInit) => {
+    calls.push({url, headers:options.headers as Record<string, string>})
+    return new Response('[]')
+  }) as typeof fetch})
+  await api.sops()
+  await api.sop('SOP/1')
+  expect(calls.map(call => call.url)).toEqual(['/api/sops', '/api/sops/SOP%2F1'])
+  expect(calls[1]!.headers['X-User-Role']).toBe('engineer')
+})
+
+test('TOKEN deltas bypass sequence checks and never become saved events', () => {
+  const api = createApi(identity, {EventSource:FakeSource})
+  const tokens: string[] = []
+  const events: TaskEvent[] = []
+  api.stream('a', 0, {onEvent:event => events.push(event), onError:fail, onToken:(delta, target) => tokens.push(`${target}:${delta}`)})
+  const source = latest()
+  source.emit('TOKEN', {delta:'유사', target:'summary'})
+  source.emit('TOKEN', {delta:' 사례'})
+  expect(tokens).toEqual(['summary:유사', 'message: 사례'])
+  expect(events).toHaveLength(0)
+  expect(source.closed).toBe(false)
+})

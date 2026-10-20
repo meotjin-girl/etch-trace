@@ -49,6 +49,10 @@ test('app shell mounts every route with backend data', async () => {
     report:{documents:[{id:'DOC#1', title:'문서', text:'본문'}], docIds:['DOC#1'], metrics:[], causeCases:[]}, events:[]}
   useIdentityStore().api = {
     list: async () => [task], detail: async () => task, stream: () => () => {},
+    sops: async () => [{id:'SOP-ETCH-12', title:'식각 공정 이상 대응 절차', category:'공정', version:'1.2',
+      updatedAt:'2026-10-12', owner:'공정기술팀', description:'설명', tags:[], demo:true}],
+    sop: async (id: string) => ({id, title:'식각 공정 이상 대응 절차', category:'공정', version:'1.2',
+      updatedAt:'2026-10-12', owner:'공정기술팀', description:'설명', tags:[], demo:true, markdown:'## 목적'}),
   } as never
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true }
   globalThis.matchMedia ??= (() => ({matches:false})) as never
@@ -67,4 +71,18 @@ test('app shell mounts every route with backend data', async () => {
   await new Promise(resolve => setTimeout(resolve, 0))
   expect(wrapper.find('[data-evidence-id="DOC#1"]').exists()).toBe(true)
   wrapper.unmount()
+})
+
+test('pending judgement renders 승인/미승인 under the report bubble', async () => {
+  const {default: InvestigationView} = await import('@/views/InvestigationView.vue')
+  const {useInvestigationStore} = await import('@/stores/investigation')
+  const investigation = useInvestigationStore()
+  investigation.task = {id:'a', status:'WAITING_APPROVAL', question:'질문', user_name:'이엔지니어'}
+  investigation.events = [{seq:1, type:'QUEUED', payload:{}},
+    {seq:2, type:'APPROVAL_REQUIRED', payload:{report:{summary:'요약'}, text:'보고서를 판별해 주세요'}}]
+  const wrapper = mount(InvestigationView)
+  const buttons = wrapper.findAll('.quick-replies button').map(button => button.text())
+  expect(buttons).toEqual(['승인', '미승인'])
+  expect(wrapper.text()).toContain('보고서를 판별해 주세요')
+  expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined()
 })

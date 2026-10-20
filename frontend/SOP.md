@@ -1,14 +1,15 @@
 # SOP 화면 데이터 연동
 
-현재 SOP 목록은 FE 샘플이며 백엔드 요청을 보내지 않습니다.
+SOP 화면은 API 8·9번(`docs/frontend.md` 필요 API)을 호출합니다. 실제 backend에는 아직
+없으므로 `npm run dev:mock`의 목업(`frontend/mock/fixtures.ts` 샘플)으로 확인합니다.
 샘플은 실제 작업 지침이 아니라고 목록과 본문에 표시합니다.
 
 ## 교체할 경계
 
-`src/api/sop.ts`의 비동기 함수 두 개를 인증된 API 호출로 교체합니다.
+`src/api/client.ts`의 `sops()`·`sop(id)`가 인증 헤더를 붙여 호출합니다.
 
-- `listSops()`: 문서 요약 배열 반환. 본문 마크다운은 포함하지 않습니다.
-- `getSop(id)`: 요약 정보와 `markdown` 원문 반환.
+- `GET /api/sops`: 문서 요약 배열 반환. 본문 마크다운은 포함하지 않습니다.
+- `GET /api/sops/{id}`: 요약 정보와 `markdown` 원문 반환. 없으면 404.
 
 목록과 상세에서 사용하는 필드:
 

@@ -1,21 +1,8 @@
-// Replace these two functions with authenticated API calls when the SOP API is ready.
-// List responses omit markdown; detail responses include the original markdown string.
-export interface SopSummary {
-  id: string
-  title: string
-  category: string
-  version: string
-  updatedAt: string
-  owner: string
-  description: string
-  tags: string[]
-  demo: boolean
-}
-export interface Sop extends SopSummary {
-  markdown: string
-}
+// Mock-only sample data. Shapes follow docs/frontend.md (필요 API) and docs/api.md.
+import type { Report, Sop } from '../src/api/types'
 
-const documents: Omit<Sop, 'demo'>[] = [
+// Sample SOPs moved from the former hard-coded src/api/sop.ts.
+export const sopDocuments: Omit<Sop, 'demo'>[] = [
   {
     id:'SOP-ETCH-12', title:'식각 공정 이상 대응 절차', category:'공정 이상 대응',
     version:'1.2', updatedAt:'2026-10-12', owner:'공정기술팀',
@@ -108,12 +95,37 @@ RF 반사전력 상승이 관찰된 식각 공정의 이력을 검토합니다.
   }
 ];
 
-export async function listSops(): Promise<SopSummary[]> {
-  return documents.map(({markdown, ...summary}) => ({...summary, demo:true}));
+const documents = {
+  'DOC-RF-03': {id:'DOC-RF-03', title:'RF 반사전력 점검 기준', text:'반사전력이 기준 대비 지속 상승하면 매칭 네트워크와 RF 케이블 체결 상태를 우선 확인한다. (샘플 문서)'},
+  'DOC-EP-07': {id:'DOC-EP-07', title:'Endpoint 지연 대응', text:'Endpoint가 레시피 기준보다 20% 이상 늦어지면 챔버 컨디셔닝 이력과 OES 신호를 비교한다. (샘플 문서)'},
+  'DOC-PR-02': {id:'DOC-PR-02', title:'챔버 압력 안정화 확인', text:'압력 변동이 관찰되면 스로틀 밸브 응답과 가스 유량 로그를 함께 확인한다. (샘플 문서)'},
 }
 
-export async function getSop(id: string): Promise<Sop> {
-  const document = documents.find(item => item.id === id);
-  if (!document) throw new Error('문서를 찾을 수 없습니다.');
-  return {...document, demo:true};
+// Builds a report for the mock agent. `feedback` holds the engineer's revision requests.
+export function buildReport(question: string, feedback: string[]): Report {
+  const equipment = question.match(/ETCH-\d+/)?.[0] ?? 'ETCH-07'
+  const chamber = question.match(/CH-[A-Z]/)?.[0] ?? 'CH-B'
+  const recipe = question.match(/OX-\d+/)?.[0] ?? 'OX-120'
+  const rfFocus = feedback.some(item => /RF/i.test(item))
+  return {
+    context:{equipment, chamber, recipe, symptom:question},
+    metrics:[
+      {key:'endpoint_sec', value:118, severity:'high', mean:92.4, deltaPct:27.7, z:3.1},
+      {key:'rf_reflected_w', value:29, severity:rfFocus ? 'high' : 'medium', mean:18.2, deltaPct:59.3, z:2.4},
+      {key:'pressure_mtorr', value:31.5, severity:'low', mean:30.1, deltaPct:4.7, z:0.8},
+    ],
+    causeCases:[
+      {id:'CASE-014', cause:'RF matching 열화', action:'매칭 네트워크 커패시터 위치와 반사전력 추이 확인', docs:['DOC-RF-03']},
+      {id:'CASE-031', cause:'챔버 컨디셔닝 부족', action:'최근 PM 이후 시즈닝 웨이퍼 수 확인', docs:['DOC-EP-07']},
+      ...(rfFocus ? [{id:'CASE-042', cause:'RF 케이블 체결 불량', action:'케이블 토크와 커넥터 손상 여부 확인', docs:['DOC-RF-03']}] : []),
+    ],
+    docIds:['DOC-RF-03', 'DOC-EP-07', 'DOC-PR-02'],
+    documents:Object.values(documents),
+    summary:`${equipment} ${chamber} ${recipe}에서 endpoint가 비교군 평균 대비 27.7% 지연되고 RF 반사전력이 59.3% 높습니다. ` +
+      `유사 사례 ${rfFocus ? 3 : 2}건 기준으로 RF 매칭 계통을 먼저 확인할 가설을 제시합니다.` +
+      (feedback.length ? ` 수정 요청 반영: ${feedback.join(' / ')}` : ''),
+    unknowns:['정비 이력 원본 미확인'],
+    feedback,
+    demo:true,
+  }
 }

@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecordDetail from '@/components/RecordDetail.vue'
-import { date, statuses } from '@/lib/format'
+import { date, shortId, statuses } from '@/lib/format'
 import { useInvestigationStore } from '@/stores/investigation'
 import { useRecordsStore } from '@/stores/records'
 import { useUiStore } from '@/stores/ui'
@@ -54,8 +54,12 @@ function start() {
         <div class="record-list">
           <RouterLink v-for="item in records.records" :key="item.id" v-slot="{ navigate }" :to="`/records/${encodeURIComponent(item.id)}`" custom>
             <button type="button" class="record-list-item" :class="{active: records.selected?.id === item.id}" @click="navigate">
-              <header><strong>{{ item.legacyId || item.id }}</strong><span>{{ statuses[item.status] || item.status }}</span></header>
-              <p>{{ item.question }}</p><small>{{ date(item.created_at) }} · {{ item.user_name || '읽기 전용 로컬 기록' }}</small>
+              <header>
+                <span class="record-id" :title="item.id">#{{ item.legacyId || shortId(item.id) }}</span>
+                <span class="record-status">{{ statuses[item.status] || item.status }}</span>
+              </header>
+              <strong class="record-title">{{ item.question }}</strong>
+              <small>{{ date(item.created_at) }}{{ item.legacy ? ' · 읽기 전용 로컬 기록' : '' }}</small>
             </button>
           </RouterLink>
         </div>

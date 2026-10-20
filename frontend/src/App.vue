@@ -3,7 +3,6 @@ import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
 import EvidencePanel from '@/components/EvidencePanel.vue'
-import ReviewDialog from '@/components/ReviewDialog.vue'
 import { useInvestigationStore } from '@/stores/investigation'
 import { useRecordsStore } from '@/stores/records'
 import { useUiStore } from '@/stores/ui'
@@ -68,5 +67,4 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
     <EvidencePanel />
   </div>
 
-  <ReviewDialog />
 </template>

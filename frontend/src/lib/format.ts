@@ -3,10 +3,33 @@ export const units: Record<string, string> = {endpoint_sec:'sec', etch_rate_nm_m
 export const statuses: Record<string, string> = {
   QUEUED:'접수됨', RUNNING:'조사 중', SEARCH_STARTED:'근거 검색 중',
   ANALYSIS_STARTED:'수치 분석 중', REPORT_STARTED:'보고서 작성 중',
-  WAITING_INPUT:'추가 정보 대기', WAITING_APPROVAL:'엔지니어 검토 대기',
-  DONE:'완료', INCOMPLETE:'근거 부족', FAILED:'실패', REVIEWED:'검토됨', LOADING:'조사 불러오는 중'
+  WAITING_INPUT:'추가 정보 대기', WAITING_APPROVAL:'엔지니어 판별 대기',
+  DONE:'완료', INCOMPLETE:'근거 부족', FAILED:'실패', REVIEWED:'판별됨', LOADING:'조사 불러오는 중'
 }
 export const terminal = new Set(['DONE', 'INCOMPLETE', 'FAILED'])
+
+// UUIDs are unreadable in lists; show the first block and keep the full id in a tooltip.
+export const shortId = (id: string) => /^[0-9a-f]{8}-/i.test(id) ? id.slice(0, 8) : id
+
+// Readable record history line for a saved event; detail is the human text, if any.
+export function eventLine(event: {type: string, payload?: Record<string, any>}): {title: string, detail?: string} {
+  const payload = event.payload || {}
+  switch (event.type) {
+    case 'QUEUED': return {title:'조사 접수'}
+    case 'RUNNING': return {title:'에이전트 실행'}
+    case 'SEARCH_STARTED': return {title:'근거 검색'}
+    case 'ANALYSIS_STARTED': return {title:'근거 분석'}
+    case 'REPORT_STARTED': return {title:'보고서 작성'}
+    case 'MESSAGE': return {title:'엔지니어 답변', detail:text(payload.text)}
+    case 'QUESTION': return {title:'에이전트 재질문', detail:text(payload.text)}
+    case 'APPROVAL_REQUIRED': return {title:'보고서 판별 요청'}
+    case 'REVIEWED': return {title:payload.action === 'approve' ? '승인' : '미승인', detail:payload.comment ? text(payload.comment) : undefined}
+    case 'DONE': return {title:'조사 완료'}
+    case 'FAILED': return {title:'실패', detail:text(payload.error)}
+    case 'INCOMPLETE': return {title:'근거 부족으로 종료', detail:text(payload.reason)}
+    default: return {title:event.type}
+  }
+}
 
 // Sidebar progress (1-4) derived only from backend events and the report.
 export function progressStep(events: {type: string}[], hasReport: boolean): number {

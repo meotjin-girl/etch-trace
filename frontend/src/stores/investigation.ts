@@ -1,13 +1,25 @@
 import { defineStore } from 'pinia'
-import { computed, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { mergeEvents } from '@/api/client'
-import type { Task, TaskEvent } from '@/api/types'
+import type { Report, Task, TaskEvent } from '@/api/types'
 import { progressStep, statuses, terminal, text } from '@/lib/format'
 import { useIdentityStore } from './identity'
 import { useRecordsStore } from './records'
 import { useUiStore } from './ui'
 
 const refreshTypes = ['QUESTION', 'APPROVAL_REQUIRED', 'DONE', 'FAILED', 'INCOMPLETE', 'REVIEWED']
+const decisions = ['승인', '미승인']
+
+// One chat bubble, derived from saved events so multi-turn order is exact.
+export interface ChatItem {
+  key: string
+  seq?: number
+  role: 'user' | 'assistant'
+  kind: 'text' | 'question' | 'report' | 'notice'
+  text?: string
+  missing?: unknown
+  report?: Report
+}
 
 export const useInvestigationStore = defineStore('investigation', () => {
   const identity = useIdentityStore()
@@ -19,9 +31,8 @@ export const useInvestigationStore = defineStore('investigation', () => {
   const after = ref(0)
   const busy = ref(false)
   const draft = ref('')
-  const review = reactive({
-    task: null as Task | null, time: '', lot: '', comment: '', notice: '', busy: false
-  })
+  // Proposed TOKEN deltas for the reply being written; cleared by the next saved event.
+  const streaming = ref<{target: string, text: string} | null>(null)
   // Plain counters, not state: every async result checks them before writing.
   let epoch = 0
   let syncVersion = 0
@@ -32,25 +43,50 @@ export const useInvestigationStore = defineStore('investigation', () => {
   const canReview = (item: Task | null | undefined) =>
     identity.role === 'engineer' && item?.status === 'WAITING_APPROVAL' && !item.legacy
 
+  const canAnswer = (item: Task | null | undefined) => item?.status === 'WAITING_INPUT' && isOwner(item)
   const inputBlocked = computed(() => busy.value ||
-    Boolean(task.value && !(task.value.status === 'WAITING_INPUT' && isOwner(task.value))))
+    Boolean(task.value && !canAnswer(task.value) && !canReview(task.value)))
   const statusText = computed(() => busy.value ? '요청 전송 중' :
     task.value ? `${statuses[task.value.status] || task.value.status} · ${task.value.id}` : '질문을 입력해 주세요')
-  const placeholder = computed(() => task.value?.status === 'WAITING_INPUT' ?
-    (isOwner(task.value) ? '추가 정보를 입력해 주세요…' : '조사 소유자만 추가 정보를 보낼 수 있습니다') :
-    task.value ? '새 질문은 새 조사를 시작해 주세요' : '특정 이상에 대해 질문해 주세요…')
-  const step = computed(() => progressStep(events.value, Boolean(task.value?.report)))
-  // QUESTION is the authoritative follow-up prompt, including missing fields.
-  const followUps = computed(() => events.value.filter(event => event.type === 'QUESTION' &&
-    !(task.value?.messages || []).some(item => item.role === 'assistant' &&
-      (item.text ?? item.content) === event.payload.text)))
-  const failure = computed(() => {
-    const last = events.value.at(-1)
-    return last && ['FAILED', 'INCOMPLETE'].includes(last.type) ?
-      text(last.payload.error ?? last.payload.reason) : null
+  const placeholder = computed(() => {
+    const current = task.value
+    if (!current) return '특정 이상에 대해 질문해 주세요…'
+    if (canReview(current)) return '수정할 내용을 입력하면 미승인으로 보냅니다…'
+    if (current.status === 'WAITING_INPUT') return isOwner(current) ? '추가 정보를 입력해 주세요…' : '조사 소유자만 추가 정보를 보낼 수 있습니다'
+    return terminal.has(current.status) ? '새 질문은 새 조사를 시작해 주세요' : '에이전트가 작업 중입니다…'
   })
-
-  function closeReview() { review.task = null }
+  const step = computed(() => progressStep(events.value, Boolean(task.value?.report)))
+  const chat = computed<ChatItem[]>(() => {
+    const current = task.value
+    if (!current) return []
+    const items: ChatItem[] = []
+    for (const event of events.value) {
+      const payload = event.payload || {}
+      const base = {key:`e${event.seq}`, seq:event.seq}
+      if (event.type === 'QUEUED') items.push({...base, role:'user', kind:'text', text:current.question})
+      else if (event.type === 'MESSAGE') items.push({...base, role:'user', kind:'text', text:text(payload.text)})
+      else if (event.type === 'QUESTION') items.push({...base, role:'assistant', kind:'question', text:text(payload.text), missing:payload.missing})
+      else if (event.type === 'APPROVAL_REQUIRED') items.push({...base, role:'assistant', kind:'report', report:payload.report ?? current.report ?? undefined, text:payload.text})
+      else if (event.type === 'REVIEWED') items.push({...base, role:'user', kind:'text',
+        text:payload.action === 'approve' ? '승인' : payload.comment ? `미승인 · ${payload.comment}` : '미승인'})
+      else if (event.type === 'DONE') items.push({...base, role:'assistant', kind:'notice', text:'조사가 완료되어 기록으로 저장되었습니다.'})
+      else if (event.type === 'FAILED' || event.type === 'INCOMPLETE') items.push({...base, role:'assistant', kind:'notice', text:text(payload.error ?? payload.reason)})
+    }
+    // Before any event arrives (just created or still loading) show the question itself.
+    if (!items.length && current.question) items.push({key:'question', role:'user', kind:'text', text:current.question})
+    return items
+  })
+  // Quick replies for the latest pending prompt only. Approval falls back to 승인/미승인
+  // so the current backend (no options field) still gets chat buttons.
+  const pending = computed(() => {
+    const current = task.value
+    if (!current || busy.value) return null
+    const last = [...events.value].reverse().find(event => event.type === 'QUESTION' || event.type === 'APPROVAL_REQUIRED')
+    const options = Array.isArray(last?.payload.options) ? last!.payload.options.map(String) : []
+    if (canReview(current)) return {seq:last?.seq, options:options.length ? options : decisions, decision:true}
+    if (canAnswer(current) && options.length) return {seq:last?.seq, options, decision:false}
+    return null
+  })
   function stopTask() {
     epoch++
     records.abortDetail()
@@ -59,8 +95,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
     closeStream?.()
     closeStream = null
     busy.value = false
-    review.busy = false
-    closeReview()
+    streaming.value = null
   }
   function reset() {
     stopTask()
@@ -94,6 +129,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
       signal:controller.signal,
       onEvent(event) {
         if (started !== epoch || event.seq <= after.value) return
+        streaming.value = null
         applyEvents([event])
         if (records.selected?.id === current.id) records.selected = task.value
         if (terminal.has(task.value!.status)) closeStream?.()
@@ -102,7 +138,12 @@ export const useInvestigationStore = defineStore('investigation', () => {
           syncTask(started)
         }
       },
-      onError(error) { if (started === epoch) ui.notify(error) }
+      onError(error) { if (started === epoch) ui.notify(error) },
+      onToken(delta, target) {
+        if (started !== epoch) return
+        const previous = streaming.value?.target === target ? streaming.value.text : ''
+        streaming.value = {target, text:previous + delta}
+      }
     })
   }
   async function syncTask(started = epoch) {
@@ -147,19 +188,26 @@ export const useInvestigationStore = defineStore('investigation', () => {
       return false
     } finally { if (started === epoch) busy.value = false }
   }
-  async function submitQuestion() {
-    const question = draft.value.trim()
+  // Typed text: a new question, an answer to QUESTION, or (while awaiting a decision)
+  // a rejection with that text as the revision request. `override` is a quick reply.
+  async function submitQuestion(override?: string) {
+    const question = (override ?? draft.value).trim()
     if (!question || inputBlocked.value) return
+    if (task.value && canReview(task.value)) {
+      await decide('revise', question)
+      if (override === undefined && !ui.networkError) draft.value = ''
+      return
+    }
     const started = epoch
     const current = task.value
     busy.value = true
     ui.clearError()
     try {
       if (current) {
-        if (current.status !== 'WAITING_INPUT' || !isOwner(current)) return
+        if (!canAnswer(current)) return
         await identity.api.message(current.id, question, controller.signal)
         if (started !== epoch) return
-        draft.value = ''
+        if (override === undefined) draft.value = ''
         await syncTask(started)
         connectStream()
       } else {
@@ -167,7 +215,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
         if (started !== epoch) return
         // Keep the accepted id even if the first detail request fails.
         task.value = {id:created.taskId, question, status:'QUEUED', user_name:identity.name, user_role:identity.role}
-        draft.value = ''
+        if (override === undefined) draft.value = ''
         await activateTask(created.taskId)
       }
       records.refresh()
@@ -189,48 +237,31 @@ export const useInvestigationStore = defineStore('investigation', () => {
     records.refresh()
   }
 
-  function openReview(item: Task | null | undefined) {
-    if (!item?.report || item.legacy) return
-    Object.assign(review, {task:item, time:'', lot:'', comment:'',
-      notice:canReview(item) ? '엔지니어 권한으로 서버에 검토를 제출합니다.' :
-        '검토 대기 상태의 조사만 엔지니어가 승인하거나 수정 요청할 수 있습니다. 현재는 읽기 전용입니다.'})
-  }
-  // Returns false when the form needs attention (missing revise comment).
-  async function submitReview(action: string) {
-    const item = review.task
-    if (!canReview(item) || review.busy || !item) return true
-    if (action !== 'approve' && action !== 'revise') return true
-    const comment = review.comment.trim()
-    if (action === 'revise' && !comment) {
-      review.notice = '수정 요청 의견을 입력해 주세요.'
-      return false
-    }
+  // Engineer judgement in chat; the agent follows up with its next question.
+  async function decide(action: 'approve' | 'revise', comment = '') {
+    const current = task.value
+    if (!current || !canReview(current) || busy.value) return
     const started = epoch
-    review.busy = true
+    busy.value = true
+    ui.clearError()
     try {
-      await identity.api.approval(item.id, {
-        action, comment,
-        ...(review.time ? {event_time:new Date(review.time).toISOString()} : {}),
-        ...(review.lot.trim() ? {lot_id:review.lot.trim()} : {})
-      }, controller.signal)
-      if (started !== epoch) return true
-      closeReview()
-      await records.refresh()
-      if (task.value?.id === item.id) {
-        await syncTask(started)
-        connectStream()
-      }
-      if (records.selected?.id === item.id) await records.select(item.id)
-    } catch (error) {
-      if (started === epoch) { ui.notify(error); review.notice = (error as Error).message }
-    } finally { if (started === epoch) review.busy = false }
-    return true
+      await identity.api.approval(current.id, {action, comment}, controller.signal)
+      if (started !== epoch) return
+      records.refresh()
+      await syncTask(started)
+      connectStream()
+    } catch (error) { if (started === epoch) ui.notify(error) }
+    finally { if (started === epoch) busy.value = false }
+  }
+  function choose(option: string) {
+    if (pending.value?.decision) return option === '승인' ? decide('approve') : decide('revise')
+    return submitQuestion(option)
   }
 
   return {
-    task, events, after, busy, draft, review,
-    isOwner, canReview, inputBlocked, statusText, placeholder, step, followUps, failure,
+    task, events, after, busy, draft, streaming,
+    isOwner, canReview, inputBlocked, statusText, placeholder, step, chat, pending,
     stopTask, reset, applyEvents, connectStream, syncTask, activateTask, submitQuestion, retry,
-    openReview, closeReview, submitReview
+    decide, choose
   }
 })

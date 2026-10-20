@@ -31,15 +31,17 @@ Retain the 238px / flexible conversation / 330px desktop grid, 84px topbar,
 At 1100px the evidence rail becomes a drawer. At 720px records stack and
 conversation padding reduces to 17px. A compact mobile navigation row preserves
 access to controls hidden with the original sidebar.
-Conversation, records, dialog preview, and evidence own their existing scrolling.
+Conversation, records, and evidence own their existing scrolling.
 
 ## 5. Components
 Keep message/avatar, metric-card, cause-item/citation, evidence-item,
-record-list-item, detail-status, record-cta, report-dialog, and button classes.
+record-list-item, detail-status, record-cta, quick-replies, and button classes.
 Server reports populate these primitives without frontend analysis.
 The sidebar footer shows the current user name only (login is not yet
-implemented); review uses readonly actor,
-optional occurrence time/Lot ID, comment, approve/revise, and non-submit close.
+implemented). Judgement happens in chat: the latest pending prompt shows
+equal-size quick replies (승인 primary black, others secondary); typed text
+while awaiting judgement is sent as a revision request. Streaming replies show
+a blinking caret.
 Records show every server status and a timestamped message/event/review timeline.
 Legacy records use the same cards but explicitly say local, unverified, readonly.
 Network feedback is a persistent inline alert with an explicit retry button.
@@ -50,11 +52,11 @@ text, not simulated progress. Disabled document search stays labeled upcoming.
 Keep the existing .28s message rise, .18–.25s hover/drawer transitions and
 highlight treatment. Progress changes only on backend status/events.
 Reduced motion removes positional animation and smooth scrolling.
-Suggestions fill the composer, citations reveal the evidence rail, native
-dialog supplies keyboard focus trapping and Escape close.
+Suggestions fill the composer, citations reveal the evidence rail, quick
+replies answer the latest pending prompt.
 
 ## 7. Depth & Surface
-Retain thin line borders, 8–12px rounded cards/controls, 15px dialog, pill badges,
+Retain thin line borders, 8–12px rounded cards/controls, pill badges,
 and the existing 0 18px 50px rgba(24,39,31,.12) overlay shadow.
 No new decorative surfaces or shadows.
 

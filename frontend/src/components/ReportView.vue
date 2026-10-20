@@ -4,8 +4,7 @@ import type { Report } from '@/api/types'
 import { labels, number, text, units } from '@/lib/format'
 import { useUiStore } from '@/stores/ui'
 
-const props = defineProps<{ report: Report, review?: boolean }>()
-defineEmits<{ review: [] }>()
+const props = defineProps<{ report: Report }>()
 const ui = useUiStore()
 
 const heading = computed(() => {
@@ -44,8 +43,4 @@ const heading = computed(() => {
     <h3>문서 근거</h3>
     <button v-for="doc in report.docIds" :key="doc" type="button" class="citation" @click="ui.openEvidence(doc)">[{{ doc }}]</button>
   </section>
-  <div v-if="!review" class="record-cta">
-    <p><strong>조사 결과를 기록으로 남길까요?</strong><br>서버 검토 상태와 권한을 확인해 승인 또는 수정을 요청합니다.</p>
-    <button class="record-button" type="button" @click="$emit('review')">조사 기록 만들기</button>
-  </div>
 </template>

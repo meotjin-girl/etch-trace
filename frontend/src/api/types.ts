@@ -13,7 +13,7 @@ export type TaskStatus =
 
 export type EventType =
   | 'QUEUED' | 'RUNNING' | 'SEARCH_STARTED' | 'ANALYSIS_STARTED' | 'REPORT_STARTED'
-  | 'QUESTION' | 'APPROVAL_REQUIRED' | 'DONE' | 'INCOMPLETE' | 'FAILED' | 'REVIEWED'
+  | 'MESSAGE' | 'QUESTION' | 'APPROVAL_REQUIRED' | 'DONE' | 'INCOMPLETE' | 'FAILED' | 'REVIEWED'
 
 export interface TaskEvent {
   seq: number
@@ -88,7 +88,23 @@ export interface Task {
 
 export interface ApprovalBody {
   action: 'approve' | 'revise'
-  comment: string
+  comment?: string
   event_time?: string
   lot_id?: string
+}
+
+export interface SopSummary {
+  id: string
+  title: string
+  category: string
+  version: string
+  updatedAt: string
+  owner: string
+  description: string
+  tags: string[]
+  demo: boolean
+}
+
+export interface Sop extends SopSummary {
+  markdown: string
 }

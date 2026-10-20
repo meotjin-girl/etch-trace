@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "MOCK_API=1 vite",
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
     "test": "vitest run",

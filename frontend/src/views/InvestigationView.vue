@@ -2,8 +2,7 @@
 import { ref } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ReportView from '@/components/ReportView.vue'
-import { text } from '@/lib/format'
-import { useInvestigationStore } from '@/stores/investigation'
+import { useInvestigationStore, type ChatItem } from '@/stores/investigation'
 
 const investigation = useInvestigationStore()
 const input = ref<HTMLTextAreaElement>()
@@ -13,6 +12,12 @@ const suggestions = [
   {label: 'RF 반사전력 상승', prompt: 'ETCH-07에서 RF reflected power가 29W로 상승했어. 관련 기준 문서와 점검 순서를 알려줘.'},
 ]
 
+// Quick replies attach to the prompt they answer, or to the last bubble if it has no event.
+function pendingHere(item: ChatItem) {
+  const pending = investigation.pending
+  if (!pending || investigation.streaming) return false
+  return pending.seq === undefined ? item === investigation.chat.at(-1) : item.seq === pending.seq
+}
 function suggest(prompt: string) {
   investigation.draft = prompt
   input.value?.focus()
@@ -33,21 +38,24 @@ function resize() {
 <template>
   <section id="conversation" class="conversation" aria-live="polite">
     <template v-if="investigation.task">
-      <template v-if="investigation.task.messages?.length">
-        <ChatMessage v-for="(item, index) in investigation.task.messages" :key="index" :role="item.role === 'user' ? 'user' : 'assistant'">
-          <p class="report-text">{{ text(item.text ?? item.content) }}</p>
-        </ChatMessage>
-      </template>
-      <ChatMessage v-else role="user"><p>{{ investigation.task.question }}</p></ChatMessage>
-      <ChatMessage v-for="event in investigation.followUps" :key="event.seq" role="assistant">
-        <p class="message-label">추가 정보 필요</p>
-        <p>{{ text(event.payload.text) }}</p>
-        <p>{{ text(event.payload.missing) }}</p>
+      <ChatMessage v-for="item in investigation.chat" :key="item.key" :role="item.role">
+        <template v-if="item.kind === 'report' && item.report">
+          <p v-if="item.text" class="message-label">{{ item.text }}</p>
+          <ReportView :report="item.report" />
+        </template>
+        <template v-else>
+          <p v-if="item.kind === 'question'" class="message-label">추가 정보 필요</p>
+          <p class="report-text">{{ item.text }}</p>
+        </template>
+        <div v-if="pendingHere(item)" class="quick-replies" role="group" aria-label="빠른 답변">
+          <button v-for="option in investigation.pending!.options" :key="option" type="button"
+            :class="investigation.pending!.decision && option === '승인' ? 'primary-button' : 'secondary-button'"
+            @click="investigation.choose(option)">{{ option }}</button>
+        </div>
       </ChatMessage>
-      <ChatMessage v-if="investigation.task.report" role="assistant">
-        <ReportView :report="investigation.task.report" @review="investigation.openReview(investigation.task)" />
+      <ChatMessage v-if="investigation.streaming" role="assistant">
+        <p class="report-text streaming-text" aria-live="polite">{{ investigation.streaming.text }}</p>
       </ChatMessage>
-      <ChatMessage v-if="investigation.failure !== null" role="assistant"><p>{{ investigation.failure }}</p></ChatMessage>
     </template>
     <div v-else class="message assistant-message intro-message">
       <div class="avatar" aria-hidden="true">AI</div>

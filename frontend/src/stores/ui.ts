@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { useInvestigationStore } from './investigation'
 
 export const useUiStore = defineStore('ui', () => {
   // Desktop rail starts visible; the <=1100px drawer starts closed.
@@ -13,7 +12,6 @@ export const useUiStore = defineStore('ui', () => {
   const sopQuery = ref('')
 
   function openEvidence(id: string | null = null) {
-    useInvestigationStore().closeReview()
     evidenceClosed.value = false
     evidenceOpen.value = true
     highlight.value = {id}

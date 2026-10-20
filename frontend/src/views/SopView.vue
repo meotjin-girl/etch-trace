@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSop, listSops, type Sop, type SopSummary } from '@/api/sop'
+import type { Sop, SopSummary } from '@/api/types'
 import { renderMarkdown } from '@/lib/markdown'
+import { useIdentityStore } from '@/stores/identity'
 import { useUiStore } from '@/stores/ui'
 
 const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
+const identity = useIdentityStore()
 const summaries = ref<SopSummary[]>([])
 const listError = ref('')
 const document = ref<Sop | null>(null)
@@ -29,7 +31,7 @@ async function load(id: string) {
   loading.value = true
   detailError.value = ''
   try {
-    const item = await getSop(id)
+    const item = await identity.api.sop(id)
     if (current !== request) return
     document.value = item
     loading.value = false
@@ -45,7 +47,7 @@ async function load(id: string) {
 
 onMounted(async () => {
   try {
-    summaries.value = await listSops()
+    summaries.value = await identity.api.sops()
   } catch (error) {
     listError.value = (error as Error).message
     return
