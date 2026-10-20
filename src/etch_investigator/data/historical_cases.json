@@ -1,0 +1,68 @@
+[
+  {
+    "case_id": "ETCH-2025-014",
+    "equipment_id": "ETCH-07",
+    "chamber_id": "CH-B",
+    "event_time": "2025-03-14T08:22:00+09:00",
+    "recipe": "OX-120",
+    "product": "P-A17",
+    "symptom": "etch rate 저하 및 endpoint 지연",
+    "metrics": {"etch_rate_nm_min": 512, "endpoint_sec": 94, "rf_reflected_w": 18, "pressure_mtorr": 42},
+    "root_cause": "상부 전극 폴리머 누적",
+    "action": "챔버 wet clean 및 seasoning 후 정상화",
+    "document_refs": ["SOP-ETCH-12#4.2", "WI-PM-07#3.1"]
+  },
+  {
+    "case_id": "ETCH-2025-031",
+    "equipment_id": "ETCH-07",
+    "chamber_id": "CH-B",
+    "event_time": "2025-06-02T16:40:00+09:00",
+    "recipe": "OX-120",
+    "product": "P-A17",
+    "symptom": "endpoint 지연과 RF reflected power 상승",
+    "metrics": {"etch_rate_nm_min": 525, "endpoint_sec": 91, "rf_reflected_w": 21, "pressure_mtorr": 41},
+    "root_cause": "RF match network 접점 열화",
+    "action": "match unit 접점 교체 및 RF calibration",
+    "document_refs": ["SOP-ETCH-12#4.2", "SPEC-RF-03#2.4"]
+  },
+  {
+    "case_id": "ETCH-2025-044",
+    "equipment_id": "ETCH-09",
+    "chamber_id": "CH-B",
+    "event_time": "2025-08-19T11:05:00+09:00",
+    "recipe": "OX-120",
+    "product": "P-A17",
+    "symptom": "etch rate 저하 및 chamber pressure 불안정",
+    "metrics": {"etch_rate_nm_min": 505, "endpoint_sec": 96, "rf_reflected_w": 16, "pressure_mtorr": 44},
+    "root_cause": "MFC zero drift",
+    "action": "CF4 MFC 교정 및 leak check",
+    "document_refs": ["SOP-ETCH-12#4.2", "WI-MFC-02#5.3"]
+  },
+  {
+    "case_id": "ETCH-2025-052",
+    "equipment_id": "ETCH-07",
+    "chamber_id": "CH-A",
+    "event_time": "2025-10-07T03:12:00+09:00",
+    "recipe": "OX-120",
+    "product": "P-B02",
+    "symptom": "endpoint 지연",
+    "metrics": {"etch_rate_nm_min": 518, "endpoint_sec": 92, "rf_reflected_w": 17, "pressure_mtorr": 42},
+    "root_cause": "endpoint window 오염",
+    "action": "window 세정 후 endpoint gain 확인",
+    "document_refs": ["WI-PM-07#3.1", "SPEC-EPD-01#6.2"]
+  },
+  {
+    "case_id": "ETCH-2026-006",
+    "equipment_id": "ETCH-07",
+    "chamber_id": "CH-B",
+    "event_time": "2026-02-11T21:18:00+09:00",
+    "recipe": "OX-120",
+    "product": "P-A17",
+    "symptom": "정상 baseline 확인 사례",
+    "metrics": {"etch_rate_nm_min": 530, "endpoint_sec": 89, "rf_reflected_w": 15, "pressure_mtorr": 41},
+    "root_cause": "이상 없음",
+    "action": "모니터링 유지",
+    "document_refs": ["SOP-ETCH-12#4.2"]
+  }
+]
+

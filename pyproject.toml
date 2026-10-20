@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "etch-investigation-agent"
+version = "0.1.0"
+description = "LangGraph workflow for evidence-backed etch equipment anomaly investigations"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "langgraph>=1.0,<2.0",
+  "pydantic>=2.7,<3.0",
+]
+
+[project.scripts]
+etch-investigate = "etch_investigator.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/etch_investigator"]
+
+
