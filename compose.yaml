@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: trace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trace}
+      POSTGRES_DB: trace
+    volumes:
+      - v1_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trace -d trace"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  seed:
+    build: ./mcp
+    command: ["uv", "run", "python", "/seed/seed.py"]
+    environment:
+      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+    volumes:
+      - ./db:/seed:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+      AGENT_URL: http://agent:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  business-mcp:
+    build: ./mcp
+    command: ["uv", "run", "python", "business.py"]
+    environment:
+      BACKEND_URL: http://backend:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  rag-mcp:
+    build: ./mcp
+    command: ["uv", "run", "python", "rag.py"]
+    environment:
+      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  agent:
+    build: ./agent
+    environment:
+      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+      BACKEND_URL: http://backend:8000
+      BUSINESS_MCP_URL: http://business-mcp:8000/mcp
+      RAG_MCP_URL: http://rag-mcp:8000/mcp
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
+      LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-etch-trace-dev}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      business-mcp:
+        condition: service_healthy
+      rag-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  v1_pgdata:

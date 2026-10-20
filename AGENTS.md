@@ -1,91 +1,60 @@
-# PROJECT KNOWLEDGE BASE
-
-**Generated:** 2026-10-20
-**Commit:** 13204d0
-**Branch:** dev_backend
+# TRACE v1.0.0 PROJECT KNOWLEDGE BASE
 
 ## OVERVIEW
 
-식각 공정 이상을 근거 기반으로 조사하는 프로젝트. 현재 런타임은 PostgreSQL/pgvector를 쓰는 FastAPI + LangGraph 백엔드, 브라우저 내 샘플 데이터로 동작하는 정적 프론트엔드, 별도의 JSON 사례 기반 CLI 프로토타입으로 나뉜다.
-
-## STRUCTURE
-
-```text
-etch-trace/
-├── backend/                 # DB 기반 REST/SSE 조사 서비스와 적재·색인
-│   ├── knowledge/           # pgvector에 색인할 문서 원문
-│   └── prompts/             # 계획과 보고서 생성 지시문
-├── frontend/                # API 미연결 정적 데모; 브라우저 localStorage 기록
-├── src/etch_investigator/   # 별개 CLI 프로토타입 패키지
-│   └── data/                # 프로토타입 사례·문서 JSON
-├── tests/                   # CLI 프로토타입 워크플로 테스트
-├── examples/                # CLI 입력 JSON
-├── docs/                    # 설계 및 목표 API 계약 (일부 미구현)
-├── deploy/nginx.conf        # /api 프록시와 정적 파일 서빙
-├── docker-compose.yml       # 로컬 PostgreSQL만
-└── docker-compose.prod.yml  # nginx, agent, PostgreSQL
-```
+식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다. 브라우저는 backend만 호출하고, backend는 작업·신원·권한·검토·이벤트·승인 스냅샷을 소유한다. 유일한 LangGraph는 `agent/`에 있으며 MCP로 근거를 읽는다.
 
 ## WHERE TO LOOK
 
-| Task | Location | Notes |
-|------|----------|-------|
-| 실제 REST/SSE 요청과 권한 | `backend/main.py` | 목업 `X-User-*` 인증; 시작 시 DB 초기화 |
-| 조사/승인 그래프 | `backend/graph.py` | 독립 프로토타입 그래프와 혼동 금지 |
-| SQL·계측값·문서 조회 | `backend/tools.py`, `backend/db.py`, `backend/schema.sql` | 수치 계산은 코드에서 수행 |
-| 문서 색인·PHM 적재 | `backend/index_docs.py`, `backend/ingest_phm.py` | 실행 전 데이터와 DB 필요 |
-| 데모 UI 동작 | `frontend/app.js`, `frontend/index.html` | API 호출 대신 하드코딩된 사례 사용 |
-| CLI 질문/승인 흐름 | `src/etch_investigator/`, `tests/test_workflow.py` | 별도 패키지 설정은 루트 `pyproject.toml` |
-| 의도된 미래 계약 | `docs/api.md`, `docs/agent.md` | 구현 여부는 실제 코드에서 확인 |
-
-## CODE MAP
-
-| Symbol | Type | Location | Refs | Role |
-|--------|------|----------|------|------|
-| `app` | FastAPI | `backend/main.py:21` | 9 | 실제 HTTP 라우트 |
-| `run` | function | `backend/graph.py:219` | 3 | 백그라운드 조사·재개 |
-| `q` | function | `backend/db.py:16` | 31 | 서비스 SQL 공통 진입점 |
-| `compare_signals` | function | `backend/tools.py:52` | 4 | step별 참조 run z-score |
-| `build_graph` | function | `src/etch_investigator/graph.py:158` | 8 | 배치/기록 CLI 그래프 |
-| `InvestigationRepository` | class | `src/etch_investigator/repository.py:12` | 10 | JSON 사례 검색 |
+| 작업 | 위치 | 계약 |
+|---|---|---|
+| 통합 계약 | `docs/v1-contract.md` | 구현과 함께 읽고 차이는 명시 |
+| 공개 REST/SSE | `backend/main.py` | `/api/ai/tasks`, 질문 본문 `{question}` |
+| 목업 신원·권한 | `backend/v1_auth.py`, `v1_commands.py` | worker 본인 조회, engineer/admin 전체 조회, engineer만 검토 |
+| 상태·메시지·검토·이벤트·스냅샷 | `backend/v1_store.py`, `v1_schema.sql` | DB 연결은 lifespan에서 열림 |
+| 내부 명령 | `backend/v1_dispatch.py` | agent HTTP 실행·재개, command ID |
+| 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·문서·보고서·검토 |
+| MCP 어댑터 | `agent/evidence.py` | business/rag MCP만 사용, 업무 DB 직접 조회 금지 |
+| 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
+| 문서 | `mcp/rag.py` | ID로 샘플 문서 조항 조회, 벡터 검색 아님 |
+| 샘플 적재 | `db/seed.py`, `cases.json`, `documents.json` | PHM 아님, demo/source 표시 보존 |
+| 화면 | `frontend/app.js`, `frontend/api.js` | 공개 backend 연동, seq 기반 이벤트 복원 |
+| 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |
 
 ## CONVENTIONS
 
-- 루트 `pyproject.toml`은 Python >=3.11 CLI 패키지, `backend/pyproject.toml`은 Python >=3.12 서버 프로젝트다. 테스트 명령과 의존성 설치 위치가 다르다.
-- 백엔드는 현재 `tool`과 `run_id`가 필수인 요청을 받는다. `docs/api.md`의 자유문장 요청·재질문·분류·담당자 배정은 아직 구현된 API로 간주하지 않는다.
-- `frontend/app.js`는 샘플 사례의 유사도·수치 분석을 브라우저에서 실행하고 승인 기록을 `localStorage`에 저장한다. 서버 조사 결과와 자동 동기화되지 않는다.
-- 백엔드의 `task_events` 행이 SSE 이벤트가 되고, 승인 시 LangGraph의 동일 `thread_id`를 `Command(resume=...)`로 재개한다.
+- 루트 `pyproject.toml`은 Python >=3.12 개발 도구 메타데이터이며 CLI export나 런타임 의존성을 중복 소유하지 않는다. 서비스별 환경을 사용한다.
+- HTTP에는 URL 인코딩한 `X-User-Name`과 `X-User-Role`이 필수다. SSE는 `user_name`, `user_role` 쿼리를 사용한다. 실제 인증이 아니며 Keycloak은 후속 범위다.
+- `/messages`는 소유자이면서 `WAITING_INPUT`일 때만, `/approval`은 engineer이면서 `WAITING_APPROVAL`일 때만 허용한다. admin은 검토 권한이 없다. 검토자 신원은 서버가 정한다.
+- 상태: `QUEUED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `DONE`, `INCOMPLETE`, `FAILED`.
+- 작업 ID가 그래프 thread ID다. PostgreSQL 체크포인트가 대기를 보존한다. backend 재시작은 대기 상태를 유지하고 중단된 QUEUED/RUNNING을 FAILED로 표시한다.
+- backend 내부 API와 agent 실행은 `X-Internal-Key`를 사용한다. agent 실행과 backend 이벤트 콜백에는 동일한 `X-Command-ID`도 필수다. agent는 현재 명령 ID를 실행 config에서 콜백으로 전달한다.
+- 수치는 코드에서 계산하고 단위·근거 사례 ID를 보존한다. 원인과 조치는 확인 가설이며 문서 조항과 연결한다. 보고서 `demo:true`를 유지한다.
+- 검토 전에도 작업·초안·메시지·이벤트는 저장된다. 승인된 스냅샷만 `v1_investigations`에 남는다. 이력을 다음 조사의 근거로 검색하는 기능은 미구현이다.
+- 이전 localStorage 기록은 로컬 읽기 전용이다. 서버 기록으로 자동 이관하거나 승인된 것으로 취급하지 않는다.
 
-## ANTI-PATTERNS (THIS PROJECT)
-
-- 수치를 LLM에게 계산시키거나 원인을 확정적으로 쓰지 않는다. 수치에는 run/사례 ID, 원인·조치에는 문서 조항을 붙인다.
-- `save_investigation`을 LLM 도구 목록에 넣거나 승인 전에 호출하지 않는다.
-- 설계 문서에 있는 미구현 `branches.py`, 분류용 프롬프트, `/messages` 경로를 현재 코드의 일부로 가정하지 않는다.
-- PHM 센서 표준화 값에 물리 단위를 붙이거나 고장 기록의 정지 시각을 발생 시각으로 단정하지 않는다.
-
-## UNIQUE STYLES
-
-- `backend/knowledge/*.md`는 `## ` 제목별로 분리되어 임베딩된다. 이 섹션 구조가 색인 단위다.
-- API/SSE는 `/api/ai/tasks`를 중심으로 하며, 데모 인증의 한글 이름은 URL 인코딩해 전달한다.
-
-## COMMANDS
+## COMMANDS AND COVERAGE
 
 ```bash
-docker compose up -d
-cd backend && uv sync
-uv run python ingest_phm.py ../data/phm_data_challenge_2018/train/01_M01_DC_train.csv
-uv run python index_docs.py
-uv run uvicorn main:app --port 8000
-uv run python tools.py                 # 실데이터/DB 필요
-uv run python e2e_check.py             # 실행 중인 API/DB 필요
-cd ..
-python3 -m http.server -d frontend 5173
-python3 -m venv .venv && source .venv/bin/activate && pip install -e .
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+cp .env.example .env
+docker compose -f compose.yaml config --quiet
+docker compose -f compose.yaml up -d --build
+uv sync --group dev
+(cd agent && uv sync --group dev && uv run pytest)
+(cd backend && uv sync --group dev && uv run pytest)
+uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
+node --test frontend/frontend.test.mjs
 ```
 
-## NOTES
+- `agent/tests/`: 질문 추출·보완, 재질문, 수정·승인, 근거 보존, 콜백 replay, PostgreSQL 프로세스 재시작(`AGENT_TEST_DATABASE_URL` 필요).
+- `backend/tests/`: 실제 PostgreSQL과 HTTP 경계로 권한, 대기 상태, 검토 경쟁, 승인 스냅샷, 이벤트·SSE replay, 실패·재시작 검증. `TEST_DATABASE_URL` 필요(기본 `postgresql:///postgres`).
+- `tests/test_evidence.py`: 샘플·유사도·통계·MCP 경계 검증. DB 검증에는 `EVIDENCE_TEST_DATABASE_URL` 필요.
+- 이 목록은 커버리지 위치이며 테스트 통과 증거가 아니다. 문서 문구나 프롬프트 문장을 고정하는 자기 검증 테스트를 만들지 않는다.
 
-- 백엔드 모듈 import 시 DB 풀이 열리고 그래프의 PostgreSQL 체크포인터가 설정된다. 백엔드 검증에는 PostgreSQL 접속이 필요하다.
-- `OPENAI_API_KEY`가 없으면 백엔드 계획과 보고서는 고정 순서·템플릿으로 폴백하지만 문서 임베딩 색인은 키를 요구한다.
-- 서버 배포에서 공개 포트는 nginx `80`이며 agent `8000`과 PostgreSQL `5432`는 내부 네트워크에만 둔다.
+## LEGACY AND SCOPE
+
+이전 CLI 소스·입력 예제·`tests/test_workflow.py`는 v1 서비스 커버리지 확인 후 제거했다. CLI 입력 루프·출력 플래그·선택적 기록 제안은 v1 계약에서 폐기했다. `docker-compose*.yml`은 `compose.yaml` include wrapper일 뿐 별도 서비스를 정의하지 않는다.
+
+이전 backend 그래프·도구·DB 모듈과 PHM 전용 스크립트는 제거했다. 이전 구현은 Git 이력에서 확인한다. 하위 `backend/AGENTS.md`는 현재 v1 API·상태·명령 계약을 설명한다.
+
+장비/공정 분류별 서브그래프, 자동 담당자 배정, Keycloak, 승인 이력 근거 검색을 구현된 기능으로 문서화하지 않는다. PHM 표준화 값에 물리 단위를 붙이거나 정비 정지 시각을 발생 시각으로 간주하지 않는다.

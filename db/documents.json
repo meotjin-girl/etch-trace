@@ -1,0 +1,37 @@
+[
+  {
+    "id": "SOP-ETCH-12#4.2",
+    "title": "식각 이상 대응 §4.2",
+    "text": "Endpoint가 기준 대비 10% 이상 지연되면 RF, 압력, 가스 유량 이력을 함께 비교한다.",
+    "is_demo": true,
+    "source": "frontend_demo"
+  },
+  {
+    "id": "WI-PM-07#3.1",
+    "title": "챔버 예방정비 §3.1",
+    "text": "폴리머 누적 또는 endpoint window 오염이 의심되면 세정 전후 값을 보존하고 seasoning 결과를 기록한다.",
+    "is_demo": true,
+    "source": "frontend_demo"
+  },
+  {
+    "id": "SPEC-RF-03#2.4",
+    "title": "RF 계통 판정 기준 §2.4",
+    "text": "Reflected power 상승이 반복될 경우 match network 접점과 calibration 상태를 확인한다.",
+    "is_demo": true,
+    "source": "frontend_demo"
+  },
+  {
+    "id": "WI-MFC-02#5.3",
+    "title": "MFC 점검 §5.3",
+    "text": "압력 변동과 etch rate 저하가 동반되면 MFC zero와 leak rate를 확인한다.",
+    "is_demo": true,
+    "source": "frontend_demo"
+  },
+  {
+    "id": "SPEC-EPD-01#6.2",
+    "title": "Endpoint 검출 §6.2",
+    "text": "Endpoint 신호 지연 시 window 오염, gain 설정, 광원 상태를 순차 점검한다.",
+    "is_demo": true,
+    "source": "frontend_demo"
+  }
+]

@@ -1,131 +1,67 @@
-# 시스템 아키텍처
+# TRACE v1.0.0 아키텍처
 
-## 1. 역할
-
-| 역할 | 하는 일 |
-|---|---|
-| 작업자 `worker` | 채팅으로 이상 현상 신고, 재질문에 답변, 내 요청 진행·결과 확인 |
-| 장비 엔지니어 `engineer` · specialty `EQUIPMENT` | **배정된** 장비 이상 건만 보고 검토 → 승인 / 수정 / 분류 정정 |
-| 공정 엔지니어 `engineer` · specialty `PROCESS` | **배정된** 공정 이상 건만 보고 검토 → 승인 / 수정 / 분류 정정 |
-| 관리자 `admin` | 전체 조사 이력, 분류 비율, 엔지니어별 부하, 미배정 건 수동 배정 |
-
-엔지니어는 역할이 하나(`engineer`)이고 전문 분야(`specialty`)와 담당 장비로 구분한다. 배정·접근 규칙은 [agent.md 3장](agent.md#3-담당-엔지니어-배정과-접근-범위).
-
-## 2. 구성도
-
-실선은 오늘 구현, 점선은 다음 단계.
+## 구성과 책임
 
 ```mermaid
 flowchart LR
-  FE["Frontend<br/>frontend/ (정적 HTML·JS)"]
-  subgraph EC2["EC2 · docker compose"]
-    NG["nginx :80"]
-    subgraph AG["agent (FastAPI)"]
-      API["REST API · SSE<br/>main.py"]
-      GR["LangGraph<br/>graph.py · branches.py"]
-      TL["조사 도구<br/>tools.py"]
-    end
-    PG[("PostgreSQL + pgvector<br/>공정 데이터 · 문서 벡터<br/>작업 · 이벤트 · 체크포인트")]
-  end
-  LLM["OpenAI<br/>gpt-5.4-mini"]
-  FE -- "REST / SSE" --> NG --> API
-  API -- "백그라운드 실행" --> GR --> TL --> PG
-  API -- "task_events 조회" --> PG
-  GR -- "분류 · 도구 선택 · 보고서" --> LLM
-  TL -- "임베딩" --> LLM
-  SB["Spring Boot 게이트웨이"] -.-> API
-  KF["Kafka 대기열"] -.-> GR
-  MCP["MCP 서버<br/>business / rag"] -.-> TL
+  UI[브라우저] --> W[nginx / web]
+  W --> B[backend / REST와 SSE]
+  B --> A[agent / 유일한 LangGraph]
+  A --> BM[business MCP]
+  BM --> BI[backend /internal/cases]
+  A --> RM[rag MCP]
+  B --> PG[(PostgreSQL)]
+  BI --> PG
+  RM --> PG
+  A -- 체크포인트만 --> PG
+  SEED[db 샘플 seed] --> PG
 ```
 
-| 구성 요소 | 책임 | 하지 않는 것 |
+| 구성 | 책임 | 경계 |
 |---|---|---|
-| Frontend | 화면, 역할별 라우팅 | DB 직접 접근, 판정 로직 |
-| nginx | 단일 공개 포트, SSE 프록시 | 비즈니스 로직 |
-| REST API | 인증(목업 헤더), **배정 기반 접근 제한**, 작업 생성, 대화 답변, 이벤트 스트림 | 조사 로직 |
-| LangGraph | 정보 추출·재질문 → 분류 → 배정 → 분기 조사 → 보고서 → 승인 대기 | 수치 계산, 권한 검사 |
-| 조사 도구 | SQL 조회, 통계(z-score, 추세) 계산 | 문장 생성 |
-| PostgreSQL | 데이터·벡터·작업 상태·그래프 체크포인트 | — |
+| frontend | 요청·재질문·검토·서버 이력과 실시간 진행 표시 | 공개 backend만 호출 |
+| nginx | 정적 파일, `/api`와 SSE 프록시 | 유일한 호스트 공개 포트 |
+| backend | 신원·권한, 작업·메시지·검토·이벤트·승인 스냅샷 | 그래프를 직접 실행하지 않고 agent HTTP 호출 |
+| agent | 접수·재질문·MCP 근거·보고서·검토 interrupt/resume | 업무 DB 직접 조회 없이 MCP 사용 |
+| business MCP | backend 내부 사례 조회와 결정론적 통계 | DB 업무 테이블 직접 접속 안 함 |
+| rag MCP | 샘플 문서 ID 조회 | PostgreSQL 문서 레코드 직접 조회 |
+| PostgreSQL | 샘플 근거·backend 이력·agent 체크포인트 | 각 서비스가 소유한 영역 구분 |
 
-## 3. 요청 흐름
+## 요청부터 승인까지
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor W as 작업자
-  actor E as 배정 엔지니어
-  participant FE as Frontend
-  participant API as REST API
-  participant G as LangGraph
-  participant DB as PostgreSQL
-  participant L as OpenAI
+1. 브라우저가 목업 신원 헤더와 `{question}`을 backend에 보낸다. backend는 작업·첫 메시지·QUEUED 이벤트를 저장하고 202 `{taskId}`를 반환한다.
+2. backend가 RUNNING으로 변경하고 내부 HTTP로 agent를 실행한다. 조사 범위나 증상이 부족하면 agent가 QUESTION을 보내고 PostgreSQL 체크포인트에서 대기한다.
+3. 요청자만 `/messages`에 답변할 수 있다. backend는 메시지·이벤트를 남기고 동일 task/thread를 재개한다.
+4. agent가 business MCP로 사례·통계를, rag MCP로 조항을 읽고 보고서를 구성한다. 근거 부족은 INCOMPLETE다.
+5. APPROVAL_REQUIRED가 오면 backend는 report를 저장하고 WAITING_APPROVAL로 바꾼다. engineer만 수정·승인을 접수할 수 있다.
+6. 수정은 feedback을 누적하고 기존 근거를 유지한 보고서로 다시 대기한다. 승인은 검토 당시 스냅샷을 보존하며 DONE 콜백에서 승인 이력을 저장한다.
 
-  W->>FE: 채팅으로 이상 현상 입력
-  FE->>API: POST /api/ai/tasks { question }
-  API->>DB: tasks INSERT (QUEUED)
-  API-->>FE: 202 { taskId }
-  FE->>API: GET /api/ai/tasks/{id}/stream (SSE)
-  API->>G: 백그라운드 실행
-  G->>L: intake (장비 · run · 증상 추출)
-  opt 정보 부족
-    G->>DB: QUESTION, 체크포인트 저장 후 정지 (WAITING_INPUT)
-    API-->>FE: 봇 재질문
-    W->>FE: 답변
-    FE->>API: POST /messages { text }
-    API->>G: 같은 thread_id 로 재개
-  end
-  G->>L: 분류 (장비 / 공정 / 불명확)
-  G->>DB: CLASSIFIED, assignee 저장 + ASSIGNED
-  Note over E,API: 이 시점부터 배정 엔지니어에게만 작업이 보인다
-  loop 분기 서브그래프 (최대 8턴)
-    G->>L: 다음 도구 선택
-    G->>DB: 도구 실행 (조회·계산) + TOOL_START / TOOL_END
-  end
-  G->>G: verify_category (분류 바뀌면 재배정)
-  G->>L: 보고서 작성
-  G->>DB: APPROVAL_REQUIRED, 체크포인트 저장 후 정지
-  API-->>FE: 요청자: "검토 중" / 배정 엔지니어: 승인 카드
-  E->>FE: 보고서 검토
-  alt 수정 요청
-    FE->>API: POST /approval { revise }
-    API->>G: 재개 → 재작성 → 다시 APPROVAL_REQUIRED
-  else 분류 정정
-    FE->>API: POST /approval { revise, category }
-    API->>G: 재개 → 해당 분기 조사 → 다른 분야 엔지니어로 재배정
-  else 승인
-    FE->>API: POST /approval { approve }
-    API->>G: 재개 → investigations 저장
-    G->>DB: DONE
-  end
-```
+실행 중 예외·HTTP 전달 실패는 FAILED로 보인다. backend 재시작 시 대기 상태는 보존하지만 중단된 QUEUED/RUNNING은 FAILED가 된다. 저장된 이력과 체크포인트가 있다고 실행 중 작업의 자동 복구를 보장하지 않는다.
 
-## 4. 작업 상태
+backend와 agent 실행·이벤트 콜백은 내부 공유 키로 보호한다. 실행과 콜백에 동일 `X-Command-ID`를 전달해 이전 명령의 지연 결과가 새 명령을 완료시키지 못하도록 한다. [내부 API](api.md#내부-http-경계)를 참고한다.
 
-```mermaid
-stateDiagram-v2
-  [*] --> QUEUED: POST /tasks
-  QUEUED --> RUNNING: 그래프 시작
-  RUNNING --> WAITING_INPUT: 정보 부족 · 재질문
-  WAITING_INPUT --> RUNNING: POST /messages
-  RUNNING --> WAITING_APPROVAL: 보고서 완성
-  WAITING_APPROVAL --> RUNNING: 수정 요청 / 분류 정정 / 승인
-  RUNNING --> DONE: 저장 완료 또는 근거·정보 부족 종료
-  RUNNING --> FAILED: 예외
-  DONE --> [*]
-  FAILED --> [*]
-```
+## 접근과 이력
 
-## 5. 배포
+HTTP의 `X-User-Name`(URL 인코딩), `X-User-Role`은 필수 개발 목업 신원이다. worker는 자기 작업, engineer/admin은 전체 작업을 읽는다. 답변은 본인 작업에만, 검토는 engineer에만 허용한다. 담당자 자동 배정이나 검증된 외부 인증은 없다. Keycloak은 미래 범위다.
 
-| 서비스 | 포트 | 외부 공개 |
-|---|---|---|
-| nginx | 80 | O (보안그룹 HTTP 80) |
-| agent | 8000 | X (docker network 내부) |
-| postgres | 5432 | X |
+backend의 `v1_tasks`, `v1_messages`, `v1_events`, `v1_reviews`, `v1_investigations`가 작업·대화·진행·검토·승인 스냅샷의 기준이다. 승인 전에도 초안과 대화를 저장한다. 승인 스냅샷은 현장 원인 확정이 아니라 검토한 가설의 기록이다.
 
-## 6. 데이터 (PHM 2018 이온 밀 식각)
+SSE와 이벤트 조회는 작업별 증가하는 `seq`로 재생한다. 브라우저가 상세를 복원하고 마지막 커서 이후를 받아 중복 제거한다. 종료 상태는 DONE/INCOMPLETE/FAILED다. 이전 localStorage 기록은 **로컬 읽기 전용**이며 서버 이력으로 자동 이관하지 않는다. 승인 이력을 다음 조사의 검색 근거로 활용하는 기능은 후속 범위다.
 
-- 조사 단위 `run_id = {runnum}-{Lot}` (run 하나 = 레시피 하나). 현재 장비 `01M01` 적재: run 11,475 / 고장 19.
-- 센서값은 표준화되어 **단위 없음**. 고장 시각은 정비 **정지 시각**(발생 시각 아님).
-- 고장 3종이 모두 FlowCool 계열 → 장비 이상 분기의 정답 사례로 쓸 수 있음.
-- 장비가 1대뿐이라 "같은 레시피를 다른 장비에서 돌려도 이상한가" 비교는 장비 추가 적재 후 가능.
+## 데이터
+
+- `db/cases.json`, `db/documents.json`은 시연용 샘플이며 PHM 실측 데이터가 아니다.
+- seed는 샘플을 upsert한다. 사례·문서의 demo/source 표시와 조항 ID를 보존한다.
+- 통계는 코드로 계산하며 `sec`, `nm/min`, `W`, `mTorr` 등 샘플에 선언된 단위와 근거 사례 ID를 유지한다.
+- RAG MCP는 정확한 문서 ID를 조회한다. pgvector 이미지를 사용해도 현재 실행이 벡터 검색을 의미하지 않는다.
+- 이전 PHM 적재·색인·구형 backend 그래프와 점검 스크립트는 제거했다. 이전 구현은 Git 이력에서 확인한다.
+
+## Compose와 이동
+
+`compose.yaml`이 postgres, seed, backend, business-mcp, rag-mcp, agent, web을 정의한다. PostgreSQL healthcheck 뒤 seed 완료를 기다려 서비스를 시작한다. 공개 포트는 web만 가지며 `.env.example`의 `WEB_PORT=18080`으로 기존 POC와 포트를 분리한다. DB 비밀번호와 내부 공유 키도 `.env`에서 지정한다.
+
+`docker-compose.yml`, `docker-compose.prod.yml`은 Compose 2.20.3 이상용 `include: [compose.yaml]` 호환 진입점이다. 별도 서비스·포트·볼륨을 덧붙이지 않는다. 권장 명령은 `docker compose -f compose.yaml up -d --build`다. include wrapper와 원본을 여러 `-f`로 중복 병합하지 않는다.
+
+v1 볼륨은 `v1_pgdata`다. 예전 `pgdata`를 자동 변환하거나 삭제하지 않는다. 기존 POC와 병행할 때는 Compose 프로젝트 이름도 분리하여 서비스 교체를 피한다. 로컬 DB만 시작하던 예전 `.yml` 명령도 이제 전체 v1을 시작하므로 DB만 필요하면 `docker compose -f compose.yaml up -d postgres`를 사용한다. `.prod.yml`은 별도 보안·운영 설정을 제공하지 않는다.
+
+전체 서비스 실행·권한·재시작·SSE의 성공은 별도 검증이 필요하다. 문서와 구성 정리만으로 테스트 통과를 주장하지 않는다.

@@ -1,189 +1,62 @@
-# 에이전트 설계 (LangGraph)
+# TRACE v1.0.0 에이전트
 
-원칙: **숫자는 도구(코드)가 계산하고, LLM은 정보 추출·분류 판단·도구 선택·문장 작성만 한다.** 원인을 단정하지 않으며, 저장은 **배정된 엔지니어**의 승인 후에만 한다.
+유일한 조사 그래프는 `agent/graph.py`의 `build_graph()`다. backend는 공개 API·권한·저장·이벤트를 소유하고 그래프를 내부 HTTP로 실행·재개한다. `backend/graph.py`와 삭제된 CLI 그래프는 v1 실행 경로가 아니다.
 
-## 1. 메인 그래프
+## 실제 흐름
 
 ```mermaid
 flowchart TD
-  S([START]) --> IN["intake<br/>대화에서 장비 · run · 증상 추출"]
-  IN -- 정보 부족 --> ASK["ask<br/>interrupt · 재질문"]
-  ASK -- 사용자 답변 --> IN
-  IN -- "3회 재질문에도 부족" --> F
-  IN -- 충분 --> C{{"classify<br/>장비 / 공정 / 불명확"}}
-  C --> AS["assign<br/>담당 엔지니어 배정"]
-  AS -- EQUIPMENT --> EQ[["장비 에이전트"]]
-  AS -- PROCESS --> PR[["공정 에이전트"]]
-  AS -- UNCLEAR --> UN[["불명확: 장비 → 공정 순서로 둘 다"]]
-  AS -- "이미 조사한 분기" --> SM
-  EQ --> V{"verify_category"}
-  PR --> V
-  UN --> V
-  V -- "분류 변경 (재분류 1회까지)" --> AS
-  V -- 일치 --> SM["summarize<br/>보고서 작성"]
-  SM --> NR{"need_human_review"}
-  NR -- 근거 있음 --> HR["human_review<br/>interrupt · 배정 엔지니어 승인 대기"]
-  NR -- 근거 없음 --> F["finalize"]
-  HR -- approve --> F
-  HR -- revise --> AF["apply_feedback"]
-  AF -- 문장 수정만 --> SM
-  AF -- "분류 정정 → 재배정" --> AS
-  F --> E([END])
+  I[질문 추출] --> M{범위와 이상 현상 충족?}
+  M -- 부족 --> Q[QUESTION 발행]
+  Q --> C[clarification interrupt]
+  C -- 요청자 답변 --> M
+  M -- 세 차례 보완 후 부족 --> X[INCOMPLETE]
+  M -- 충족 --> S[SEARCH_STARTED / MCP 사례 조회]
+  S -- 사례 없음 --> X
+  S -- 사례 있음 --> A[ANALYSIS_STARTED / 통계와 문서]
+  A --> R[REPORT_STARTED / 보고서 구성]
+  R --> P[APPROVAL_REQUIRED 발행]
+  P --> H[review interrupt]
+  H -- revise --> F[feedback 누적]
+  F --> R
+  H -- approve --> D[DONE 발행]
 ```
 
-| 노드 | 하는 일 | 출력 / 이벤트 |
+`agent/query.py`는 한·영 규칙으로 장비·챔버·레시피·제품·증상·계측값을 추출하고 추가 답변을 병합한다. 접수에는 이상 현상과 조사 범위 중 하나가 필요하다. 계측값을 제공하지 않았다고 값을 만들어내지 않는다. 세 차례 보완 뒤에도 조건이 부족하거나 사례가 없으면 승인 기록 없이 INCOMPLETE로 끝난다.
+
+분류·배정·장비/공정별 서브그래프와 LLM 도구 선택 루프는 없다. 검토 권한은 backend가 검사하며 agent가 사용자를 인증하지 않는다.
+
+## 근거와 숫자
+
+`agent/evidence.py`의 MCP 어댑터가 다음 도구를 호출한다.
+
+| 서버 | 도구 | 책임 |
 |---|---|---|
-| `intake` | 대화 전체에서 장비(`01M01`), run_id(`숫자-숫자`), 증상을 추출. run이 DB에 있는지 확인. 장비가 빠졌어도 run_id로 장비가 하나로 정해지면 채움 | `tool`, `run_id`, `symptom` |
-| `ask` | 빠진 항목을 묻고 `interrupt()`로 정지 → 사용자가 답하면 같은 thread로 재개 | `QUESTION` 이벤트, 상태 `WAITING_INPUT` |
-| `classify` | 엔지니어가 정정한 분류가 있으면 그대로. 아니면 대화 + run 정보 + 근처 고장 기록으로 LLM 판정. confidence < 0.6 → `UNCLEAR` | `CLASSIFIED` 이벤트 |
-| `assign` | 분류에 맞는 엔지니어 배정 (3장). 이미 조사한 분기면 조사를 건너뛰고 보고서로 | `ASSIGNED` 이벤트 |
-| 분기 에이전트 | 2장의 서브그래프 | `evidence[]` |
-| `verify_category` | 근거와 분류가 맞는지 코드 규칙으로 확인 (아래 표). 바뀌면 재배정 | `CLASSIFIED(reroute)` |
-| `summarize` | 구조화 보고서. 분류·근거·담당자를 첫 항목에 | `TOKEN` |
-| `human_review` | `interrupt()` — 배정 엔지니어만 결정 가능 | `APPROVAL_REQUIRED` |
-| `finalize` | 승인 시에만 `save_investigation` | `DONE` |
+| business MCP | `search_cases(context)` | backend 내부 API의 샘플 사례를 점수화·검색 |
+| business MCP | `analyze_metrics(cases,metrics)` | 결정론적 평균·표준편차·편차율·z-score 및 근거 ID |
+| rag MCP | `search_documents(document_ids)` | PostgreSQL 샘플 문서의 정확한 조항 ID 조회 |
 
-**verify_category 규칙**
+agent는 업무 테이블을 직접 읽지 않는다. PostgreSQL 연결은 자신의 체크포인트에 사용한다. 문서 검색은 임베딩·벡터 검색이 아니다. 근거 데이터는 `db/`의 시연용 사례·문서이며 PHM 실측 데이터나 승인된 조사 기록 검색 결과가 아니다.
 
-| 현재 분류 | 반대 근거 → 분류 변경 |
-|---|---|
-| PROCESS | 같은 센서가 **레시피와 무관하게** 최근 run들에서 추세 이탈 (`signal_trend`), 또는 run 종료 후 24h 내 FlowCool 고장 → EQUIPMENT |
-| EQUIPMENT | 추세는 평탄하고, 편차가 **특정 레시피·step에서만** 나타남 (`compare_signals`) → PROCESS |
-| UNCLEAR | 두 분기를 다 돌았으므로 강한 쪽으로 확정 (재조사 없이 재배정만). 둘 다 약하면 UNCLEAR 유지 |
+보고서는 `context`, `scored`, `metrics`, `causeCases`, `docIds`, `documents`, `summary`, `unknowns`, `feedback`, `demo:true`를 갖는다. 상위 비정상 원인 사례 최대 3개의 문서 ID를 연결한다. 문서를 찾지 못하면 누락을 명시한다. 수치에는 원래 단위와 근거 사례 ID를 보존한다.
 
-## 2. 분기별 서브그래프
+## 보고서와 수정
 
-세 분기 모두 **같은 루프 구조**를 쓰고, 분기마다 **프롬프트와 허용 도구만 다르다.**
+기본은 키 없이 실행 가능한 템플릿이다. `agent/prose.py`는 agent 프로세스에 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있을 때만 제한된 불확실성 문구 선택을 시도한다. 수치 계산·근거·원인을 모델이 생성하지 않는다. 설정이 없거나 선택이 실패하면 템플릿을 사용한다. 루트 `.env`만으로 agent 컨테이너에 선택 설정이 전달되는 것은 아니므로 실제 `compose.yaml` 환경을 확인한다.
 
-```mermaid
-flowchart LR
-  IN([진입]) --> P["plan<br/>분기 프롬프트로 다음 도구 선택"]
-  P --> R["tool_router<br/>분기 허용 도구만 실행"]
-  R --> U["update_state<br/>evidence 누적 · 턴 +1"]
-  U --> SC{"should_continue"}
-  SC -- "계속 (8턴 · 120초 · 같은 도구 3회 이내)" --> P
-  SC -- "종료 / 한도 도달" --> OUT([verify_category])
-```
+`revise`는 검토 의견을 feedback에 누적하고 기존 사례·수치·문서를 유지한 채 보고서를 다시 만든다. 템플릿은 수정 요청을 기록하며 자유 문장 편집을 자동 수행했다고 주장하지 않는다. 다시 APPROVAL_REQUIRED를 발행하고 검토를 기다린다. `approve`면 DONE을 발행한다. 승인 스냅샷 저장은 backend의 책임이다.
 
-LLM이 실패하면 아래 **기본 단계 순서**대로 고정 실행한다 (Recovery). 정상일 때도 LLM은 보통 이 순서를 따르고, 결과에 따라 단계를 건너뛰거나 인자를 바꿔 재시도한다.
+## 중단·재개와 이벤트
 
-### 2.1 장비 에이전트 — "장비 상태가 나빠지고 있는가?"
+- task UUID가 PostgreSQL 체크포인트의 thread ID다.
+- 이벤트 발행 노드와 interrupt 노드를 분리한다. 재질문·수정 버전별 안정된 event ID로 재실행 중복을 식별한다.
+- 재질문은 `{resume:{text}}`, 검토는 `{resume:{action,comment,by}}`로 같은 thread를 재개한다.
+- agent는 task별 lock을 갖고 단일 worker에서 호출을 직렬화한다. 체크포인트가 이미 있는 작업의 초기화와 대기 종류가 맞지 않는 resume은 409다.
+- backend는 실행 요청의 `X-Command-ID`를 지정한다. agent는 현재 명령 ID를 config에 넣어 이벤트 콜백으로 전달한다. backend는 명령 ID와 조건부 상태 변경으로 검토 경쟁·지연 콜백을 통제한다. agent HTTP 전달·콜백 실패를 성공으로 숨기지 않는다.
+- backend 재시작 시 WAITING_INPUT/WAITING_APPROVAL은 보존하고 중단된 QUEUED/RUNNING은 FAILED로 표시한다.
 
-```mermaid
-flowchart LR
-  E1["E1 get_run_context<br/>run 정보 + 근처 고장 기록"] --> E2["E2 fault_history 🆕<br/>장비 고장 간격 · 종류"]
-  E2 --> E3["E3 signal_trend 🆕<br/>최근 N개 run 센서 추세<br/>(레시피 무관)"]
-  E3 --> E4["E4 search_knowledge<br/>장비 점검 · 정비 문서"]
-```
+## 커버리지와 후속 범위
 
-- 주요 센서: `FLOWCOOLPRESSURE`, `FLOWCOOLFLOWRATE`, `IONGAUGEPRESSURE`
-- 보고서 다음 조치: FlowCool 점검 순서, 최근 정비 이력 확인
-- 프롬프트: `prompts/plan_equipment.md`
+`agent/tests/test_query.py`는 추출·병합, `test_graph.py`는 재질문·보고서·수정·승인·정보/사례 부족·콜백 재실행을 검증한다. `test_checkpoint.py`는 `AGENT_TEST_DATABASE_URL`이 있을 때 실제 PostgreSQL과 별도 프로세스로 대기·수정·승인 재시작을 검증한다. `backend/tests/`는 HTTP 권한·승인 스냅샷·경쟁·이벤트/SSE·실패 처리를 다룬다. 이는 테스트 코드의 범위이며 이번 문서 변경에서 통과를 확인했다는 뜻이 아니다.
 
-### 2.2 공정 에이전트 — "이 레시피·step 조건이 정상 범위를 벗어났는가?"
-
-```mermaid
-flowchart LR
-  P1["P1 get_run_context<br/>run 정보 · step 목록"] --> P2["P2 find_reference_runs<br/>같은 레시피 과거 정상 run"]
-  P2 --> P3["P3 compare_signals<br/>step × 센서 z-score"]
-  P3 --> P4["P4 search_knowledge<br/>레시피 · 공정 문서"]
-```
-
-- 주요 센서: `ETCHBEAMVOLTAGE`, `ETCHBEAMCURRENT`, `ETCHSUPPRESSOR*`, `ETCHGASCHANNEL1READBACK`, `ACTUALSTEPDURATION`
-- 보고서 다음 조치: 레시피 파라미터·step 시간 확인, 직전 레시피 변경 이력 확인
-- 프롬프트: `prompts/plan_process.md` (기존 `plan.md`)
-
-### 2.3 불명확 — 둘 다, 예산 절반씩
-
-```mermaid
-flowchart LR
-  U1["장비 에이전트<br/>최대 4턴"] --> U2["공정 에이전트<br/>최대 4턴"] --> U3([verify_category가<br/>강한 쪽으로 확정 · 재배정])
-```
-
-## 3. 담당 엔지니어 배정과 접근 범위
-
-### 배정 규칙
-
-```mermaid
-flowchart LR
-  CAT{"category"} -- EQUIPMENT --> EE["장비 엔지니어 중<br/>해당 장비 담당"]
-  CAT -- PROCESS --> PE["공정 엔지니어 중<br/>해당 장비 담당"]
-  CAT -- UNCLEAR --> AE["전문 분야 무관<br/>해당 장비 담당"]
-  EE --> LB["진행 중 작업이 가장 적은 사람"]
-  PE --> LB
-  AE --> LB
-  LB --> T["tasks.assignee 저장 · ASSIGNED 이벤트"]
-```
-
-- 엔지니어 정보는 `engineers` 테이블 🆕: `name`, `specialty`(`EQUIPMENT` · `PROCESS`), `tools[]`(담당 장비).
-- 진행 중 작업 = 상태가 `DONE`·`FAILED`가 아닌 작업.
-- **재배정**은 분류가 바뀔 때만 일어난다 (verify_category 재분류, 또는 엔지니어의 분류 정정). 이전 담당자는 그때부터 그 작업을 볼 수 없다. 단 `REVIEWED` 등 이력은 그대로 남는다.
-- 담당 가능한 엔지니어가 없으면 `assignee = null` → 관리자 화면 "미배정"에 뜨고, 관리자가 배정한다.
-
-### 누가 무엇을 보나
-
-| 역할 | 목록 · 상세 · SSE | 승인 / 수정 요청 | 답변(재질문) |
-|---|---|---|---|
-| 작업자 | 본인이 요청한 작업 | X | 본인 작업 |
-| 엔지니어 | **본인에게 배정된 작업** (+ 본인이 요청한 작업) | **배정된 작업만** | 본인이 요청한 작업 |
-| 관리자 | 전체 | X (배정 변경만) | X |
-
-배정 전(분류 중)에는 엔지니어에게 보이지 않는다. 보고서 원문(`report`)도 같은 규칙으로 막힌다. 권한 검사는 API에서 하고, 그래프는 관여하지 않는다.
-
-## 4. State
-
-| 필드 | 설명 |
-|---|---|
-| `task_id` | = LangGraph thread_id |
-| `messages[]` 🆕 | 사용자 대화 (첫 질문 + 재질문 답변) |
-| `tool`, `run_id`, `symptom` 🆕 | intake 추출 결과 |
-| `asks` 🆕 | 재질문 횟수 (최대 3) |
-| `category`, `confidence`, `category_reason` 🆕 | 분류 결과 |
-| `forced_category` 🆕 | 엔지니어가 정정한 분류 |
-| `assignee` 🆕 | 담당 엔지니어 |
-| `investigated[]`, `reroutes` 🆕 | 조사 완료한 분기, 재분류 횟수 (최대 1) |
-| `branch`, `branch_turns` 🆕 | 현재 분기와 분기 내 턴 |
-| `next_call`, `last_result` | 루프 내부 |
-| `evidence[]` | 도구 결과 누적 (`{name, args, result, ok}`) |
-| `turns`, `started_at` | 한도 관리 |
-| `report`, `feedback[]`, `approval`, `saved` | 보고서와 검토 |
-
-## 5. 도구
-
-| 도구 | 분기 | 계산 |
-|---|---|---|
-| `get_run_context` | 공통 | run 정보, step 목록, run 종료 이전 고장만 (미래 누설 차단) |
-| `search_knowledge` | 공통 | pgvector 코사인 검색 |
-| `fault_history` 🆕 | 장비 | 장비 고장 목록, 고장 간격, run 직후 72h 내 신고 고장 |
-| `signal_trend` 🆕 | 장비 | 대상까지 최근 N개 run(레시피 무관, 레시피 평균 보정) 센서 추세 → drift z |
-| `find_reference_runs` | 공정 | 같은 레시피, 대상 이전, 고장 직전 24h 제외 |
-| `compare_signals` | 공정 | step × 센서 z-score, \|z\| ≥ 3 표시 |
-| `save_investigation` | — | LLM 호출 불가. `finalize`에서 승인 후에만 |
-
-## 6. 보고서 형식
-
-```json
-{
-  "category": "EQUIPMENT",
-  "category_reason": "run 종료 14분 뒤 FlowCool 고장 기록, 사용자가 압력 알람을 신고",
-  "assignee": "이장비",
-  "summary": "…",
-  "facts": ["…"],
-  "evidence": ["investigation_guide.md > FlowCool 점검 순서"],
-  "next_actions": ["…"],
-  "unknowns": ["센서값은 표준화되어 단위 없음"]
-}
-```
-
-## 7. Harness (안전장치)
-
-| 항목 | 값 |
-|---|---|
-| 재질문 | 3회 (넘으면 정보 부족으로 종료, 저장 안 함) |
-| 턴 한도 | 8 (불명확은 분기당 4) |
-| 시간 한도 | 120초 (사용자·엔지니어 대기 시간 제외) |
-| 같은 도구 | 3회 |
-| 재분류 | 1회 (엔지니어 정정은 별도) |
-| LLM 재시도 | 2회 → 대체 모델 `gpt-4.1-mini` → 고정 순서 + 템플릿 보고서 |
-| 도구 결과 | 3,000자에서 자름 |
-| 저장 | 배정 엔지니어 승인 후에만, `task_id` 중복 저장 차단 |
+CLI 전용 Markdown 출력·입력 루프·답변 후 선택적 기록 제안은 폐기했다. Keycloak과 승인된 조사 이력의 근거 검색은 후속 범위다. 현재 승인 이력 조회를 검색 도구로 오해하지 않는다.
