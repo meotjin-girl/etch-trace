@@ -23,7 +23,7 @@
         <p class="nav-label">WORKSPACE</p>
         <button class="nav-item active" id="investigationNav" type="button"><span class="nav-icon">⌁</span> 이상 조사</button>
         <button class="nav-item" id="recordsNav" type="button"><span class="nav-icon">▤</span> 조사 기록 <em id="recordNavCount">0</em></button>
-        <button class="nav-item" type="button" disabled><span class="nav-icon">⌕</span> 문서 검색 <em>준비 중</em></button>
+        <button class="nav-item" id="sopNav" type="button"><span class="nav-icon">⌕</span> SOP 목록</button>
       </nav>
 
       <div class="process-card">
@@ -61,6 +61,7 @@
           <button type="button" id="mobileNew" class="secondary-button">새 조사</button>
           <button type="button" id="mobileInvestigation" class="secondary-button">이상 조사</button>
           <button type="button" id="mobileRecords" class="secondary-button">조사 기록</button>
+          <button type="button" id="mobileSop" class="secondary-button">SOP 목록</button>
         </span>
         <span id="taskStatus" role="status">질문을 입력해 주세요</span>
       </section>
@@ -111,6 +112,27 @@
         </div>
       </section>
 
+      <section class="sop-page" id="sopPage" hidden aria-labelledby="sopHeading">
+        <header class="sop-heading">
+          <p class="eyebrow">STANDARD OPERATING PROCEDURES</p>
+          <h2 id="sopHeading">SOP 목록</h2>
+          <p>식각 공정의 조사·점검 절차를 문서별로 확인하세요.</p>
+          <div class="sop-sample-notice">샘플 페이지 · 아래 문서는 화면 구성을 위한 예시이며 실제 작업 지침이 아닙니다.</div>
+        </header>
+        <label class="sop-search" for="sopSearch">문서 검색
+          <input id="sopSearch" type="search" placeholder="문서명, 문서 번호, 키워드 검색" autocomplete="off">
+        </label>
+        <div class="sop-layout">
+          <section class="sop-list-panel" aria-label="SOP 문서 목록">
+            <p class="sop-count" id="sopCount" role="status">문서를 불러오는 중…</p>
+            <div id="sopList"></div>
+          </section>
+          <article class="sop-detail" id="sopDetail" aria-label="SOP 문서 상세">
+            <p class="sop-empty">목록에서 문서를 선택해 주세요.</p>
+          </article>
+        </div>
+      </section>
+
       <form class="composer" id="questionForm">
         <label for="questionInput" class="sr-only">이상 조사 질문</label>
         <textarea id="questionInput" rows="1" placeholder="특정 이상에 대해 질문해 주세요…" required></textarea>
@@ -127,7 +149,7 @@
       <div class="empty-evidence" id="emptyEvidence">
         <div class="empty-symbol" aria-hidden="true">⌕</div>
         <strong>아직 연결된 근거가 없습니다</strong>
-        <p>질문을 입력하면 비교 사례와 관련 문서가 여기에 표시됩니다.</p>
+        <p>질문을 입력하면 관련 문서가 여기에 표시됩니다.</p>
       </div>
       <div id="evidenceContent" hidden></div>
       <div class="data-notice">

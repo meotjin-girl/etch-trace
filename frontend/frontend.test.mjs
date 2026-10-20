@@ -113,12 +113,12 @@ function harness(storedRecords = null) {
     stream(){return () => calls.push(['close']);}
   };
   const context = vm.createContext({
-    createApi:() => api, mergeEvents, AbortController, console, Intl, Date,
+    createApi:() => api, mountSops(){}, mergeEvents, AbortController, console, Intl, Date,
     document:{getElementById:element, querySelector:element, querySelectorAll(){return [];}, addEventListener(){}},
     window:{addEventListener(){}}, localStorage:{getItem(){return storedRecords;}},
     matchMedia:() => ({matches:true})
   });
-  vm.runInContext(appSource.replace(/^import .*;\n/, '') +
+  vm.runInContext(appSource.replace(/^import .*;\n/gm, '') +
     '\nglobalThis.hooks = {state, legacyRecords, isOwner, openEvidence, renderReport, renderConversation, canReview, submitQuestion, resetInvestigation, openReview, submitReview, syncTask, connectStream};', context);
   return {hooks:context.hooks, element, calls, api};
 }

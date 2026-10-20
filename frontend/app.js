@@ -1,4 +1,5 @@
 import {createApi, mergeEvents} from './api.js';
+import {mountSops} from './sop.js';
 
 const $ = id => document.getElementById(id);
 const labels = {endpoint_sec:'Endpoint', etch_rate_nm_min:'Etch rate', rf_reflected_w:'RF reflected', pressure_mtorr:'Pressure'};
@@ -58,13 +59,19 @@ function stopTask() {
   state.reviewTask = null;
   $('reportDialog').close();
 }
-function setPage(records) {
+function setPage(page) {
+  const records = page === true;
+  const sop = page === 'sop';
   $('recordsPage').hidden = !records;
-  $('conversation').hidden = records;
-  $('questionForm').hidden = records;
+  $('sopPage').hidden = !sop;
+  $('conversation').hidden = records || sop;
+  $('questionForm').hidden = records || sop;
   $('recordsNav').classList.toggle('active', records);
-  $('investigationNav').classList.toggle('active', !records);
-  document.querySelector('.topbar h1').textContent = records ? '조사 기록' : '식각 장비 이상 조사';
+  $('sopNav').classList.toggle('active', sop);
+  $('investigationNav').classList.toggle('active', !records && !sop);
+  document.querySelector('.app-shell').classList.toggle('sop-open', sop);
+  document.querySelector('.topbar-actions').hidden = sop;
+  document.querySelector('.topbar h1').textContent = sop ? 'SOP 목록' : records ? '조사 기록' : '식각 장비 이상 조사';
 }
 function resetInvestigation() {
   stopTask();
@@ -113,7 +120,7 @@ function renderReport(report, review = false) {
     <div class="metric-values"><b>${escapeHtml(metric.value)}</b><span>${escapeHtml(units[metric.key] || '')} · 비교군 평균 ${number(metric.mean)}</span></div>
     <div class="delta">평균 대비 ${number(metric.deltaPct)}% · z-score ${number(metric.z)}</div></div>`).join('');
   const causes = (report.causeCases || []).map((item, index) => `<div class="cause-item">
-    <span>${index + 1}</span><div><strong>${escapeHtml(item.cause)}</strong><small>${escapeHtml(item.action)}</small></div>${citation(item.id)}
+    <span>${index + 1}</span><div><strong>${escapeHtml(item.cause)}</strong><small>${escapeHtml(item.action)}</small></div><span class="citation">[${escapeHtml(item.id)}]</span>
     <div class="cause-docs">${(item.docs || []).map(citation).join(' ')}</div></div>`).join('');
   return `<p class="message-label">근거 기반 조사 결과${report.demo === true ? ' · 데모 데이터' : ''}</p>
     <h2>${escapeHtml([context.equipment, context.chamber, context.recipe].filter(Boolean).join(' / ') || '조사')} 분석 결과</h2>
@@ -121,8 +128,6 @@ function renderReport(report, review = false) {
     <div class="analysis-grid">${metrics || '<p>계측값 미제공</p>'}</div>
     <section class="answer-section"><h3>우선 확인할 항목</h3><div class="cause-list">${causes || '<p>원인 후보를 좁힐 근거가 부족합니다.</p>'}</div></section>
     <section class="answer-section"><h3>문서 근거</h3>${(report.docIds || []).map(citation).join(' ')}</section>
-    <section class="answer-section"><h3>미확인 사항</h3><p class="report-text">${escapeHtml(text(report.unknowns) || '미제공')}</p>
-    <h3>피드백</h3><p class="report-text">${escapeHtml(text(report.feedback) || '미제공')}</p></section>
     ${review ? '' : '<div class="record-cta"><p><strong>조사 결과를 기록으로 남길까요?</strong><br>서버 검토 상태와 권한을 확인해 승인 또는 수정을 요청합니다.</p><button class="record-button" type="button" data-review>조사 기록 만들기</button></div>'}`;
 }
 function message(role, content) {
@@ -151,15 +156,11 @@ function renderConversation() {
   updateControls();
 }
 function renderEvidence(report) {
-  const cases = report?.scored || [];
   const docs = report?.documents || [];
-  $('emptyEvidence').hidden = !(!cases.length && !docs.length);
-  $('evidenceContent').hidden = !cases.length && !docs.length;
-  $('evidenceCount').textContent = cases.length + docs.length;
-  $('evidenceContent').innerHTML = `<section class="evidence-group"><h3>비교 사례 <span>${cases.length}건</span></h3>${cases.map(item =>
-    `<article class="evidence-item" data-evidence-id="${escapeHtml(item.id)}"><header><strong>${escapeHtml(item.id)}</strong><b>${number(item.score == null ? null : item.score * 100)}% 일치</b></header>
-    <p>${escapeHtml([item.equipment, item.chamber, item.recipe].filter(Boolean).join(' · '))}<br>${escapeHtml(item.symptom)}<br>원인: ${escapeHtml(item.cause)}</p></article>`).join('')}</section>
-    <section class="evidence-group"><h3>관련 문서 <span>${docs.length}건</span></h3>${docs.map(item =>
+  $('emptyEvidence').hidden = docs.length > 0;
+  $('evidenceContent').hidden = !docs.length;
+  $('evidenceCount').textContent = docs.length;
+  $('evidenceContent').innerHTML = `<section class="evidence-group"><h3>관련 문서 <span>${docs.length}건</span></h3>${docs.map(item =>
       `<article class="evidence-item" data-evidence-id="${escapeHtml(item.id)}"><header><strong>${escapeHtml(item.id)}</strong></header><p class="report-text"><b>${escapeHtml(item.title)}</b><br>${escapeHtml(item.text)}</p></article>`).join('')}</section>`;
 }
 function openEvidence(id) {
@@ -446,6 +447,7 @@ document.addEventListener('click', event => {
 for (const id of ['newInvestigation', 'mobileNew']) $(id).addEventListener('click', resetInvestigation);
 for (const id of ['investigationNav', 'mobileInvestigation', 'emptyStartInvestigation']) $(id).addEventListener('click', () => { setPage(false); renderEvidence(state.task?.report); });
 for (const id of ['recordsNav', 'mobileRecords']) $(id).addEventListener('click', () => { setPage(true); refreshRecords(); });
+for (const id of ['sopNav', 'mobileSop']) $(id).addEventListener('click', () => setPage('sop'));
 $('refreshRecords').addEventListener('click', () => { clearError(); refreshRecords(); });
 $('openEvidence').addEventListener('click', () => openEvidence());
 $('closeEvidence').addEventListener('click', () => {
@@ -478,3 +480,4 @@ window.addEventListener('pagehide', () => {
 });
 updateControls();
 refreshRecords();
+mountSops();
