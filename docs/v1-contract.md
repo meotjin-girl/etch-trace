@@ -60,7 +60,7 @@ All backend/agent internal requests require `X-Internal-Key`.
   `save_investigation(task_id,command_id,event_id,payload)`.
 - Agent completion -> Business MCP -> backend:
   `POST /internal/tasks/{id}/investigation`, a DONE callback with
-  `X-Command-ID`. The backend requires an engineer approval and the exact
+  `X-Command-ID`. The backend requires a recorded approval and the exact
   reviewed report before atomically saving history and completion. Stable
   command/event IDs suppress duplicate saves.
 - RAG MCP tool: `search_documents(document_ids)`.

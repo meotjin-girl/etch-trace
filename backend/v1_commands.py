@@ -100,8 +100,8 @@ def callback(store: Store, tid: UUID, body: Callback, command_id: UUID) -> bool:
                 "SELECT * FROM v1_reviews WHERE task_id=%s ORDER BY id DESC LIMIT 1",
                 (tid,),
             ).fetchone()
-            if not review or review["action"] != "approve" or review["user_role"] != "engineer":
-                raise HTTPException(409, "Investigation requires an engineer approval")
+            if not review or review["action"] != "approve":
+                raise HTTPException(409, "Investigation requires an approval")
             if review["report"] != report:
                 raise HTTPException(409, "Report differs from approved snapshot")
         store.status(conn, tid, status, report)

@@ -106,7 +106,7 @@ frontend numeric parity, case/document links and missing-data behavior.
 callback to `POST /internal/tasks/{task_id}/investigation` with the internal key
 and command ID. The agent calls it after approval. Payload is the original DONE
 payload, including the reviewed report. Replays must preserve both IDs.
-The backend checks the current command, engineer approval and exact report,
+The backend checks the current command, recorded approval and exact report,
 then saves the reviewed snapshot and DONE event in one transaction. Reviewer,
 lot and event time come from the backend review. Duplicate requests do not
 create another investigation. HTTP/auth/validation failures propagate as tool
