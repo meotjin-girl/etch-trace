@@ -1,0 +1,27 @@
+[project]
+name = "trace-agent"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "langgraph",
+  "langgraph-checkpoint-postgres",
+  "langchain-openai",
+  "psycopg[binary,pool]",
+  "python-dotenv",
+  "anyio",
+]
+
+[dependency-groups]
+dev = ["pytest", "httpx", "ruff", "basedpyright"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+include = ["main.py", "v1_*.py"]

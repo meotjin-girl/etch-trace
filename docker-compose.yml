@@ -1,0 +1,5 @@
+# Compatibility entrypoint only; Docker Compose >=2.20.3.
+# Prefer: docker compose -f compose.yaml up -d --build
+# Do not combine this wrapper and compose.yaml with multiple -f flags.
+include:
+  - compose.yaml

@@ -1,0 +1,47 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.pypirc
+.netrc
+credentials.json
+*service-account*.json
+secrets.*
+.aws/
+.ssh/
+.openai/
+
+# Python and local caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Dependencies and generated files
+node_modules/
+build/
+outputs/
+work/
+*.log
+*.tar.gz
+*.zip
+investigation_report.md
+.DS_Store
+.idea/
+.vscode/
+
+# Project data (PHM 2018, 수업 자료)
+data/
+*.pdf

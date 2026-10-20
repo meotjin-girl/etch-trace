@@ -1,0 +1,61 @@
+-- Application-owned v1 tables only. PHM and agent checkpoints are untouched.
+CREATE TABLE IF NOT EXISTS v1_tasks (
+    id uuid PRIMARY KEY,
+    user_name text NOT NULL,
+    user_role text NOT NULL CHECK (user_role IN ('worker', 'engineer', 'admin')),
+    question text NOT NULL,
+    command_id uuid NOT NULL,
+    status text NOT NULL CHECK (status IN (
+        'QUEUED', 'RUNNING', 'WAITING_INPUT', 'WAITING_APPROVAL',
+        'DONE', 'INCOMPLETE', 'FAILED'
+    )),
+    report jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS v1_tasks_owner ON v1_tasks (user_name, created_at);
+CREATE TABLE IF NOT EXISTS v1_events (
+    task_id uuid NOT NULL REFERENCES v1_tasks(id),
+    seq bigint NOT NULL,
+    event_id text,
+    type text NOT NULL,
+    payload jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (task_id, seq),
+    UNIQUE (task_id, event_id)
+);
+CREATE TABLE IF NOT EXISTS v1_messages (
+    id bigserial PRIMARY KEY,
+    task_id uuid NOT NULL REFERENCES v1_tasks(id),
+    role text NOT NULL CHECK (role IN ('user', 'assistant')),
+    text text NOT NULL,
+    user_name text NOT NULL,
+    user_role text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS v1_messages_task ON v1_messages (task_id, id);
+CREATE TABLE IF NOT EXISTS v1_reviews (
+    id bigserial PRIMARY KEY,
+    task_id uuid NOT NULL REFERENCES v1_tasks(id),
+    action text NOT NULL CHECK (action IN ('approve', 'revise')),
+    comment text NOT NULL,
+    user_name text NOT NULL,
+    user_role text NOT NULL CHECK (user_role = 'engineer'),
+    report jsonb,
+    event_time timestamptz,
+    lot_id text,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS v1_reviews_task ON v1_reviews (task_id, id);
+CREATE TABLE IF NOT EXISTS v1_investigations (
+    id bigserial PRIMARY KEY,
+    task_id uuid UNIQUE NOT NULL REFERENCES v1_tasks(id),
+    review_id bigint NOT NULL REFERENCES v1_reviews(id),
+    report jsonb NOT NULL,
+    approved_by text NOT NULL,
+    approved_role text NOT NULL CHECK (approved_role = 'engineer'),
+    event_time timestamptz,
+    lot_id text,
+    approved_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);

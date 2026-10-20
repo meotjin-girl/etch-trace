@@ -1,0 +1,5 @@
+# Compatibility entrypoint, not a separate production architecture.
+# Docker Compose >=2.20.3; review deployment settings in compose.yaml.
+# Do not combine this wrapper and compose.yaml with multiple -f flags.
+include:
+  - compose.yaml
