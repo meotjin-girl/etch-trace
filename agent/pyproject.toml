@@ -1,0 +1,41 @@
+[project]
+name = "etch-trace-agent"
+version = "1.0.0"
+description = "Internal checkpointed TRACE case investigation agent"
+requires-python = ">=3.12"
+dependencies = [
+    "anyio>=4.9,<5",
+    "fastapi>=0.115,<1",
+    "fastmcp>=2.12,<4",
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-postgres>=3,<4",
+    "psycopg[binary]>=3.2,<4",
+    "pydantic>=2.10,<3",
+    "uvicorn>=0.34,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11", "basedpyright>=1.30"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+include = ["."]
+exclude = [".venv"]
+extraPaths = [".."]

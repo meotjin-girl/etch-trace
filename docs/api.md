@@ -1,241 +1,126 @@
-# REST API 명세
+# TRACE v1.0.0 HTTP API
 
-🆕 = 오늘 추가되는 항목 (대화형 요청 · 분류 · 담당자 배정). 나머지는 지금 서버에서 동작 중.
+기준: `backend/main.py`, `backend/v1_models.py`, `v1_auth.py`, `v1_commands.py`, `v1_store.py`와 [통합 계약](v1-contract.md). 공개 경로는 nginx의 `/api`다. `.env.example` 사용 시 로컬 기준 주소는 `http://localhost:18080`이다.
 
-## 공통
+## 개발 신원과 접근
 
-| 항목 | 값 |
-|---|---|
-| Base URL | 서버 `http://32.236.188.208` · 로컬 `http://localhost:8000` |
-| 형식 | JSON (UTF-8), 시각은 ISO 8601 |
-| 인증 (목업) | 헤더 `X-User-Name`, `X-User-Role` — Supabase 도입 시 `Authorization: Bearer`로 교체 |
-| 역할 | `worker` · `engineer` · `admin`. 엔지니어는 `engineers` 테이블에 등록된 이름만 🆕 |
-| CORS 🆕 | 서버 `.env`의 `CORS_ORIGINS`(쉼표 구분)에 프론트 주소 등록 |
+일반 HTTP 요청에는 `X-User-Name`, `X-User-Role`이 필수다. 이름은 `encodeURIComponent(name)`으로 URL 인코딩한다. 역할은 `worker`, `engineer`, `admin`이다. 누락·빈 이름·잘못된 역할은 401이다. 이는 목업 신원이며 실제 로그인 인증이 아니다. Keycloak 연동은 후속 범위다.
 
-- 한글 이름은 헤더에 그대로 못 넣으므로 `encodeURIComponent(name)` 해서 보낸다.
-- SSE(`EventSource`)는 헤더를 못 보내므로 쿼리 `?user_name=…&user_role=…` 로 보낸다.
-
-### 접근 범위 🆕
-
-| 역할 | 볼 수 있는 작업 (목록 · 상세 · SSE) | 승인 / 수정 요청 | 답변 (`/messages`) |
+| 역할 | 목록·상세·이벤트·SSE | 재질문 답변 | 승인·수정 |
 |---|---|---|---|
-| `worker` | 본인이 요청한 것 | X | 본인 작업 |
-| `engineer` | **본인에게 배정된 것** + 본인이 요청한 것 | **배정된 것만** | 본인이 요청한 작업 |
-| `admin` | 전체 | X | X |
+| worker | 본인 작업 | 본인 작업만 | 불가 |
+| engineer | 전체 | 본인 작업만 | 승인 대기 작업 |
+| admin | 전체 | 본인 작업만 | 불가 |
 
-볼 수 없는 작업은 존재 여부를 숨기기 위해 **404**로 응답한다. 분류·배정 전에는 엔지니어에게 보이지 않는다.
+담당자 배정 기반 제한은 없다. 본인 작업 여부는 디코딩한 요청자 이름으로 비교한다. 조회·답변 범위 밖 작업은 404, 검토 역할 위반은 403, 잘못된 상태·중복 경쟁 명령은 409, 본문·커서 검증 실패는 422다. 오류는 `detail` 필드로 반환한다.
 
-### 오류
+## 공개 경로
 
-| 코드 | 의미 |
-|---|---|
-| 401 | 헤더 없음 / 잘못된 역할 |
-| 403 | 역할 권한 없음 (예: 작업자가 승인), 미등록 엔지니어 |
-| 404 | 없는 작업, 또는 볼 권한이 없는 작업 |
-| 409 | 상태가 맞지 않음 (승인 대기가 아닌데 승인, 답변 대기가 아닌데 답변) |
-| 422 | 요청 본문 검증 실패 |
+모든 `{id}`는 UUID다. JSON은 UTF-8, 시각은 ISO 8601이다.
 
-응답 본문: `{ "detail": "메시지" }`
+| 메서드 | 경로 | 요청·응답 |
+|---|---|---|
+| POST | `/api/ai/tasks` | `{question}` -> 202 `{taskId}` |
+| GET | `/api/ai/tasks` | 200 접근 가능한 작업 배열, 최신순; 미완료 포함 |
+| GET | `/api/ai/tasks/{id}` | 200 작업과 메시지·이벤트·검토·승인 스냅샷 |
+| POST | `/api/ai/tasks/{id}/messages` | `{text}` -> 202 `{taskId}`; 요청자, WAITING_INPUT |
+| POST | `/api/ai/tasks/{id}/approval` | 검토 결정 -> 202 `{taskId}`; engineer, WAITING_APPROVAL |
+| GET | `/api/ai/tasks/{id}/events?after=0` | 200 `seq > after` 이벤트 배열 |
+| GET | `/api/ai/tasks/{id}/stream` | SSE; 아래 신원·커서 쿼리 사용 |
 
----
-
-## 1. 대화형 조사 흐름 (프론트 구현 순서)
-
-```mermaid
-sequenceDiagram
-  participant FE as Frontend (채팅 화면)
-  participant API as API
-  FE->>API: POST /api/ai/tasks { question }
-  API-->>FE: 202 { taskId }
-  FE->>API: SSE /api/ai/tasks/{id}/stream
-  API-->>FE: QUESTION { text } (정보 부족 시)
-  FE->>API: POST /api/ai/tasks/{id}/messages { text }
-  API-->>FE: USER_MESSAGE → CLASSIFIED → ASSIGNED → PLAN / TOOL_* → APPROVAL_REQUIRED
-  Note over FE: 요청자 화면: "이장비 엔지니어 검토 중"<br/>배정 엔지니어 화면: 승인 / 수정 카드
-```
-
-같은 SSE 스트림 하나로 대화(QUESTION ↔ USER_MESSAGE)와 진행 상황을 모두 받는다.
-
-## 2. 조사 작업
-
-### POST `/api/ai/tasks` — 조사 요청 (대화 시작)
-권한: `worker`, `engineer`
+### 생성과 재질문
 
 ```json
-{ "question": "어제 01M01 장비가 FlowCool 압력 알람으로 섰어요. run 10825571-1132 봐주세요" }
+{"question":"ETCH-07 CH-B OX-120 endpoint 지연 118초, RF reflected power 상승 29W"}
 ```
-| 필드 | 제약 |
-|---|---|
-| `question` | 2–1000자. 자유 문장 — 장비 · run · 증상을 여기서 추출한다 |
-| `tool` | 선택 🆕 (예전 방식 호환. 주면 추출보다 우선) |
-| `run_id` | 선택 🆕 |
 
-응답 `202` `{ "taskId": "6f1c…-uuid" }`
-
-장비·run을 못 찾으면 SSE로 `QUESTION`이 오고 상태가 `WAITING_INPUT`이 된다.
-
-### POST `/api/ai/tasks/{taskId}/messages` 🆕 — 재질문에 답변
-권한: 작업을 요청한 사람. 상태가 `WAITING_INPUT`일 때만 (아니면 409).
+`question`과 답변 `text`는 공백만 아닌 1~10,000자다. 생성은 모든 지원 역할에 허용된다. `tool`, `run_id`, 분류, 담당자 필드는 받지 않는다. 이상 현상과 범위(장비·챔버·레시피 중 하나)가 부족하면 `QUESTION {text,missing}` 이벤트와 `WAITING_INPUT` 상태가 된다.
 
 ```json
-{ "text": "run은 10825571-1132 입니다" }
+{"text":"ETCH-07 CH-B에서 발생했고 레시피는 OX-120입니다"}
 ```
-응답 `202` `{ "taskId": "…" }`. 이어지는 결과는 SSE로 (`USER_MESSAGE` → … ).
 
-### GET `/api/ai/tasks` — 목록
-권한: 전체. 범위는 위 접근 범위 표. `?mine=true`면 누구든 본인이 요청한 것만.
+답변은 원래 요청자만 가능하며 재개 결과는 상세·이벤트·SSE로 확인한다. 세 차례 보완 후에도 부족하면 `INCOMPLETE`다.
 
-응답 `200` (최신순, 최대 200)
+### 검토
+
 ```json
-[{ "id": "…", "user_name": "김작업", "user_role": "worker", "question": "…", "tool": "01M01",
-   "run_id": "10825571-1132", "status": "WAITING_APPROVAL", "category": "EQUIPMENT", "assignee": "이장비",
-   "error": null, "created_at": "…", "updated_at": "…" }]
+{"action":"revise","comment":"RF 관련 근거를 다시 확인해 주세요"}
 ```
-`category`, `assignee` 🆕. `tool`·`run_id`는 추출 전이면 `null`.
 
-### GET `/api/ai/tasks/{taskId}` — 상세
-권한: 접근 범위 표
-
-응답 `200`
 ```json
-{ "id": "…", "user_name": "…", "user_role": "…", "question": "…", "tool": "01M01", "run_id": "…",
-  "status": "DONE", "category": "EQUIPMENT", "category_reason": "…", "assignee": "이장비",
-  "report": { /* 아래 Report */ }, "error": null, "created_at": "…", "updated_at": "…",
-  "investigation_id": 1, "approved_by": "이장비", "approved_at": "…" }
+{"action":"approve","comment":"확인 가설과 근거 검토","event_time":"2026-10-20T01:00:00Z","lot_id":"LOT-1"}
 ```
-`investigation_id` 등은 승인 저장 전이면 `null`. `category`, `category_reason`, `assignee` 🆕
 
-### GET `/api/ai/tasks/{taskId}/stream` — 진행 이벤트 (SSE)
-권한: 쿼리 `user_name`, `user_role` + 접근 범위 표
+`action`은 `approve` 또는 `revise`, `comment`는 기본 빈 문자열이며 최대 10,000자다. `event_time`과 `lot_id`는 선택 메타데이터이며 `lot_id`는 최대 200자다. 검토자 이름은 요청 신원에서 서버가 결정한다. 본문의 `reviewer`, `by`, `category` 같은 추가 필드는 허용하지 않는다.
+
+수정은 기존 근거·수치를 보존하고 feedback을 추가한 보고서로 다시 검토를 기다린다. 템플릿 모드에서는 수정 요청을 기록하되 임의 문장 편집을 수행했다고 주장하지 않는다. 승인은 검토 당시 보고서 스냅샷을 기록하고 agent의 DONE 콜백 뒤 승인 이력을 확정한다. 승인 대기 상태를 조건부로 확보하므로 경쟁 검토가 모두 재개되지는 않는다.
+
+### 상세와 이력
+
+작업 필드: `id`, `user_name`, `user_role`, `question`, `command_id`, `status`, `report`, `created_at`, `updated_at`. 상세에는 다음이 추가된다.
+
+- `messages`: 첫 질문, 추가 답변, agent 재질문. 발화 역할·신원·시각 포함.
+- `events`: `task_id`, `seq`, `event_id`, `type`, `payload`, `created_at`.
+- `reviews`: action·comment·검토자 신원·검토 당시 report·선택 메타데이터·시각.
+- `investigation`: 승인 스냅샷 또는 null. `review_id`, `approved_by`, `approved_role`, `approved_at`, `event_time`, `lot_id`, report 등 포함.
+
+초안·메시지·이벤트는 승인 전에도 영속 저장된다. 현재 report와 승인 당시 스냅샷은 서로 다를 수 있다. 이력 조회는 제공하지만 승인 기록을 다음 조사의 검색 근거로 사용하는 기능은 미래 범위다. 과거 브라우저 localStorage 기록은 로컬 읽기 전용이며 이 API의 서버 이력과 다르다.
+
+## 상태와 SSE
+
+상태는 `QUEUED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `DONE`, `INCOMPLETE`, `FAILED`다. 답변·검토는 대기 상태를 RUNNING으로 되돌린다. 뒤의 세 상태는 종료 상태다.
+
+`EventSource`는 사용자 정의 헤더를 설정하지 못하므로 SSE만 `user_name`, `user_role` 쿼리로 목업 신원을 받는다.
 
 ```js
-const es = new EventSource(`/api/ai/tasks/${id}/stream?user_name=${encodeURIComponent(name)}&user_role=${role}`)
-es.addEventListener('QUESTION', e => showBotMessage(JSON.parse(e.data).text))
-es.addEventListener('DONE', () => es.close())
+const url = `/api/ai/tasks/${id}/stream?user_name=${encodeURIComponent(name)}&user_role=${role}&after=${lastSeq}`;
+const source = new EventSource(url);
+for (const type of ['DONE', 'INCOMPLETE', 'FAILED']) {
+  source.addEventListener(type, () => source.close());
+}
 ```
-- 처음 연결하면 지난 이벤트부터 전부 재생된다 (대화 기록 복원에 사용). 끊긴 뒤 재연결하면 `Last-Event-ID`부터 이어서 받는다 (EventSource 자동).
-- `DONE`·`FAILED` 후 서버가 스트림을 닫는다. 30초마다 keep-alive 주석이 온다.
-- 재배정되어 접근 권한을 잃은 엔지니어의 스트림은 `ASSIGNED` 이벤트 뒤 닫힌다 🆕.
 
-### POST `/api/ai/tasks/{taskId}/approval` — 검토 결정
-권한: **배정된 엔지니어** 🆕. 상태가 `WAITING_APPROVAL`일 때만 (아니면 409).
+각 SSE 이벤트는 `id: <seq>`, `event: <TYPE>`, `data: <JSON>`이다. `data`에는 payload와 `at` 시각이 들어간다. 서버는 `after`와 `Last-Event-ID` 중 큰 커서보다 뒤의 이벤트만 재생한다. 커서는 음수가 아닌 정수다. 클라이언트는 작업별 `seq`로 중복 제거하고 마지막 커서를 보존한다. 새로고침은 상세 조회로 전체 이력을 복원한 뒤 이어받는다. 빈 조회 주기에는 keep-alive 주석을 보내며 종료 상태의 이벤트를 전달한 뒤 스트림을 닫는다.
 
-```json
-{ "action": "approve" }
-{ "action": "revise", "comment": "z < 3 항목은 '경미한 편차'로 표현" }
-{ "action": "revise", "comment": "공정 쪽으로 다시 봐주세요", "category": "PROCESS" }
-```
-| 필드 | 값 |
+| 이벤트 | payload / 의미 |
 |---|---|
-| `action` | `approve` 저장 / `revise` 재작성 |
-| `comment` | 0–1000자 |
-| `category` 🆕 | 선택. `EQUIPMENT` · `PROCESS` · `UNCLEAR` — 주면 그 분기로 다시 조사하고 **해당 분야 엔지니어에게 재배정** |
+| QUEUED | `{by}` 생성 |
+| RUNNING | 실행·답변·검토 재개 |
+| MESSAGE | `{text,by}` 추가 사용자 답변 |
+| QUESTION | `{text,missing}` 재질문 |
+| SEARCH_STARTED | 사례 검색 시작 |
+| ANALYSIS_STARTED | 통계·문서 조회 시작 |
+| REPORT_STARTED | 보고서 구성 시작 |
+| APPROVAL_REQUIRED | `{report}` 검토 대기 |
+| REVIEWED | `{action,comment,event_time,lot_id,by,role}` 검토 접수 |
+| DONE | `{report,approved,by}` 승인 후 완료 |
+| INCOMPLETE | `{reason}` 정보 또는 사례 근거 부족 |
+| FAILED | `{error}` 실행·전달·중단 오류 |
 
-응답 `202` `{ "taskId": "…" }` — 결과는 SSE로 온다.
+보고서는 `context`, `scored`, `metrics`, `causeCases`, `docIds`, `documents`, `summary`, `unknowns`, `feedback`, `demo:true`를 포함한다. `documents`는 `{id,title,text}` 배열이다. 수치 항목은 단위와 근거 사례 ID를 보존한다. 현재 RAG는 샘플 문서 ID 조회이며 실제 원인을 확정하지 않는다.
 
----
+## 내부 HTTP 경계
 
-## 3. SSE 이벤트
+공개 브라우저에서 호출하지 않는다. backend 내부 API와 agent 실행에는 `X-Internal-Key`가 필수다.
 
-각 이벤트: `id: <seq>`, `event: <TYPE>`, `data: <JSON>` (모든 data에 `at` 시각 포함)
+| 호출 | 경로 | 본문·용도 |
+|---|---|---|
+| backend -> agent | POST `/internal/tasks/{id}/run` | `{question}` 또는 `{resume:{text}}`, `{resume:{action,comment,by}}` |
+| agent -> backend | POST `/internal/tasks/{id}/events` | `{event_id,type,payload}` |
+| business MCP -> backend | GET `/internal/cases` | 샘플 사례 배열 |
 
-| TYPE | 언제 | data | 채팅 화면 표시 예 |
-|---|---|---|---|
-| `QUEUED` | 생성 | `{ by }` | — |
-| `QUESTION` 🆕 | 정보 부족 | `{ text, missing: ["run_id"] }` | 봇 메시지 |
-| `USER_MESSAGE` 🆕 | 답변 수신 | `{ by, text }` | 사용자 메시지 |
-| `CLASSIFIED` 🆕 | 분류·재분류 | `{ category, confidence, reason, reroute, by }` — `by`: `agent` · `verify` · 엔지니어 이름 | "장비 이상으로 분류했어요" |
-| `ASSIGNED` 🆕 | 배정·재배정 | `{ assignee, specialty, previous }` | "이장비 엔지니어에게 전달" |
-| `PLAN` | 매 턴 | `{ turn, reason, next, branch🆕 }` | 진행 표시 |
-| `TOOL_START` | 도구 시작 | `{ name, args }` | 진행 표시 |
-| `TOOL_END` | 도구 끝 | `{ name, ms, ok, result }` | 근거 패널 |
-| `TOKEN` | 보고서 작성 | `{ text }` (요약문) | 봇 메시지 |
-| `APPROVAL_REQUIRED` | 승인 대기 | `{ report, revision, assignee🆕 }` | 엔지니어: 승인 카드 / 요청자: "검토 중" |
-| `REVIEWED` | 엔지니어 결정 | `{ by, action, comment, category🆕 }` | 이력 |
-| `DONE` | 종료 | `{ saved: { saved, investigation_id \| reason }, report }` | 결과 |
-| `FAILED` | 오류 | `{ error }` | 오류 |
+agent 실행에는 `X-Command-ID`가 필수이며 agent는 현재 명령 ID를 실행 config에 넣어 이벤트 콜백으로 전달한다. backend는 동일 command ID 헤더를 요구한다. 명령별 event ID 중복은 재반영하지 않고, 이전 명령의 지연 콜백은 409로 거절한다. 이 문서 정리에서는 서비스 코드를 수정하거나 테스트 통과를 확인하지 않았다.
 
-### 작업 상태 `status`
-
-```mermaid
-stateDiagram-v2
-  [*] --> QUEUED
-  QUEUED --> RUNNING
-  RUNNING --> WAITING_INPUT: 재질문 🆕
-  WAITING_INPUT --> RUNNING: /messages
-  RUNNING --> WAITING_APPROVAL: 보고서 완성
-  WAITING_APPROVAL --> RUNNING: /approval
-  RUNNING --> DONE
-  RUNNING --> FAILED
-```
-
-### Report
-
-```json
-{
-  "category": "EQUIPMENT",
-  "category_reason": "…",
-  "assignee": "이장비",
-  "summary": "한두 문장 요약 (원인 단정 없음)",
-  "facts": ["도구 결과에서 나온 사실"],
-  "evidence": ["문서명 > 섹션"],
-  "next_actions": ["엔지니어가 확인할 것"],
-  "unknowns": ["데이터로 알 수 없는 것"]
-}
-```
-`category`, `category_reason`, `assignee` 🆕
-
----
-
-## 4. 화면 보조
-
-### GET `/api/engineers` 🆕 — 엔지니어 목록 (로그인 선택용)
-권한: 없음
-```json
-[{ "name": "이장비", "specialty": "EQUIPMENT", "tools": ["01M01"] },
- { "name": "박공정", "specialty": "PROCESS", "tools": ["01M01"] }]
-```
-
-### GET `/api/runs?tool=01M01&q=1132` — run 검색
-권한: 전체. 최신순 20개.
-```json
-[{ "run_id": "10825571-1132", "lot": "1132", "stage": "…", "recipe": "…", "minutes": 12.4 }]
-```
-
-### GET `/api/runs/near-faults` — 고장 직전 run (시연용 예시)
-권한: 전체
-```json
-[{ "tool": "01M01", "run_id": "…", "recipe": "…", "fault_name": "Flowcool leak", "hours_before": 2.1 }]
-```
-
-### GET `/api/admin/overview` — 관리자 대시보드
-권한: `admin`
-```json
-{
-  "status": [{ "status": "DONE", "n": 3 }],
-  "category": [{ "category": "EQUIPMENT", "n": 2 }],
-  "engineers": [{ "name": "이장비", "specialty": "EQUIPMENT", "open": 1, "done": 4 }],
-  "unassigned": [{ "id": "…", "question": "…", "category": "UNCLEAR" }],
-  "investigations": [{ "id": 1, "tool": "…", "run_id": "…", "approved_by": "…", "approved_at": "…", "summary": "…" }],
-  "docs": [{ "source": "investigation_guide.md", "chunks": 6, "embed_model": "text-embedding-3-small" }],
-  "data": [{ "tool": "01M01", "runs": 11475, "faults": 19 }],
-  "tool_calls": [{ "name": "compare_signals", "calls": 5, "avg_ms": 120, "errors": 0 }]
-}
-```
-`category`, `engineers`, `unassigned` 🆕
-
-### PATCH `/api/admin/tasks/{taskId}/assignee` 🆕 — 수동 배정
-권한: `admin`. 미배정 작업 처리 또는 담당 변경.
-```json
-{ "assignee": "박공정" }
-```
-응답 `200` `{ "taskId": "…", "assignee": "박공정" }` + SSE `ASSIGNED { by: "admin" }`
-
-## 빠른 확인 (curl)
+## curl
 
 ```bash
-curl -s -X POST http://32.236.188.208/api/ai/tasks \
-  -H 'Content-Type: application/json' -H 'X-User-Name: kim' -H 'X-User-Role: worker' \
-  -d '{"question":"01M01 FlowCool 압력 알람 후 정지, run 10825571-1132"}'
-curl -N "http://32.236.188.208/api/ai/tasks/<taskId>/stream?user_name=kim&user_role=worker"
+curl -sS http://localhost:18080/api/ai/tasks \
+  -H 'Content-Type: application/json' \
+  -H 'X-User-Name: worker-demo' -H 'X-User-Role: worker' \
+  -d '{"question":"endpoint 지연 118초"}'
+# 반환된 UUID를 사용한다.
+curl -sS http://localhost:18080/api/ai/tasks/<taskId> \
+  -H 'X-User-Name: worker-demo' -H 'X-User-Role: worker'
+curl -N 'http://localhost:18080/api/ai/tasks/<taskId>/stream?user_name=worker-demo&user_role=worker&after=0'
 ```

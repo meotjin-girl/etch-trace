@@ -38,7 +38,7 @@
 
       <div class="sidebar-footer">
         <span class="status-dot"></span>
-        <div><strong>Demo workspace</strong><small>샘플 데이터 5건 연결</small></div>
+        <div><strong>Demo workspace</strong><small>서버 기반 조사 · 데모 인증</small></div>
       </div>
     </aside>
 
@@ -53,6 +53,21 @@
           <button class="icon-button" id="openEvidence" type="button" aria-label="근거 패널 열기">근거 <span id="evidenceCount">0</span></button>
         </div>
       </header>
+
+      <section class="session-controls" aria-label="데모 사용자 및 탐색">
+        <label>사용자 이름 <input id="userName" value="이엔지니어" autocomplete="off"></label>
+        <label>역할 <select id="userRole"><option value="worker">작업자</option><option value="engineer" selected>엔지니어</option><option value="admin">관리자</option></select></label>
+        <span class="mobile-navigation">
+          <button type="button" id="mobileNew" class="secondary-button">새 조사</button>
+          <button type="button" id="mobileInvestigation" class="secondary-button">이상 조사</button>
+          <button type="button" id="mobileRecords" class="secondary-button">조사 기록</button>
+        </span>
+        <span id="taskStatus" role="status">질문을 입력해 주세요</span>
+      </section>
+      <div class="network-notice" id="networkNotice" role="alert" hidden>
+        <span id="networkMessage"></span>
+        <button id="retryConnection" type="button" class="secondary-button">다시 연결</button>
+      </div>
 
       <section class="conversation" id="conversation" aria-live="polite">
         <div class="message assistant-message intro-message">
@@ -77,11 +92,11 @@
       <section class="records-page" id="recordsPage" hidden>
         <div class="records-heading">
           <div>
-            <p class="eyebrow">APPROVED RECORDS</p>
+            <p class="eyebrow">INVESTIGATION RECORDS</p>
             <h2>조사 기록</h2>
-            <p>승인된 조사 결과를 다시 열어 근거와 검토 정보를 확인할 수 있습니다.</p>
+            <p>모든 상태의 서버 조사를 열어 대화·진행·검토 이력을 확인하거나 이어갈 수 있습니다.</p>
           </div>
-          <span class="record-count" id="recordCount">0건</span>
+          <div><button type="button" id="refreshRecords" class="secondary-button">새로고침</button> <span class="record-count" id="recordCount">0건</span></div>
         </div>
         <div class="records-layout">
           <div class="record-list" id="recordList"></div>
@@ -117,31 +132,35 @@
       <div id="evidenceContent" hidden></div>
       <div class="data-notice">
         <strong>데모 데이터 안내</strong>
-        <p>현재 화면은 샘플 사례와 문서를 사용합니다. 운영 시 MES·FDC·EDMS로 교체됩니다.</p>
+        <p>근거와 수치 분석은 서버 응답을 표시합니다. 데모 표시는 보고서의 demo 값에 따릅니다.</p>
       </div>
     </aside>
   </div>
 
   <dialog id="reportDialog">
-    <form method="dialog" class="report-dialog">
+    <form class="report-dialog" id="reviewForm">
       <div class="dialog-header">
         <div><p class="eyebrow">INVESTIGATION RECORD</p><h2>승인용 조사 기록</h2></div>
-        <button class="close-dialog" value="cancel" aria-label="닫기">×</button>
+        <button class="close-dialog" type="button" id="closeReport" aria-label="닫기">×</button>
       </div>
       <div class="record-meta">
-        <label>발생 시각<input id="recordTime" type="datetime-local" required></label>
+        <label>발생 시각<input id="recordTime" type="datetime-local"></label>
         <label>Lot ID<input id="recordLot" type="text" placeholder="예: L261019-03"></label>
-        <label>검토자<input id="recordReviewer" type="text" placeholder="검토자 이름" required></label>
+        <label>검토자<input id="recordReviewer" type="text" readonly></label>
       </div>
       <div class="report-preview" id="reportPreview"></div>
+      <label class="review-comment" for="reviewComment">검토 의견 / 수정 요청</label>
+      <textarea id="reviewComment" rows="3" placeholder="수정 요청 시 의견을 입력해 주세요"></textarea>
+      <p id="reviewNotice" role="status"></p>
       <div class="dialog-actions">
-        <button class="secondary-button" value="cancel">취소</button>
-        <button class="primary-button" id="approveReport" value="default">검토 및 승인</button>
+        <button class="secondary-button" type="button" id="cancelReport">취소</button>
+        <button class="secondary-button" type="submit" id="reviseReport" value="revise">수정 요청</button>
+        <button class="primary-button" type="submit" id="approveReport" value="approve">검토 및 승인</button>
       </div>
     </form>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

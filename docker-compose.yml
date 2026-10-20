@@ -1,11 +1,5 @@
-services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: trace
-      POSTGRES_PASSWORD: trace
-      POSTGRES_DB: trace
-    ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
-volumes:
-  pgdata:
+# Compatibility entrypoint only; Docker Compose >=2.20.3.
+# Prefer: docker compose -f compose.yaml up -d --build
+# Do not combine this wrapper and compose.yaml with multiple -f flags.
+include:
+  - compose.yaml

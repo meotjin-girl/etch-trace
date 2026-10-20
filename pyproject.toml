@@ -1,22 +1,20 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
-name = "etch-investigation-agent"
-version = "0.1.0"
-description = "LangGraph workflow for evidence-backed etch equipment anomaly investigations"
+name = "etch-trace-dev"
+version = "1.0.0"
+description = "Repository development tooling for TRACE v1 services"
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-  "langgraph>=1.0,<2.0",
-  "pydantic>=2.7,<3.0",
-]
+requires-python = ">=3.12"
+dependencies = []
 
-[project.scripts]
-etch-investigate = "etch_investigator.cli:main"
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/etch_investigator"]
+[tool.uv]
+package = false
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
+[tool.ruff]
+target-version = "py312"
+line-length = 100
