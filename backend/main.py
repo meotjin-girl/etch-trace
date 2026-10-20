@@ -16,12 +16,14 @@ from fastapi.responses import StreamingResponse
 from v1_auth import actor, identity, internal
 from v1_commands import accept_message, accept_review, callback
 from v1_dispatch import dispatch
+from v1_history import read_history
 from v1_models import (
     Actor,
     ApprovalInput,
     Callback,
     Detail,
     Event,
+    InvestigationRecord,
     MessageInput,
     Settings,
     Task,
@@ -72,6 +74,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             current().settings.internal_api_key,
             request.headers.get("x-internal-key") or request.headers.get("x-internal-api-key"),
         )
+
+    @app.get("/api/ai/investigations")
+    async def list_history(who: Annotated[Actor, Depends(actor)]) -> list[InvestigationRecord]:
+        return await read_history(who)
+
+    @app.get("/api/ai/investigations/{tid}")
+    async def history_detail(tid: UUID, who: Annotated[Actor, Depends(actor)]) -> InvestigationRecord:
+        # Reject inaccessible or unsaved records before invoking the MCP gateway.
+        await anyio.to_thread.run_sync(current().store.investigation, tid, who)
+        return await read_history(who, tid)
+
+    @app.get("/internal/investigations", dependencies=[Depends(authenticate_internal)])
+    def internal_history(user_name: str, user_role: str) -> list[InvestigationRecord]:
+        return current().store.investigations(identity(user_name, user_role))
+
+    @app.get("/internal/investigations/{tid}", dependencies=[Depends(authenticate_internal)])
+    def internal_history_detail(tid: UUID, user_name: str, user_role: str) -> InvestigationRecord:
+        return current().store.investigation(tid, identity(user_name, user_role))
 
     @app.post("/api/ai/tasks", status_code=202)
     def create_task(
@@ -173,6 +193,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(422, "Invalid X-Command-ID") from exc
         accepted = callback(current().store, tid, body, command_id)
         return {"accepted": accepted, "duplicate": not accepted}
+
+    @app.post("/internal/tasks/{tid}/investigation", dependencies=[Depends(authenticate_internal)])
+    def save_investigation(tid: UUID, body: Callback, request: Request) -> dict[str, bool]:
+        if body.type != "DONE":
+            raise HTTPException(422, "Investigation save requires DONE")
+        return agent_event(tid, body, request)
 
     @app.get("/internal/cases", dependencies=[Depends(authenticate_internal)])
     def cases() -> list[Row]:

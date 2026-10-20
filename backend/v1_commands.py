@@ -95,6 +95,15 @@ def callback(store: Store, tid: UUID, body: Callback, command_id: UUID) -> bool:
             if not isinstance(text, str) or not text.strip():
                 raise HTTPException(422, "QUESTION requires payload.text")
             store.message(conn, tid, text, None, "assistant")
+        if body.type == "DONE":
+            review = conn.execute(
+                "SELECT * FROM v1_reviews WHERE task_id=%s ORDER BY id DESC LIMIT 1",
+                (tid,),
+            ).fetchone()
+            if not review or review["action"] != "approve":
+                raise HTTPException(409, "Investigation requires an approval")
+            if review["report"] != report:
+                raise HTTPException(409, "Report differs from approved snapshot")
         store.status(conn, tid, status, report)
         store.emit(conn, tid, body.type, payload, event_id)
         if body.type == "DONE":

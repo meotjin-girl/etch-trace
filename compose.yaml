@@ -27,6 +27,7 @@ services:
     environment:
       DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
       AGENT_URL: http://agent:8000
+      BUSINESS_MCP_URL: http://business-mcp:8000/mcp
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
     depends_on:
       seed:

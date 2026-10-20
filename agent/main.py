@@ -9,12 +9,14 @@ from typing import Annotated
 from urllib.request import Request, urlopen
 from uuid import UUID
 
+import anyio
 from fastapi import FastAPI, Header, HTTPException
+from fastmcp import Client
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.config import get_config
 from langgraph.types import Command
 
-from .evidence import MCPEvidenceProvider
+from .evidence import MCPEvidenceProvider, mcp_url
 from .graph import build_graph
 from .models import Clarification, Event, InitialRequest, ResumeRequest
 
@@ -23,9 +25,14 @@ from .models import Clarification, Event, InitialRequest, ResumeRequest
 class Callback:
     backend_url: str
     internal_key: str
+    business_url: str | None = None
 
     def __call__(self, task_id: str, event: Event) -> None:
         """HTTP errors propagate so the backend cannot mistake failure for success."""
+        if event.type == "DONE" and self.business_url:
+            anyio.run(self._save_investigation, task_id, event,
+                      get_config().get("configurable", {})["command_id"])
+            return
         request = Request(
             f"{self.backend_url.rstrip('/')}/internal/tasks/{task_id}/events",
             data=event.model_dump_json().encode(),
@@ -38,6 +45,14 @@ class Callback:
         )
         with urlopen(request, timeout=30) as response:
             response.read()
+
+    async def _save_investigation(self, task_id: str, event: Event, command_id: str) -> None:
+        assert self.business_url is not None
+        async with Client(mcp_url(self.business_url)) as client:
+            await client.call_tool("save_investigation", {
+                "task_id": task_id, "command_id": command_id,
+                "event_id": event.event_id, "payload": event.payload,
+            })
 
 
 def create_app() -> FastAPI:
@@ -56,7 +71,7 @@ def create_app() -> FastAPI:
             app.state.graph = build_graph(
                 saver,
                 MCPEvidenceProvider(os.environ["BUSINESS_MCP_URL"], os.environ["RAG_MCP_URL"]),
-                Callback(os.environ["BACKEND_URL"], key),
+                Callback(os.environ["BACKEND_URL"], key, os.environ["BUSINESS_MCP_URL"]),
             )
             yield
 

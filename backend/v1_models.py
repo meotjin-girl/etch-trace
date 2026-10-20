@@ -125,6 +125,25 @@ class Investigation(Output):
     created_at: datetime
 
 
+class InvestigationRecord(Output):
+    """Approved report and existing storage metadata, without conversation history."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, extra="forbid")
+    id: UUID
+    user_name: str
+    user_role: Role
+    question: str
+    status: Literal["DONE"] = "DONE"
+    report: Report
+    approved_by: str
+    approved_role: Role
+    event_time: datetime | None
+    lot_id: str | None
+    approved_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+
 class Task(Output):
     id: UUID
     user_name: str

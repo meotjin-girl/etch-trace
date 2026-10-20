@@ -80,6 +80,9 @@ def test_cases_are_sorted_data_records(client: TestClient, database_url: str) ->
 def test_sse_replays_after_larger_cursor_and_closes_terminal(client: TestClient) -> None:
     # Given a terminal task with persisted events.
     tid = task(client)
+    event(client, tid, "APPROVAL_REQUIRED", {"report": {}})
+    client.post(f"{API}/{tid}/approval", headers=headers("reviewer", "engineer"),
+                json={"action": "approve"})
     assert event(client, tid, "DONE", {"report": {}}).status_code == 200
     rows = detail(client, tid).events
     cursor = rows[-2].seq

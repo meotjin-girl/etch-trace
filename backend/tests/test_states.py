@@ -57,13 +57,15 @@ def test_approval_preserves_reviewed_snapshot_with_identity(client: TestClient) 
         "event_time": "2026-10-20T01:00:00Z",
     })
     # When the agent completes with its final report.
-    response = event(client, tid, "DONE", {"report": {"summary": "Final hypothesis"}})
+    rejected = event(client, tid, "DONE", {"report": {"summary": "Final hypothesis"}})
+    assert rejected.status_code == 409
+    response = event(client, tid, "DONE", {"report": {"summary": "Reviewed hypothesis"}})
     # Then approval is audited against the exact report the engineer reviewed.
     assert response.status_code == 200
     data = detail(client, tid)
     assert data.status == "DONE"
     assert data.report is not None
-    assert data.report.summary == "Final hypothesis"
+    assert data.report.summary == "Reviewed hypothesis"
     assert data.investigation is not None
     assert data.investigation.report.summary == "Reviewed hypothesis"
     assert data.investigation.approved_by == "엔지니어"
@@ -161,9 +163,60 @@ def test_restart_only_fails_interrupted_active_tasks(
 def test_terminal_callbacks_reject_later_events(client: TestClient, kind: str) -> None:
     # Given a terminal task.
     tid = task(client)
+    if kind == "DONE":
+        event(client, tid, "APPROVAL_REQUIRED", {"report": {}})
+        client.post(f"{API}/{tid}/approval", headers=headers("reviewer", "engineer"),
+                    json={"action": "approve"})
     event(client, tid, kind, {"report": {}} if kind == "DONE" else {})
     # When a new progress callback arrives.
     response = event(client, tid, "SEARCH_STARTED")
     # Then it cannot reopen the task.
     assert response.status_code == 409
     assert detail(client, tid).status == kind
+
+
+def test_investigation_api_requires_approval_and_deduplicates(client: TestClient) -> None:
+    tid = task(client)
+    url = f"/internal/tasks/{tid}/investigation"
+    body = {"type": "DONE", "event_id": "save-1", "payload": {"report": {}}}
+    auth = {"X-Internal-Key": "test-key", "X-Command-ID": str(detail(client, tid).command_id)}
+    assert client.post(url, headers=auth, json=body).status_code == 409
+    assert detail(client, tid).investigation is None
+    event(client, tid, "APPROVAL_REQUIRED", {"report": {}})
+    client.post(f"{API}/{tid}/approval", headers=headers("reviewer", "engineer"),
+                json={"action": "approve", "lot_id": "LOT-1"})
+    auth["X-Command-ID"] = str(detail(client, tid).command_id)
+    assert client.post(url, json=body).status_code == 401
+    assert client.post(url, headers=auth, json=body).json() == {
+        "accepted": True, "duplicate": False,
+    }
+    assert client.post(url, headers=auth, json=body).json() == {
+        "accepted": False, "duplicate": True,
+    }
+    data = detail(client, tid)
+    assert data.investigation.approved_by == "reviewer"
+    assert data.investigation.lot_id == "LOT-1"
+    assert len([e for e in data.events if e.type == "DONE"]) == 1
+
+
+def test_internal_history_excludes_unsaved_and_filters_owner(client: TestClient) -> None:
+    tid = task(client)
+    task(client, name="another")
+    event(client, tid, "APPROVAL_REQUIRED", {"report": {}})
+    client.post(f"{API}/{tid}/approval", headers=headers("reviewer", "engineer"),
+                json={"action": "approve"})
+    event(client, tid, "DONE", {"report": {}})
+    url = "/internal/investigations"
+    key = {"X-Internal-Key": "test-key"}
+    query = {"user_name": "owner", "user_role": "worker"}
+    assert client.get(url, params=query).status_code == 401
+    rows = client.get(url, headers=key, params=query).json()
+    assert [row["id"] for row in rows] == [tid]
+    query["user_name"] = "another"
+    assert client.get(url, headers=key, params=query).json() == []
+    assert client.get(f"{url}/{tid}", headers=key, params=query).status_code == 404
+    query["user_role"] = "engineer"
+    result = client.get(f"{url}/{tid}", headers=key, params=query).json()
+    assert result["report"]["demo"] is True
+    assert result["approved_by"] == "reviewer"
+    assert not ({"messages", "events", "reviews", "command_id"} & result.keys())

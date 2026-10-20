@@ -4,6 +4,7 @@ version = "1.0.0"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi",
+  "fastmcp>=3.2,<4",
   "uvicorn",
   "langgraph",
   "langgraph-checkpoint-postgres",

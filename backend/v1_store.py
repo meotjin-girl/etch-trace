@@ -11,7 +11,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 from pydantic import JsonValue
-from v1_models import Actor, CaseData, Detail, Event, Status, Task
+from v1_models import Actor, CaseData, Detail, Event, InvestigationRecord, Status, Task
 
 type Row = dict[str, JsonValue]
 type DatabaseRow = dict[str, JsonValue | UUID]
@@ -104,6 +104,27 @@ class Store:
                    ORDER BY created_at DESC,id""", (actor.role, actor.name),
             ).fetchall()
             return [Task.model_validate(row) for row in rows]
+
+    def investigations(self, actor: Actor, tid: UUID | None = None) -> list[InvestigationRecord]:
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                """SELECT t.id,t.user_name,t.user_role,
+                   COALESCE(i.report->'context'->>'symptom','조사 결과') AS question,
+                   'DONE' AS status,i.report,i.approved_by,i.approved_role,
+                   i.event_time,i.lot_id,i.approved_at,i.created_at,
+                   i.created_at AS updated_at
+                   FROM v1_investigations i JOIN v1_tasks t ON t.id=i.task_id
+                   WHERE (%s <> 'worker' OR t.user_name=%s)
+                   AND (%s::uuid IS NULL OR t.id=%s::uuid)
+                   ORDER BY i.approved_at DESC,t.id""", (actor.role, actor.name, tid, tid),
+            ).fetchall()
+            return [InvestigationRecord.model_validate(row) for row in rows]
+
+    def investigation(self, tid: UUID, actor: Actor) -> InvestigationRecord:
+        records = self.investigations(actor, tid)
+        if not records:
+            raise HTTPException(404, "Investigation not found")
+        return records[0]
 
     def detail(self, tid: UUID, actor: Actor) -> Detail:
         with self.locked(tid) as (conn, row):

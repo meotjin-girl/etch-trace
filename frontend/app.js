@@ -228,6 +228,8 @@ async function syncTask(epoch = state.epoch) {
       events:state.events};
     renderConversation();
     if (state.selected?.id === detail.id) renderDetail(state.task);
+    // Completion may already be in the snapshot before SSE reconnects.
+    if (state.task.status === 'DONE' && liveTask.status !== 'DONE') await refreshRecords();
   } catch (error) { if (epoch === state.epoch && version === state.syncVersion) notify(error); }
 }
 async function activateTask(id) {
@@ -246,6 +248,8 @@ async function activateTask(id) {
     state.task = detail;
     state.events = mergeEvents([], detail.events || []);
     state.after = state.events.at(-1)?.seq || 0;
+    if (detail.status === 'DONE') await refreshRecords();
+    if (epoch !== state.epoch) return;
     // Detail status is authoritative; replay only builds chronology/progress.
     renderConversation();
     connectStream();
@@ -302,7 +306,7 @@ async function refreshRecords() {
   const api = state.api;
   $('refreshRecords').disabled = true;
   try {
-    const records = await api.list(controller.signal);
+    const records = await api.history(controller.signal);
     if (controller !== state.listController) return;
     state.records = [...records, ...legacyRecords()];
     renderRecords();
@@ -314,49 +318,68 @@ async function refreshRecords() {
     }
   } finally { if (controller === state.listController) $('refreshRecords').disabled = false; }
 }
+function recordTitle(record) {
+  const context = record.report?.context || record.context || {};
+  const equipment = typeof context.equipment === 'string' ? context.equipment.trim() : '';
+  const symptom = typeof context.symptom === 'string' ? context.symptom.trim() : '';
+  const fallback = record.report?.summary || record.question || '조사 결과';
+  const title = [equipment, symptom].filter(Boolean).join(' · ') || String(fallback).replace(/\s+/g, ' ').trim() || '조사 결과';
+  return title.length > 80 ? `${title.slice(0, 80)}…` : title;
+}
 function renderRecords() {
   $('recordNavCount').textContent = state.records.filter(item => !item.legacy).length;
   $('recordCount').textContent = `${state.records.length}건 (로컬 포함)`;
-  $('recordList').innerHTML = state.records.map(item => `<button type="button" class="record-list-item ${state.selected?.id === item.id ? 'active' : ''}" data-record-id="${escapeHtml(item.id)}">
-    <header><strong>${escapeHtml(item.legacyId || item.id)}</strong><span>${escapeHtml(statuses[item.status] || item.status)}</span></header>
+  $('recordList').innerHTML = state.records.map(item => `<button type="button" class="record-list-item ${state.selected?.id === item.id ? 'active' : ''}" data-record-id="${escapeHtml(item.id)}" aria-pressed="${state.selected?.id === item.id}">
+    <header><strong>${escapeHtml(recordTitle(item))}</strong><span>${escapeHtml(statuses[item.status] || item.status)}</span></header>
     <p>${escapeHtml(item.question)}</p><small>${escapeHtml(date(item.created_at))} · ${escapeHtml(item.user_name || '읽기 전용 로컬 기록')}</small></button>`).join('');
-  if (!state.selected) $('recordDetail').innerHTML = `<div class="records-empty"><strong>${state.records.length ? '조사 기록을 선택해 주세요' : '조사 기록이 없습니다'}</strong><p>모든 서버 상태와 기존 로컬 기록을 표시합니다.</p><button type="button" data-start>이상 조사 시작</button></div>`;
+  if (!state.selected) $('recordDetail').innerHTML = `<div class="records-empty"><strong>${state.records.length ? '조사 기록을 선택해 주세요' : '조사 기록이 없습니다'}</strong><p>승인 후 저장된 조사 이력과 기존 로컬 기록을 표시합니다.</p><button type="button" data-start>이상 조사 시작</button></div>`;
+}
+function highlightRecord(id) {
+  $('recordList').querySelectorAll('[data-record-id]').forEach(button => {
+    const selected = button.dataset.recordId === id;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
 }
 async function selectRecord(id) {
-  state.detailController?.abort();
-  const controller = state.detailController = new AbortController();
   const item = state.records.find(record => record.id === id);
   if (!item) return;
-  state.selected = item;
-  renderRecords();
-  $('recordDetail').textContent = '조사 상세를 불러오는 중…';
-  if (item.legacy) { renderDetail(item); return; }
+  state.detailController?.abort();
+  const controller = state.detailController = new AbortController();
+  const changed = state.selected?.id !== id;
+  highlightRecord(id);
+  // The list already includes the saved report: show it without a blank loading frame.
+  renderDetail(item);
+  const panel = $('recordDetail');
+  if (changed && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    panel.getAnimations?.().forEach(animation => animation.cancel());
+    panel.animate?.([
+      {opacity:0.5, transform:'translateY(6px)'},
+      {opacity:1, transform:'translateY(0)'}
+    ], {duration:180, easing:'ease-out'});
+  }
+  if (item.legacy) { panel.setAttribute('aria-busy', 'false'); return; }
+  panel.setAttribute('aria-busy', 'true');
+  panel.classList.add('is-refreshing');
   try {
-    const detail = await state.api.detail(id, controller.signal);
+    const detail = await state.api.historyDetail(id, controller.signal);
     if (controller === state.detailController) renderDetail(detail);
   } catch (error) {
+    // Preserve the saved report while allowing another selection or retry.
+    if (controller === state.detailController) notify(error);
+  } finally {
     if (controller === state.detailController) {
-      $('recordDetail').textContent = '상세를 불러오지 못했습니다. 기록을 다시 선택해 주세요.';
-      notify(error);
+      panel.setAttribute('aria-busy', 'false');
+      panel.classList.remove('is-refreshing');
     }
   }
 }
 function renderDetail(task) {
   state.selected = task;
-  const chronology = [
-    ...(task.messages || []).map(item => ({at:item.created_at, title:`대화 · ${item.role || ''}`, body:item.text ?? item.content})),
-    ...mergeEvents([], task.events || []).map(item => ({at:item.created_at, seq:item.seq, title:`진행 #${item.seq} · ${item.type}`, body:item.payload})),
-    ...(task.reviews || []).map(item => ({at:item.created_at ?? item.reviewed_at, title:`검토 · ${item.action}`, body:item}))
-  ].sort((a, b) => {
-    const delta = (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0);
-    return delta || (a.seq || 0) - (b.seq || 0);
-  });
-  $('recordDetail').innerHTML = `<div class="detail-status"><div><p class="eyebrow">${escapeHtml(task.legacyId || task.id)}</p><h3>${escapeHtml(task.question)}</h3></div><span class="approved-badge">${escapeHtml(statuses[task.status] || task.status)}</span></div>
+  $('recordDetail').innerHTML = `<div class="detail-status"><div><p class="eyebrow">조사 결과</p><h3>${escapeHtml(recordTitle(task))}</h3></div><span class="approved-badge">${escapeHtml(statuses[task.status] || task.status)}</span></div>
     <div class="detail-meta"><div><span>요청자</span><strong>${escapeHtml(task.user_name || '기존 로컬 기록')} / ${escapeHtml(task.user_role || '미검증')}</strong></div><div><span>생성</span><strong>${escapeHtml(date(task.created_at))}</strong></div><div><span>최근 갱신</span><strong>${escapeHtml(date(task.updated_at))}</strong></div></div>
-    ${task.legacy ? '<p class="data-notice">읽기 전용 로컬 기록 · 서버 검증 승인 아님</p>' : `<div class="record-cta"><button type="button" class="record-button" data-resume="${escapeHtml(task.id)}">조사 열기 / 이어가기</button>${task.report ? '<button type="button" class="record-button" data-detail-review>조사 기록 만들기</button>' : ''}</div>`}
-    ${renderReport(task.report, true)}
-    <h4>대화 · 진행 · 검토 시간순 이력</h4>
-    <ol class="timeline">${chronology.map(item => `<li><strong>${escapeHtml(item.title)}</strong> · ${escapeHtml(date(item.at))}<pre>${escapeHtml(text(item.body))}</pre></li>`).join('') || '<li>이력이 없습니다.</li>'}</ol>`;
+    ${task.legacy ? '<p class="data-notice">읽기 전용 로컬 기록 · 서버 검증 승인 아님</p>' : `<div class="detail-meta"><div><span>승인자</span><strong>${escapeHtml(task.approved_by || '')}</strong></div><div><span>승인 시각</span><strong>${escapeHtml(date(task.approved_at))}</strong></div><div><span>LOT</span><strong>${escapeHtml(task.lot_id || '')}</strong></div></div>`}
+    ${renderReport(task.report, true)}`;
   renderEvidence(task.report);
 }
 function openReview(task) {

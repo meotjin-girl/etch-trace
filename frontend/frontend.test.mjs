@@ -106,7 +106,7 @@ function harness(storedRecords = null) {
   }
   const calls = [];
   const api = {
-    async list(){return [];}, async detail(id){return {id, status:'WAITING_INPUT', user_name:identity.name, user_role:identity.role, events:[]};},
+    async history(){return [];}, async list(){return [];}, async detail(id){return {id, status:'WAITING_INPUT', user_name:identity.name, user_role:identity.role, events:[]};},
     async create(question){calls.push(['create', question]); return {taskId:'task-1'};},
     async message(id, value){calls.push(['message', id, value]);},
     async approval(id, body){calls.push(['approval', id, body]);},
@@ -119,7 +119,7 @@ function harness(storedRecords = null) {
     matchMedia:() => ({matches:true})
   });
   vm.runInContext(appSource.replace(/^import .*;\n/gm, '') +
-    '\nglobalThis.hooks = {state, legacyRecords, isOwner, openEvidence, renderReport, renderConversation, canReview, submitQuestion, resetInvestigation, openReview, submitReview, syncTask, connectStream};', context);
+    '\nglobalThis.hooks = {state, selectRecord, renderRecords, recordTitle, renderDetail, legacyRecords, isOwner, openEvidence, renderReport, renderConversation, canReview, submitQuestion, resetInvestigation, openReview, submitReview, syncTask, connectStream};', context);
   return {hooks:context.hooks, element, calls, api};
 }
 test('all report input is escaped including attributes and numeric fallbacks', () => {
@@ -267,4 +267,119 @@ test('live events arriving during a detail request retain their newer state', as
   await pending;
   assert.equal(hooks.state.task.status, 'WAITING_APPROVAL');
   assert.equal(hooks.state.task.report.summary, 'new');
+});
+
+
+test('history list and detail use the dedicated history gateway', async () => {
+  const calls = [];
+  const api = createApi({name:'작업자', role:'worker'}, {
+    fetch: async (url, options) => {
+      calls.push({url, options});
+      return {ok:true, status:200, text:async () => '[]'};
+    }
+  });
+  await api.history();
+  await api.historyDetail('task/1');
+  assert.equal(calls[0].url, '/api/ai/investigations');
+  assert.equal(calls[1].url, '/api/ai/investigations/task%2F1');
+  assert.equal(calls[0].options.headers['X-User-Name'], encodeURIComponent('작업자'));
+});
+
+
+test('saved history displays the approved report without conversation timeline', () => {
+  const {hooks, element} = harness();
+  hooks.renderDetail({
+    id:'saved-1', status:'DONE', question:'endpoint 지연',
+    report:{summary:'승인된 조사 결과'}, approved_by:'엔지니어', lot_id:'LOT-1',
+    messages:[{text:'private-conversation'}],
+    events:[{seq:1, type:'QUESTION', payload:{text:'private-event'}}],
+    reviews:[{comment:'private-review'}]
+  });
+  const html = element('recordDetail').innerHTML;
+  assert.ok(html.includes('승인된 조사 결과'));
+  assert.ok(html.includes('LOT-1'));
+  assert.ok(!html.includes('private-conversation'));
+  assert.ok(!html.includes('private-event'));
+  assert.ok(!html.includes('private-review'));
+  assert.ok(!html.includes('class="timeline"'));
+});
+
+
+test('history titles describe the report and retain internal IDs only for selection', () => {
+  const {hooks, element} = harness();
+  const record = {id:'b99436a6-8282-4760-8ba5-1e8e4caeba93', status:'DONE',
+    report:{context:{equipment:'ETCH-07', symptom:'endpoint 지연'}, summary:'조사 요약'}};
+  assert.equal(hooks.recordTitle(record), 'ETCH-07 · endpoint 지연');
+  assert.equal(hooks.recordTitle({report:{summary:'장비 점검 필요'}}), '장비 점검 필요');
+  assert.equal(hooks.recordTitle({id:record.id}), '조사 결과');
+  hooks.state.records = [record];
+  hooks.renderRecords();
+  assert.ok(element('recordList').innerHTML.includes('<strong>ETCH-07 · endpoint 지연</strong>'));
+  assert.ok(element('recordList').innerHTML.includes(`data-record-id="${record.id}"`));
+  hooks.renderDetail(record);
+  assert.ok(element('recordDetail').innerHTML.includes('<h3>ETCH-07 · endpoint 지연</h3>'));
+  assert.ok(!element('recordDetail').innerHTML.includes(record.id));
+});
+
+
+test('approval completed before stream reconnect immediately refreshes history count', async () => {
+  const {hooks, api, element} = harness();
+  const saved = {id:'a', status:'DONE', report:{summary:'승인 결과'}};
+  hooks.state.task = {id:'a', status:'WAITING_APPROVAL', report:{}};
+  hooks.openReview(hooks.state.task);
+  let stored = false;
+  api.approval = async () => {stored = true;};
+  // Model an older list snapshot returned just after approval acceptance.
+  let reads = 0;
+  api.history = async () => ++reads === 1 ? [] : [saved];
+  api.detail = async () => ({...saved, events:[]});
+  await hooks.submitReview({preventDefault(){}, submitter:{value:'approve'}});
+  assert.equal(stored, true);
+  assert.equal(hooks.state.task.status, 'DONE');
+  assert.equal(element('recordNavCount').textContent, 1);
+  assert.equal(reads, 2);
+});
+
+test('live completion updates history count without opening the history panel', async () => {
+  const {hooks, api, element} = harness();
+  hooks.state.task = {id:'a', status:'RUNNING'};
+  let receive, deliver;
+  api.stream = (id, after, handlers) => {receive = handlers.onEvent; return () => {};};
+  api.history = () => new Promise(resolve => {deliver = resolve;});
+  api.detail = async () => ({id:'a', status:'DONE', events:[]});
+  hooks.connectStream();
+  receive({seq:1, type:'DONE', payload:{report:{summary:'저장됨'}}});
+  deliver([{id:'a', status:'DONE', report:{summary:'저장됨'}}]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(element('recordNavCount').textContent, 1);
+});
+
+
+test('record selection shows saved report immediately and ignores late detail replies', async () => {
+  const {hooks, api, element} = harness();
+  hooks.state.records = [
+    {id:'a', report:{summary:'첫 번째 결과'}},
+    {id:'b', report:{summary:'두 번째 결과'}}
+  ];
+  const replies = {};
+  api.historyDetail = id => new Promise(resolve => {replies[id] = resolve;});
+  const first = hooks.selectRecord('a');
+  assert.ok(element('recordDetail').innerHTML.includes('첫 번째 결과'));
+  const second = hooks.selectRecord('b');
+  assert.ok(element('recordDetail').innerHTML.includes('두 번째 결과'));
+  replies.b({id:'b', report:{summary:'두 번째 최신 결과'}});
+  await second;
+  replies.a({id:'a', report:{summary:'오래된 응답'}});
+  await first;
+  assert.equal(hooks.state.selected.id, 'b');
+  assert.ok(element('recordDetail').innerHTML.includes('두 번째 최신 결과'));
+});
+
+test('failed detail refresh keeps the saved report readable', async () => {
+  const {hooks, api, element} = harness();
+  hooks.state.records = [{id:'a', report:{summary:'저장된 조사 결과'}}];
+  api.historyDetail = async () => {throw new Error('조회 실패');};
+  await hooks.selectRecord('a');
+  assert.ok(element('recordDetail').innerHTML.includes('저장된 조사 결과'));
+  assert.equal(element('networkMessage').textContent, '조회 실패');
 });

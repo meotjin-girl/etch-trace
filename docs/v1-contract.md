@@ -56,10 +56,29 @@ All backend/agent internal requests require `X-Internal-Key`.
   `{event_id,type,payload}`; stable event IDs make callback replay idempotent.
 - Business MCP -> backend: `GET /internal/cases`.
 - Business MCP tools: `search_cases(context)`,
-  `analyze_metrics(cases,metrics)`.
+  `analyze_metrics(cases,metrics)`,
+  `save_investigation(task_id,command_id,event_id,payload)`.
+- Agent completion -> Business MCP -> backend:
+  `POST /internal/tasks/{id}/investigation`, a DONE callback with
+  `X-Command-ID`. The backend requires a recorded approval and the exact
+  reviewed report before atomically saving history and completion. Stable
+  command/event IDs suppress duplicate saves.
 - RAG MCP tool: `search_documents(document_ids)`.
 
 The task ID is the checkpoint thread ID. Waiting states survive restarts.
 Interrupted running work must become visibly failed rather than remain running
 forever. Approval claims are conditional so competing reviewers cannot both
 resume the same waiting state.
+
+## Saved history panel
+
+`GET /api/ai/investigations` and `GET /api/ai/investigations/{id}` route
+through Business MCP `list_investigations` / `get_investigation`, then the
+backend `/internal/investigations` APIs. Internal reads require the internal
+key and recheck the forwarded identity. Only saved approved records are
+listed; worker ownership and engineer/admin read access are preserved.
+Active task APIs and read-only local legacy records retain their existing flow.
+
+History uses the existing `v1_investigations.report` snapshot and approval/LOT/time
+metadata. It does not copy conversations into saved investigations or return
+messages, events, or review timelines. Workflow persistence is unchanged.
