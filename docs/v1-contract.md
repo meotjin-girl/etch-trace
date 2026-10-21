@@ -42,8 +42,11 @@ Progress events: `SEARCH_STARTED`, `ANALYSIS_STARTED`, `REPORT_STARTED`.
 Event sequence IDs support replay and duplicate suppression in the browser.
 
 The report contains `context`, `scored`, `metrics`, `causeCases`, `docIds`,
-`documents` (array of `{id,title,text}`), `summary`, `unknowns`, `feedback`
-and `demo:true`. Metrics retain their units and supporting case IDs.
+`documents` (array of `{id,title,text}`), `checks` (provisional checklist items),
+`stages` (the five specialist-agent results, each with `key`, `title`, `status`,
+`agent_mode`, `findings`, `unknowns`, `caseIds`, and `docIds`), `summary`,
+`unknowns`, `feedback` and `demo:true`. `agent_mode` is `llm` or `rule_based`.
+Metrics retain their units and supporting case IDs.
 Approval records a reviewed hypothesis, not a confirmed physical root cause.
 
 ## Internal service requests

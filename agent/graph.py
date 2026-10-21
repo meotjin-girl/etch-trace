@@ -10,9 +10,18 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from pydantic import JsonValue
 
+from .agents import (
+    comparison_agent as comparison_agent_module,
+    maintenance_agent as maintenance_agent_module,
+    recommendation_agent as recommendation_agent_module,
+    scope_agent as scope_agent_module,
+    sensor_agent as sensor_agent_module,
+)
 from .evidence import EvidenceProvider
-from .models import Case, Clarification, Context, Document, Event, EventType, Metric, Report, Review
-from .prose import model_opening
+from .models import (
+    Case, Clarification, Context, Document, Event, EventType, InvestigationCheck,
+    InvestigationStage, Metric, Report, Review,
+)
 from .query import clarification_message, missing_fields, parse_question
 
 
@@ -24,6 +33,8 @@ class State(TypedDict):
     scored: list[Case]
     metrics: list[Metric]
     documents: list[Document]
+    checks: list[InvestigationCheck]
+    stages: list[InvestigationStage]
     feedback: list[str]
     report: Report
     review: Review
@@ -41,6 +52,8 @@ class Update(TypedDict, total=False):
     scored: list[Case]
     metrics: list[Metric]
     documents: list[Document]
+    checks: list[InvestigationCheck]
+    stages: list[InvestigationStage]
     feedback: list[str]
     report: Report
     review: Review
@@ -65,7 +78,7 @@ def template_report(state: State) -> Report:
     summary = (
         f"관련 과거 사례 {len(state['scored'])}건을 비교했습니다. "
         "과거 사례의 원인·조치는 우선 확인 가설이며 현재 공정의 원인으로 확정할 수 없습니다. "
-        "현장 점검과 문서 조항 확인이 필요합니다. (LLM 미사용 템플릿)"
+        "현장 점검과 문서 조항 확인이 필요합니다. 단계별 에이전트 결과를 확인하세요."
     )
     if feedback:
         summary += (
@@ -86,14 +99,24 @@ def template_report(state: State) -> Report:
         causeCases=cause_cases(state["scored"]),
         docIds=document_ids(state["scored"]),
         documents=state["documents"],
+        checks=state["checks"],
+        stages=state["stages"],
         summary=summary,
-        unknowns=unknowns,
+        unknowns=list(dict.fromkeys([
+            *unknowns,
+            *(item for stage in state["stages"] for item in stage.unknowns),
+        ])),
         feedback=feedback,
     )
 
 
 def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, emit: Emit):
     """Compile a graph whose interrupt nodes have no callback side effects."""
+    scope_graph = scope_agent_module.build(evidence)
+    comparison_graph = comparison_agent_module.build(evidence)
+    sensor_graph = sensor_agent_module.build()
+    maintenance_graph = maintenance_agent_module.build()
+    recommendation_graph = recommendation_agent_module.build(evidence)
 
     def publish(state: State, kind: EventType,
                 payload: dict[str, JsonValue]) -> None:
@@ -111,6 +134,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
             "context": parse_question(state["question"]),
             "clarifications": 0,
             "feedback": [],
+            "stages": [],
         }
 
     def after_intake(state: State) -> Literal["question_event", "search_started", "incomplete"]:
@@ -141,10 +165,14 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         publish(state, "SEARCH_STARTED", {})
         return {}
 
-    def search(state: State) -> Update:
-        return {"scored": evidence.search_cases(state["context"])}
+    def scope_agent(state: State) -> Update:
+        result = scope_graph.invoke({"context": state["context"]})
+        return {
+            "scored": result.get("cases", []),
+            "stages": [*state.get("stages", []), result["result"]],
+        }
 
-    def after_search(state: State) -> Literal["analysis_started", "incomplete"]:
+    def after_scope(state: State) -> Literal["analysis_started", "incomplete"]:
         return "analysis_started" if state["scored"] else "incomplete"
 
     def analysis_started(state: State) -> Update:
@@ -152,9 +180,31 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         return {}
 
     def analyze(state: State) -> Update:
+        result = comparison_graph.invoke({
+            "context": state["context"], "cases": state["scored"],
+        })
         return {
-            "metrics": evidence.analyze_metrics(state["scored"], state["context"]),
-            "documents": evidence.search_documents(document_ids(state["scored"])),
+            "metrics": result.get("metrics", []),
+            "stages": [*state.get("stages", []), result["result"]],
+        }
+
+    def sensor_agent(state: State) -> Update:
+        result = sensor_graph.invoke({"context": state["context"]})
+        return {"stages": [*state.get("stages", []), result["result"]]}
+
+    def maintenance_agent(state: State) -> Update:
+        result = maintenance_graph.invoke({"context": state["context"]})
+        return {"stages": [*state.get("stages", []), result["result"]]}
+
+    def recommendation_agent(state: State) -> Update:
+        result = recommendation_graph.invoke({
+            "context": state["context"], "cases": state["scored"],
+            "metrics": state["metrics"], "stages": state["stages"],
+        })
+        return {
+            "documents": result.get("documents", []),
+            "checks": result.get("checks", []),
+            "stages": [*state.get("stages", []), result["result"]],
         }
 
     def report_started(state: State) -> Update:
@@ -162,15 +212,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         return {}
 
     def report(state: State) -> Update:
-        result = template_report(state)
-        opening = model_opening(state["context"], state.get("feedback", []))
-        if opening:
-            result = result.model_copy(update={
-                "summary": opening + " " + result.summary.replace(
-                    "(LLM 미사용 템플릿)", "(모델 선택 문구 · 수치·근거는 결정론적 계산)",
-                ),
-            })
-        return {"report": result}
+        return {"report": template_report(state)}
 
     def approval_event(state: State) -> Update:
         publish(state, "APPROVAL_REQUIRED", {"report": state["report"].model_dump(mode="json")})
@@ -207,8 +249,11 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     builder = StateGraph(State, input_schema=TaskInput)
     nodes = {
         "intake": intake, "question_event": question_event, "clarify": clarify,
-        "search_started": search_started, "search": search,
+        "search_started": search_started,
+        "scope_agent": scope_agent,
         "analysis_started": analysis_started, "analyze": analyze,
+        "sensor_agent": sensor_agent, "maintenance_agent": maintenance_agent,
+        "recommendation_agent": recommendation_agent,
         "report_started": report_started, "report": report,
         "approval_event": approval_event, "review": review,
         "feedback": feedback, "done": done, "incomplete": incomplete,
@@ -219,10 +264,13 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     builder.add_conditional_edges("intake", after_intake)
     builder.add_edge("question_event", "clarify")
     builder.add_conditional_edges("clarify", after_intake)
-    builder.add_edge("search_started", "search")
-    builder.add_conditional_edges("search", after_search)
+    builder.add_edge("search_started", "scope_agent")
+    builder.add_conditional_edges("scope_agent", after_scope)
     builder.add_edge("analysis_started", "analyze")
-    builder.add_edge("analyze", "report_started")
+    builder.add_edge("analyze", "sensor_agent")
+    builder.add_edge("sensor_agent", "maintenance_agent")
+    builder.add_edge("maintenance_agent", "recommendation_agent")
+    builder.add_edge("recommendation_agent", "report_started")
     builder.add_edge("report_started", "report")
     builder.add_edge("report", "approval_event")
     builder.add_edge("approval_event", "review")

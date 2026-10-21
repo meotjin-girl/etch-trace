@@ -53,6 +53,23 @@ class Document(Input):
     text: str
 
 
+class InvestigationCheck(Input):
+    title: str
+    rationale: str
+    source: Literal["provisional_sop"] = "provisional_sop"
+
+
+class InvestigationStage(Input):
+    key: Literal["scope", "run_comparison", "sensor", "maintenance", "recommendation"]
+    title: str
+    status: Literal["sample_based", "partial", "unavailable", "provisional"]
+    agent_mode: Literal["llm", "rule_based"] = "rule_based"
+    findings: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    caseIds: list[str] = Field(default_factory=list)
+    docIds: list[str] = Field(default_factory=list)
+
+
 class Report(Input):
     context: dict[str, JsonValue] = Field(default_factory=dict)
     scored: list[dict[str, JsonValue]] = Field(default_factory=list)
@@ -60,6 +77,8 @@ class Report(Input):
     causeCases: list[dict[str, JsonValue]] = Field(default_factory=list)
     docIds: list[str] = Field(default_factory=list)
     documents: list[Document] = Field(default_factory=list)
+    checks: list[InvestigationCheck] = Field(default_factory=list)
+    stages: list[InvestigationStage] = Field(default_factory=list)
     summary: str = ""
     unknowns: list[str] = Field(default_factory=list)
     feedback: list[JsonValue] = Field(default_factory=list)
