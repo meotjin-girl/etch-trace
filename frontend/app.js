@@ -122,7 +122,13 @@ function renderReport(report, review = false) {
   const causes = (report.causeCases || []).map((item, index) => `<div class="cause-item">
     <span>${index + 1}</span><div><strong>${escapeHtml(item.cause)}</strong><small>${escapeHtml(item.action)}</small></div><span class="citation">[${escapeHtml(item.id)}]</span>
     <div class="cause-docs">${(item.docs || []).map(citation).join(' ')}</div></div>`).join('');
-  const checks = (report.checks || []).map((item, index) => `<li><strong>${index + 1}. ${escapeHtml(item.title)}</strong><br>${escapeHtml(item.rationale)}</li>`).join('');
+  const checks = (report.checks || []).map((item, index) => `<li><strong>${index + 1}. ${escapeHtml(item.title)}</strong> ${item.docId ? citation(item.docId) : ''}<br>${escapeHtml(item.rationale)}</li>`).join('');
+  const history = (report.history || []).map(item => `<li><strong>${escapeHtml(item.question)}</strong>
+    <span class="severity">승인된 과거 조사 · ${escapeHtml(item.approvedAt)}</span>
+    <p>${escapeHtml(item.summary)}</p>
+    ${(item.causes || []).map(cause => `<p>과거 후보: ${escapeHtml(cause)}</p>`).join('')}
+    <p>조사 ID ${escapeHtml(item.id)}${item.lotId ? ` · Lot ${escapeHtml(item.lotId)}` : ''}${item.eventTime ? ` · 발생 시각 ${escapeHtml(item.eventTime)}` : ''}</p>
+    ${(item.docIds || []).map(id => `<span class="citation">[${escapeHtml(id)}]</span>`).join(' ')}</li>`).join('');
   const stageStatus = {sample_based:'데모 사례 기반', partial:'일부 확인 · 연관 데이터 미연결', unavailable:'데이터 미연결', provisional:'임시 권고'};
   const stages = (report.stages || []).map(stage => `<li><strong>${escapeHtml(stage.title)}</strong><span class="severity">${escapeHtml(stageStatus[stage.status] || stage.status)} · ${stage.agent_mode === 'llm' ? 'LLM 사용' : '규칙 기반 실행'}</span>
     ${(stage.findings || []).map(item => `<p>${escapeHtml(item)}</p>`).join('')}
@@ -132,8 +138,9 @@ function renderReport(report, review = false) {
     <p class="answer-summary report-text">${escapeHtml(text(report.summary))}</p>
     <div class="analysis-grid">${metrics || '<p>계측값 미제공</p>'}</div>
     ${stages ? `<section class="answer-section"><h3>조사 단계별 결과</h3><p>데모 사례 분석, 사용자 입력값, 아직 연결되지 않은 실제 시스템 데이터를 구분했습니다.</p><ol>${stages}</ol></section>` : ''}
+    ${history ? `<section class="answer-section"><h3>유사 승인 조사 이력</h3><p>요청자 권한으로 조회된 과거 승인 기록입니다. 과거 결과가 현재 원인을 확정하지 않습니다.</p><ol>${history}</ol></section>` : ''}
     <section class="answer-section"><h3>우선 확인할 항목</h3><div class="cause-list">${causes || '<p>원인 후보를 좁힐 근거가 부족합니다.</p>'}</div></section>
-    ${checks ? `<section class="answer-section"><h3>임시 SOP 조사 순서</h3><p>승인된 SOP 검색 결과가 아닌 임시 가이드입니다. 실제 정비·센서 데이터의 확인 결과가 아닙니다.</p><ol>${checks}</ol></section>` : ''}
+    ${checks ? `<section class="answer-section"><h3>SOP RAG 검색 결과 · 우선 확인 순서</h3><p>RAG MCP가 SOP/WI/SPEC에서 검색해 재순위화한 조항입니다. 실제 장비 센서·정비 데이터를 확인한 결과나 확정 조치가 아닙니다.</p><ol>${checks}</ol></section>` : ''}
     <section class="answer-section"><h3>문서 근거</h3>${(report.docIds || []).map(citation).join(' ')}</section>
     ${review ? '' : '<div class="record-cta"><p><strong>조사 결과를 기록으로 남길까요?</strong><br>서버 검토 상태와 권한을 확인해 승인 또는 수정을 요청합니다.</p><button class="record-button" type="button" data-review>조사 기록 만들기</button></div>'}`;
 }

@@ -367,12 +367,12 @@ version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },
+    { name = "openai" },
     { name = "psycopg", extra = ["binary"] },
 ]
 
 [package.dev-dependencies]
 rag-experiment = [
-    { name = "openai" },
     { name = "python-dotenv" },
     { name = "typer" },
 ]
@@ -380,12 +380,12 @@ rag-experiment = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=3.2,<4" },
+    { name = "openai", specifier = ">=2,<3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
 ]
 
 [package.metadata.requires-dev]
 rag-experiment = [
-    { name = "openai", specifier = ">=2,<3" },
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "typer", specifier = ">=0.16,<1" },
 ]

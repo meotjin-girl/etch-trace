@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import NotRequired, TypedDict
 
 import psycopg
 from fastmcp import FastMCP
+from openai import OpenAI
 from psycopg.rows import class_row
 from pydantic import TypeAdapter
+from sop_chunks import load_chunks
+from sop_rerank import CANDIDATE_K, rerank
+from sop_vectors import MODEL, Embedder, Hit, ingest, retrieve
 
 
 class Document(TypedDict):
@@ -18,6 +23,9 @@ class Document(TypedDict):
     text: str
     is_demo: NotRequired[bool]
     source: NotRequired[str]
+    revision: NotRequired[str]
+    notice: NotRequired[str]
+    distance: NotRequired[float]
 
 
 mcp = FastMCP("etch-rag", version="1.0.0")
@@ -49,6 +57,53 @@ def search_documents(document_ids: list[str]) -> list[Document]:
         documents[document_id]
         for document_id in dict.fromkeys(document_ids)
         if document_id in documents
+    ]
+
+
+@mcp.tool
+def search_sop(query: str) -> list[Document]:
+    """Search SOP/WI/SPEC text using the SOP embedding index and clause reranker.
+
+    The index is refreshed idempotently from SOP_DOCUMENTS_DIR. First use embeds
+    the corpus; every query embeds its text, retrieves twenty candidates, then
+    returns the three clauses selected by the existing reranker.
+    """
+    query = query.strip()
+    if not query:
+        raise ValueError("query must contain text")
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is required for SOP embedding and reranking")
+    database_url = os.environ.get("SOP_DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("SOP_DATABASE_URL is required for SOP retrieval")
+
+    document_dir = Path(os.environ.get("SOP_DOCUMENTS_DIR", "/sop"))
+    chunks = load_chunks(document_dir)
+    with OpenAI(timeout=60.0, max_retries=0) as client:
+        embedder = Embedder(client, MODEL)
+        with psycopg.connect(database_url) as connection:
+            ingest(connection, embedder, chunks)
+        vectors, _ = embedder.embed([query])
+        with psycopg.connect(database_url) as connection:
+            candidates = retrieve(connection, vectors[0], CANDIDATE_K)
+        if len(candidates) < 3:
+            raise RuntimeError(
+                f"SOP index returned {len(candidates)} candidates; at least three are required"
+            )
+        hits: list[Hit] = rerank(client, query, candidates).hits
+
+    return [
+        {
+            "id": hit.id,
+            "title": f"{hit.document_title} · {hit.section_title}",
+            "text": hit.text,
+            "is_demo": hit.is_demo,
+            "source": hit.source,
+            "revision": hit.revision,
+            "notice": hit.notice,
+            "distance": hit.distance,
+        }
+        for hit in hits
     ]
 
 

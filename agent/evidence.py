@@ -5,9 +5,9 @@ from typing import Protocol
 
 import anyio
 from fastmcp import Client
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 
-from .models import Case, Context, Document, Metric
+from .models import Case, Context, Document, Metric, Requester
 
 
 class ToolEnvelope[T](BaseModel):
@@ -20,6 +20,14 @@ class EvidenceProvider(Protocol):
     def analyze_metrics(self, cases: list[Case], context: Context) -> list[Metric]: ...
 
     def search_documents(self, document_ids: list[str]) -> list[Document]: ...
+
+
+class HistoryEvidenceReader(Protocol):
+    def list_investigations(self, requester: Requester) -> list[dict[str, JsonValue]]: ...
+
+
+class SopRagSearcher(Protocol):
+    def search_sop(self, query: str) -> list[Document]: ...
 
 
 def mcp_url(base: str) -> str:
@@ -44,7 +52,10 @@ class MCPEvidenceProvider:
         async with Client(mcp_url(self.business_url)) as client:
             result = await client.call_tool(
                 "analyze_metrics",
-                {"cases": [case.model_dump() for case in cases], "metrics": context.metrics},
+                {
+                    "cases": [case.model_dump() for case in cases],
+                    "metrics": context.metrics,
+                },
             )
         return ToolEnvelope[Metric].model_validate(result.structured_content).result
 
@@ -55,6 +66,22 @@ class MCPEvidenceProvider:
             )
         return ToolEnvelope[Document].model_validate(result.structured_content).result
 
+    async def _search_sop(self, query: str) -> list[Document]:
+        async with Client(mcp_url(self.rag_url)) as client:
+            result = await client.call_tool("search_sop", {"query": query})
+        return ToolEnvelope[Document].model_validate(result.structured_content).result
+
+    async def _list_investigations(
+        self, requester: Requester,
+    ) -> list[dict[str, JsonValue]]:
+        async with Client(mcp_url(self.business_url)) as client:
+            result = await client.call_tool("list_investigations", {
+                "user_name": requester.name, "user_role": requester.role,
+            })
+        return ToolEnvelope[dict[str, JsonValue]].model_validate(
+            result.structured_content,
+        ).result
+
     def search_cases(self, context: Context) -> list[Case]:
         return anyio.run(self._search_cases, context)
 
@@ -63,3 +90,11 @@ class MCPEvidenceProvider:
 
     def search_documents(self, document_ids: list[str]) -> list[Document]:
         return anyio.run(self._search_documents, document_ids)
+
+    def search_sop(self, query: str) -> list[Document]:
+        return anyio.run(self._search_sop, query)
+
+    def list_investigations(
+        self, requester: Requester,
+    ) -> list[dict[str, JsonValue]]:
+        return anyio.run(self._list_investigations, requester)

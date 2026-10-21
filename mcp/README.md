@@ -1,7 +1,6 @@
 # v1 demo evidence MCP servers
 
 Standalone SOP embedding/retrieval trial: [SOP_EXPERIMENT.md](SOP_EXPERIMENT.md).
-It does not change the MCP tools described below.
 
 All seeded cases and documents are synthetic frontend demo evidence, not
 production process records. Original IDs, values, document sections and text

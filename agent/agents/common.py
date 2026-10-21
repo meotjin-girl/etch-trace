@@ -12,16 +12,26 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ValidationError
 
 from ..models import (
-    Case, Context, Document, InvestigationCheck, InvestigationStage, Metric,
+    Case,
+    Context,
+    Document,
+    HistoryEvidence,
+    InvestigationCheck,
+    InvestigationStage,
+    Metric,
+    Requester,
 )
 
 
 class AgentState(TypedDict, total=False):
+    requester: Requester | None
     context: Context
     cases: list[Case]
     metrics: list[Metric]
     documents: list[Document]
+    history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
+    sop_search_error: str | None
     sensor_data: list[dict[str, object]]
     maintenance_records: list[dict[str, object]]
     stages: list[InvestigationStage]
@@ -63,11 +73,15 @@ def _ask_model(role: str, instructions: str, state: AgentState) -> AgentDraft | 
                 {"role": "system", "content": (
                     f"당신은 반도체 식각 이상 조사에서 '{role}' 역할을 맡은 전문 에이전트입니다. "
                     f"{instructions} 입력 JSON에 있는 근거만 사용하세요. 연결되지 않은 MES, "
-                    "센서, 정비 이력, SOP를 조회했다고 말하지 마세요. 관측 사실과 가설을 구분하고 "
-                    "필요한 경우 사례/문서 ID를 보존하며, 근거가 부족하면 그렇게 명시하세요. "
-                    "계측값, 원인, 조치를 만들어내지 마세요. 간결한 한국어 findings와 unknowns를 반환하세요."
+                    "센서, 정비 이력을 조회했다고 말하지 마세요. SOP는 입력 JSON에 실제 "
+                    "검색 결과가 포함된 경우에만 해당 조항을 인용하세요. "
+                    "관측 사실과 가설을 구분하세요. 사례/문서 ID를 보존하고 "
+                    "근거가 부족하면 명시하세요. 계측값, 원인, 조치를 만들어내지 마세요. "
+                    "간결한 한국어 findings와 unknowns를 반환하세요."
                 )},
-                {"role": "user", "content": json.dumps(_jsonable(state), ensure_ascii=False)},
+                {"role": "user", "content": json.dumps(_jsonable({
+                    key: value for key, value in state.items() if key != "requester"
+                }), ensure_ascii=False)},
             ],
             "response_format": {"type": "json_schema", "json_schema": {
                 "name": "specialist_result", "strict": True,

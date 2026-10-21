@@ -8,7 +8,8 @@
 - Business MCP reads sample cases through the backend internal API.
 - RAG MCP reads explicitly labelled sample document records.
 - Numeric calculations execute in deterministic code, not model prose.
-- Keycloak and approved-investigation retrieval as future evidence are deferred.
+- Keycloak and unrestricted investigation-history search are deferred. The scope agent
+  may use only similar approved records visible to the original requester.
 
 ## Public requests
 
@@ -42,9 +43,12 @@ Progress events: `SEARCH_STARTED`, `ANALYSIS_STARTED`, `REPORT_STARTED`.
 Event sequence IDs support replay and duplicate suppression in the browser.
 
 The report contains `context`, `scored`, `metrics`, `causeCases`, `docIds`,
-`documents` (array of `{id,title,text}`), `checks` (provisional checklist items),
+`documents` (array of `{id,title,text}` with optional `is_demo`, `source`,
+`revision`, `notice`, and `distance`), `history` (up to three similar,
+approved records visible to the original requester), `checks` (up to three ordered
+SOP clauses actually returned by RAG MCP, each `{title,rationale,source:"rag_mcp",docId}`),
 `stages` (the five specialist-agent results, each with `key`, `title`, `status`,
-`agent_mode`, `findings`, `unknowns`, `caseIds`, and `docIds`), `summary`,
+`agent_mode`, `findings`, `unknowns`, `caseIds`, `docIds`, and `historyIds`), `summary`,
 `unknowns`, `feedback` and `demo:true`. `agent_mode` is `llm` or `rule_based`.
 Metrics retain their units and supporting case IDs.
 Approval records a reviewed hypothesis, not a confirmed physical root cause.
@@ -54,7 +58,9 @@ Approval records a reviewed hypothesis, not a confirmed physical root cause.
 All backend/agent internal requests require `X-Internal-Key`.
 
 - Backend -> agent: `POST /internal/tasks/{id}/run`, initial `{question}`
-  or `{resume:{text}}` or `{resume:{action,comment,by}}`.
+  or `{resume:{text}}` or `{resume:{action,comment,by}}`. The backend also sends
+  `X-Requester-Name` (URL-encoded) and `X-Requester-Role`, derived from the
+  stored task owner, for identity-filtered history MCP reads.
 - Agent -> backend: `POST /internal/tasks/{id}/events`,
   `{event_id,type,payload}`; stable event IDs make callback replay idempotent.
 - Business MCP -> backend: `GET /internal/cases`.
@@ -66,7 +72,16 @@ All backend/agent internal requests require `X-Internal-Key`.
   `X-Command-ID`. The backend requires a recorded approval and the exact
   reviewed report before atomically saving history and completion. Stable
   command/event IDs suppress duplicate saves.
-- RAG MCP tool: `search_documents(document_ids)`.
+- RAG MCP tools: `search_documents(document_ids)` resolves exact IDs from
+  `etch_documents`; `search_sop(query)` embeds the query against a separate
+  pgvector corpus, retrieves 20 candidates, reranks them and returns three
+  source clauses. The RAG service needs `OPENAI_API_KEY`; its first semantic
+  search indexes the mounted SOP/WI/SPEC source files into the persistent
+  `sop-postgres` volume. Failed or unavailable semantic search is reported as
+  unavailable, not replaced with a locally generated checklist.
+- Scope agent -> Business MCP: `list_investigations(user_name,user_role)`;
+  the backend re-enforces worker ownership and engineer/admin read permissions.
+  Similar approved reports are references, not proof of the current root cause.
 
 The task ID is the checkpoint thread ID. Waiting states survive restarts.
 Interrupted running work must become visibly failed rather than remain running

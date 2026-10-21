@@ -5,7 +5,8 @@ import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from threading import Lock
-from typing import Annotated
+from typing import Annotated, Literal
+from urllib.parse import unquote
 from urllib.request import Request, urlopen
 from uuid import UUID
 
@@ -18,7 +19,7 @@ from langgraph.types import Command
 
 from .evidence import MCPEvidenceProvider, mcp_url
 from .graph import build_graph
-from .models import Clarification, Event, InitialRequest, ResumeRequest
+from .models import Clarification, Event, InitialRequest, Requester, ResumeRequest
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,10 +84,19 @@ def create_app() -> FastAPI:
         body: InitialRequest | ResumeRequest,
         x_command_id: Annotated[UUID, Header()],
         x_internal_key: Annotated[str | None, Header()] = None,
+        x_requester_name: Annotated[str | None, Header()] = None,
+        x_requester_role: Annotated[Literal["worker", "engineer", "admin"] | None, Header()] = None,
     ) -> dict[str, str]:
         key = app.state.internal_key
         if not x_internal_key or not hmac.compare_digest(x_internal_key, key):
             raise HTTPException(status_code=403, detail="Invalid internal key")
+        if (x_requester_name is None) != (x_requester_role is None):
+            raise HTTPException(status_code=422, detail="Incomplete requester identity")
+        requester = (
+            Requester(name=unquote(x_requester_name), role=x_requester_role)
+            if x_requester_name is not None and x_requester_role is not None
+            else None
+        )
         task = str(task_id)
         # One uvicorn worker owns all thread invocations (see Dockerfile).
         # Lock covers checkpoint read, validation, and the entire graph invocation.
@@ -103,7 +113,10 @@ def create_app() -> FastAPI:
                 case InitialRequest(question=question):
                     if snapshot.values:
                         raise HTTPException(status_code=409, detail="Task already initialized")
-                    graph.invoke({"task_id": task, "question": question}, config)
+                    graph.invoke({
+                        "task_id": task, "question": question,
+                        "requester": requester,
+                    }, config)
                 case ResumeRequest(resume=answer):
                     if not snapshot.interrupts:
                         raise HTTPException(status_code=409, detail="Task is not waiting for input")

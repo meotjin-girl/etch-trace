@@ -51,12 +51,18 @@ class Document(Input):
     id: str
     title: str
     text: str
+    is_demo: bool | None = None
+    source: str | None = None
+    revision: str | None = None
+    notice: str | None = None
+    distance: float | None = None
 
 
 class InvestigationCheck(Input):
     title: str
     rationale: str
-    source: Literal["provisional_sop"] = "provisional_sop"
+    source: Literal["rag_mcp", "provisional_sop"] = "rag_mcp"
+    docId: str | None = None
 
 
 class InvestigationStage(Input):
@@ -64,10 +70,23 @@ class InvestigationStage(Input):
     title: str
     status: Literal["sample_based", "partial", "unavailable", "provisional"]
     agent_mode: Literal["llm", "rule_based"] = "rule_based"
+    historyIds: list[str] = Field(default_factory=list)
     findings: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     caseIds: list[str] = Field(default_factory=list)
     docIds: list[str] = Field(default_factory=list)
+
+
+class HistoryEvidence(Input):
+    id: str
+    question: str
+    summary: str
+    causes: list[str] = Field(default_factory=list)
+    docIds: list[str] = Field(default_factory=list)
+    approvedBy: str
+    approvedAt: str
+    eventTime: str | None = None
+    lotId: str | None = None
 
 
 class Report(Input):
@@ -77,6 +96,7 @@ class Report(Input):
     causeCases: list[dict[str, JsonValue]] = Field(default_factory=list)
     docIds: list[str] = Field(default_factory=list)
     documents: list[Document] = Field(default_factory=list)
+    history: list[HistoryEvidence] = Field(default_factory=list)
     checks: list[InvestigationCheck] = Field(default_factory=list)
     stages: list[InvestigationStage] = Field(default_factory=list)
     summary: str = ""

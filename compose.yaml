@@ -12,6 +12,19 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+  sop-postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: trace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trace}
+      POSTGRES_DB: trace_sop
+    volumes:
+      - sop_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trace -d trace_sop"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
   seed:
     build: ./mcp
     command: ["uv", "run", "python", "/seed/seed.py"]
@@ -58,9 +71,16 @@ services:
     command: ["uv", "run", "python", "rag.py"]
     environment:
       DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+      SOP_DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@sop-postgres:5432/trace_sop
+      SOP_DOCUMENTS_DIR: /sop
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ./sop:/sop:ro
     depends_on:
       seed:
         condition: service_completed_successfully
+      sop-postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
       interval: 3s
@@ -105,3 +125,4 @@ services:
         condition: service_healthy
 volumes:
   v1_pgdata:
+  sop_pgdata:
