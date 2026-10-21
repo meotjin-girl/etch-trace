@@ -16,7 +16,6 @@ from fastapi.responses import StreamingResponse
 from v1_auth import actor, identity, internal
 from v1_commands import accept_message, accept_review, callback
 from v1_dispatch import dispatch
-from v1_history import read_history
 from v1_models import (
     Actor,
     ApprovalInput,
@@ -74,16 +73,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             current().settings.internal_api_key,
             request.headers.get("x-internal-key") or request.headers.get("x-internal-api-key"),
         )
-
-    @app.get("/api/ai/investigations")
-    async def list_history(who: Annotated[Actor, Depends(actor)]) -> list[InvestigationRecord]:
-        return await read_history(who)
-
-    @app.get("/api/ai/investigations/{tid}")
-    async def history_detail(tid: UUID, who: Annotated[Actor, Depends(actor)]) -> InvestigationRecord:
-        # Reject inaccessible or unsaved records before invoking the MCP gateway.
-        await anyio.to_thread.run_sync(current().store.investigation, tid, who)
-        return await read_history(who, tid)
 
     @app.get("/internal/investigations", dependencies=[Depends(authenticate_internal)])
     def internal_history(user_name: str, user_role: str) -> list[InvestigationRecord]:
