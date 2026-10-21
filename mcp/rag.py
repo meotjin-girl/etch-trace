@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import NotRequired, TypedDict
 
 import psycopg
 from fastmcp import FastMCP
+from fastmcp.server.auth import StaticTokenVerifier
 from openai import OpenAI
 from psycopg.rows import class_row
 from pydantic import TypeAdapter
-from sop_chunks import load_chunks
 from sop_rerank import CANDIDATE_K, rerank
-from sop_vectors import MODEL, Embedder, Hit, ingest, retrieve
+from sop_vectors import MODEL, Embedder, Hit, retrieve
 
 
 class Document(TypedDict):
@@ -28,7 +27,16 @@ class Document(TypedDict):
     distance: NotRequired[float]
 
 
-mcp = FastMCP("etch-rag", version="1.0.0")
+auth_token = os.environ.get("RAG_MCP_TOKEN")
+mcp = FastMCP(
+    "etch-rag",
+    version="1.0.0",
+    auth=(
+        StaticTokenVerifier(tokens={auth_token: {"client_id": "trace-agent", "sub": "trace-team"}})
+        if auth_token
+        else None
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,8 +58,7 @@ def search_documents(document_ids: list[str]) -> list[Document]:
             (document_ids,),
         ).fetchall()
     documents: dict[str, Document] = {
-        row.id: {**TypeAdapter(Document).validate_json(row.data), "id": row.id}
-        for row in rows
+        row.id: {**TypeAdapter(Document).validate_json(row.data), "id": row.id} for row in rows
     }
     return [
         documents[document_id]
@@ -62,11 +69,11 @@ def search_documents(document_ids: list[str]) -> list[Document]:
 
 @mcp.tool
 def search_sop(query: str) -> list[Document]:
-    """Search SOP/WI/SPEC text using the SOP embedding index and clause reranker.
+    """Search SOP/OCAP text using the prebuilt embedding index and clause reranker.
 
-    The index is refreshed idempotently from SOP_DOCUMENTS_DIR. First use embeds
-    the corpus; every query embeds its text, retrieves twenty candidates, then
-    returns the three clauses selected by the existing reranker.
+    Run rag-ingest before serving queries. Search only embeds the query,
+    retrieves twenty candidates, then reranks three source clauses. It never
+    refreshes or prunes the corpus.
     """
     query = query.strip()
     if not query:
@@ -77,12 +84,8 @@ def search_sop(query: str) -> list[Document]:
     if not database_url:
         raise RuntimeError("SOP_DATABASE_URL is required for SOP retrieval")
 
-    document_dir = Path(os.environ.get("SOP_DOCUMENTS_DIR", "/sop"))
-    chunks = load_chunks(document_dir)
     with OpenAI(timeout=60.0, max_retries=0) as client:
         embedder = Embedder(client, MODEL)
-        with psycopg.connect(database_url) as connection:
-            ingest(connection, embedder, chunks)
         vectors, _ = embedder.embed([query])
         with psycopg.connect(database_url) as connection:
             candidates = retrieve(connection, vectors[0], CANDIDATE_K)

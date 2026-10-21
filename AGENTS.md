@@ -16,7 +16,7 @@
 | 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·문서·보고서·검토 |
 | MCP 어댑터 | `agent/evidence.py` | business/rag MCP만 사용, 업무 DB 직접 조회 금지 |
 | 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
-| 문서 | `mcp/rag.py` | `search_documents` exact-ID 조회와 `search_sop` SOP/WI/SPEC 벡터 검색. SOP 색인은 별도 `sop-postgres`에 저장하며 `OPENAI_API_KEY` 필요 |
+| 문서 | `mcp/rag.py`, `mcp/ingest_sop.py` | `search_documents` 기존 exact-ID 조회와 `search_sop` SOP/OCAP 벡터 검색. `rag-ingest`가 `sop-ocap/`를 별도 `sop-postgres`에 적재하며 검색 시에는 색인을 수정하지 않음 |
 | 샘플 적재 | `db/seed.py`, `cases.json`, `documents.json` | PHM 아님, demo/source 표시 보존 |
 | 화면 | `frontend/app.js`, `frontend/api.js` | 공개 backend 연동, seq 기반 이벤트 복원 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |

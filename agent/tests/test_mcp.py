@@ -19,12 +19,15 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
         return evidence.search_cases(parsed)
 
     @business.tool
-    def analyze_metrics(cases: list[dict[str, JsonValue]],
-                        metrics: dict[str, float]) -> list[dict[str, JsonValue]]:
+    def analyze_metrics(
+        cases: list[dict[str, JsonValue]], metrics: dict[str, float]
+    ) -> list[dict[str, JsonValue]]:
         parsed = [Case.model_validate(case) for case in cases]
         seen.append(("analyze_metrics", len(parsed)))
-        return [metric.model_dump(mode="json") for metric in
-                evidence.analyze_metrics(parsed, Context(metrics=metrics))]
+        return [
+            metric.model_dump(mode="json")
+            for metric in evidence.analyze_metrics(parsed, Context(metrics=metrics))
+        ]
 
     @rag.tool
     def search_documents(document_ids: list[str]) -> list[dict[str, JsonValue]]:
@@ -35,8 +38,14 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
         ]
 
     servers = {"http://business/mcp": business, "http://rag/mcp": rag}
-    monkeypatch.setattr("agent.evidence.Client", lambda url: Client(servers[url]))
-    adapter = MCPEvidenceProvider("http://business", "http://rag/mcp")
+    connections = []
+
+    def client_for(url: str, *, auth: str | None = None):
+        connections.append((url, auth))
+        return Client(servers[url])
+
+    monkeypatch.setattr("agent.evidence.Client", client_for)
+    adapter = MCPEvidenceProvider("http://business", "http://rag/mcp", "rag-test-token")
     context = Context(equipment="ETCH-07", metrics={"endpoint_sec": 94})
     # When
     cases = adapter.search_cases(context)
@@ -48,19 +57,28 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
     assert metrics[0].model_dump()["caseIds"] == [case.id for case in cases]
     assert documents[0].id == "DOC#1"
     assert seen == [
-        ("search_cases", context), ("analyze_metrics", 5), ("search_documents", ["DOC#1"]),
+        ("search_cases", context),
+        ("analyze_metrics", 5),
+        ("search_documents", ["DOC#1"]),
+    ]
+    assert connections == [
+        ("http://business/mcp", None),
+        ("http://business/mcp", None),
+        ("http://rag/mcp", "rag-test-token"),
     ]
 
 
 def test_completion_uses_investigation_mcp_and_keeps_retry_ids(monkeypatch):
     from agent.main import Callback
     from agent.models import Event
+
     business = FastMCP("business")
     seen = []
 
     @business.tool
-    def save_investigation(task_id: str, command_id: str, event_id: str,
-                           payload: dict[str, JsonValue]) -> dict[str, bool]:
+    def save_investigation(
+        task_id: str, command_id: str, event_id: str, payload: dict[str, JsonValue]
+    ) -> dict[str, bool]:
         seen.append((task_id, command_id, event_id, payload))
         return {"accepted": True, "duplicate": False}
 

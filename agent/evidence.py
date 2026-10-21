@@ -40,11 +40,13 @@ def mcp_url(base: str) -> str:
 class MCPEvidenceProvider:
     business_url: str
     rag_url: str
+    rag_token: str | None = None
 
     async def _search_cases(self, context: Context) -> list[Case]:
         async with Client(mcp_url(self.business_url)) as client:
             result = await client.call_tool(
-                "search_cases", {"context": context.model_dump(exclude_none=True)},
+                "search_cases",
+                {"context": context.model_dump(exclude_none=True)},
             )
         return ToolEnvelope[Case].model_validate(result.structured_content).result
 
@@ -60,27 +62,37 @@ class MCPEvidenceProvider:
         return ToolEnvelope[Metric].model_validate(result.structured_content).result
 
     async def _search_documents(self, document_ids: list[str]) -> list[Document]:
-        async with Client(mcp_url(self.rag_url)) as client:
+        async with Client(mcp_url(self.rag_url), auth=self.rag_token or None) as client:
             result = await client.call_tool(
-                "search_documents", {"document_ids": document_ids},
+                "search_documents",
+                {"document_ids": document_ids},
             )
         return ToolEnvelope[Document].model_validate(result.structured_content).result
 
     async def _search_sop(self, query: str) -> list[Document]:
-        async with Client(mcp_url(self.rag_url)) as client:
+        async with Client(mcp_url(self.rag_url), auth=self.rag_token or None) as client:
             result = await client.call_tool("search_sop", {"query": query})
         return ToolEnvelope[Document].model_validate(result.structured_content).result
 
     async def _list_investigations(
-        self, requester: Requester,
+        self,
+        requester: Requester,
     ) -> list[dict[str, JsonValue]]:
         async with Client(mcp_url(self.business_url)) as client:
-            result = await client.call_tool("list_investigations", {
-                "user_name": requester.name, "user_role": requester.role,
-            })
-        return ToolEnvelope[dict[str, JsonValue]].model_validate(
-            result.structured_content,
-        ).result
+            result = await client.call_tool(
+                "list_investigations",
+                {
+                    "user_name": requester.name,
+                    "user_role": requester.role,
+                },
+            )
+        return (
+            ToolEnvelope[dict[str, JsonValue]]
+            .model_validate(
+                result.structured_content,
+            )
+            .result
+        )
 
     def search_cases(self, context: Context) -> list[Case]:
         return anyio.run(self._search_cases, context)
@@ -95,6 +107,7 @@ class MCPEvidenceProvider:
         return anyio.run(self._search_sop, query)
 
     def list_investigations(
-        self, requester: Requester,
+        self,
+        requester: Requester,
     ) -> list[dict[str, JsonValue]]:
         return anyio.run(self._list_investigations, requester)

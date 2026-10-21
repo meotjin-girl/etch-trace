@@ -65,16 +65,27 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
+  rag-ingest:
+    build: ./mcp
+    profiles: ["rag-index"]
+    command: ["uv", "run", "python", "ingest_sop.py"]
+    environment:
+      SOP_DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@sop-postgres:5432/trace_sop
+      SOP_DOCUMENTS_DIR: /sop-ocap
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ./sop-ocap:/sop-ocap:ro
+    depends_on:
+      sop-postgres:
+        condition: service_healthy
   rag-mcp:
     build: ./mcp
     command: ["uv", "run", "python", "rag.py"]
     environment:
       DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
       SOP_DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@sop-postgres:5432/trace_sop
-      SOP_DOCUMENTS_DIR: /sop
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-    volumes:
-      - ./sop:/sop:ro
+      RAG_MCP_TOKEN: ${RAG_MCP_TOKEN:-}
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -91,7 +102,8 @@ services:
       DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
       BACKEND_URL: http://backend:8000
       BUSINESS_MCP_URL: http://business-mcp:8000/mcp
-      RAG_MCP_URL: http://rag-mcp:8000/mcp
+      RAG_MCP_URL: ${SHARED_RAG_MCP_URL:-http://rag-mcp:8000/mcp}
+      RAG_MCP_TOKEN: ${RAG_MCP_TOKEN:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
       LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
@@ -112,6 +124,16 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.1
+    profiles: ["rag-share"]
+    command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CF_RAG_TUNNEL_TOKEN:-}
+    restart: unless-stopped
+    depends_on:
+      rag-mcp:
+        condition: service_healthy
   web:
     build: ./frontend
     ports:
