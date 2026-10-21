@@ -31,8 +31,12 @@ class Callback:
     def __call__(self, task_id: str, event: Event) -> None:
         """HTTP errors propagate so the backend cannot mistake failure for success."""
         if event.type == "DONE" and self.business_url:
-            anyio.run(self._save_investigation, task_id, event,
-                      get_config().get("configurable", {})["command_id"])
+            anyio.run(
+                self._save_investigation,
+                task_id,
+                event,
+                get_config().get("configurable", {})["command_id"],
+            )
             return
         request = Request(
             f"{self.backend_url.rstrip('/')}/internal/tasks/{task_id}/events",
@@ -50,10 +54,15 @@ class Callback:
     async def _save_investigation(self, task_id: str, event: Event, command_id: str) -> None:
         assert self.business_url is not None
         async with Client(mcp_url(self.business_url)) as client:
-            await client.call_tool("save_investigation", {
-                "task_id": task_id, "command_id": command_id,
-                "event_id": event.event_id, "payload": event.payload,
-            })
+            await client.call_tool(
+                "save_investigation",
+                {
+                    "task_id": task_id,
+                    "command_id": command_id,
+                    "event_id": event.event_id,
+                    "payload": event.payload,
+                },
+            )
 
 
 def create_app() -> FastAPI:
@@ -71,7 +80,11 @@ def create_app() -> FastAPI:
             app.state.internal_key = key
             app.state.graph = build_graph(
                 saver,
-                MCPEvidenceProvider(os.environ["BUSINESS_MCP_URL"], os.environ["RAG_MCP_URL"]),
+                MCPEvidenceProvider(
+                    os.environ["BUSINESS_MCP_URL"],
+                    os.environ["RAG_MCP_URL"],
+                    os.environ.get("RAG_MCP_TOKEN"),
+                ),
                 Callback(os.environ["BACKEND_URL"], key, os.environ["BUSINESS_MCP_URL"]),
             )
             yield
@@ -113,17 +126,22 @@ def create_app() -> FastAPI:
                 case InitialRequest(question=question):
                     if snapshot.values:
                         raise HTTPException(status_code=409, detail="Task already initialized")
-                    graph.invoke({
-                        "task_id": task, "question": question,
-                        "requester": requester,
-                    }, config)
+                    graph.invoke(
+                        {
+                            "task_id": task,
+                            "question": question,
+                            "requester": requester,
+                        },
+                        config,
+                    )
                 case ResumeRequest(resume=answer):
                     if not snapshot.interrupts:
                         raise HTTPException(status_code=409, detail="Task is not waiting for input")
                     expected = "clarification" if isinstance(answer, Clarification) else "review"
                     if snapshot.interrupts[0].value["kind"] != expected:
                         raise HTTPException(
-                            status_code=409, detail="Resume does not match waiting state",
+                            status_code=409,
+                            detail="Resume does not match waiting state",
                         )
                     graph.invoke(Command(resume=answer.model_dump()), config)
             snapshot = graph.get_state(config)

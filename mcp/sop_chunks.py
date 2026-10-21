@@ -41,9 +41,20 @@ def parse_document(path: Path) -> list[Chunk]:
     source = path.read_text(encoding="utf-8")
     document_title = source.splitlines()[0].removeprefix("# ")
     document_id = document_title.split()[0]
-    revision_match = re.search(r"^\| 개정 \| (.+?) \|$", source, re.MULTILINE)
-    if revision_match is None:
-        raise RuntimeError(f"Missing revision: {path}")
+    metadata = re.search(
+        r"^\| 담당 팀 \| 버전 \| 최근 개정 \|\n\|[^\n]+\|\n"
+        + r"\| [^|]+ \| ([^|]+) \| (\d{4}-\d{2}-\d{2}) \|$",
+        source,
+        re.MULTILINE,
+    )
+    if metadata is not None:
+        revision = f"{metadata[1]} ({metadata[2]})"
+    else:
+        # The original SOP experiment corpus still uses the vertical metadata table.
+        revision_match = re.search(r"^\| 개정 \| (.+?) \|$", source, re.MULTILINE)
+        if revision_match is None:
+            raise RuntimeError(f"Missing revision: {path}")
+        revision = revision_match[1]
     notice = "\n".join(line[2:] for line in source.splitlines() if line.startswith("> "))
     headings = list(HEADING.finditer(source))
     chunks: list[Chunk] = []
@@ -68,8 +79,8 @@ def parse_document(path: Path) -> list[Chunk]:
                 document_title=document_title,
                 section_title=section_title,
                 text=text,
-                source=f"sop/{path.name}",
-                revision=revision_match[1],
+                source=f"{path.parent.name}/{path.name}",
+                revision=revision,
                 notice=notice,
             )
         )
@@ -77,9 +88,11 @@ def parse_document(path: Path) -> list[Chunk]:
 
 
 def load_chunks(directory: Path) -> list[Chunk]:
-    """Only SOP/WI/SPEC files are evidence, not README or research notes."""
+    """Only SOP/OCAP/WI/SPEC files are evidence, not README or research notes."""
     paths = sorted(
-        path for path in directory.glob("*.md") if path.name.startswith(("SOP-", "WI-", "SPEC-"))
+        path
+        for path in directory.glob("*.md")
+        if path.name.startswith(("SOP-", "OCAP-", "WI-", "SPEC-"))
     )
     chunks = [chunk for path in paths for chunk in parse_document(path)]
     if not chunks:

@@ -75,10 +75,21 @@ All backend/agent internal requests require `X-Internal-Key`.
 - RAG MCP tools: `search_documents(document_ids)` resolves exact IDs from
   `etch_documents`; `search_sop(query)` embeds the query against a separate
   pgvector corpus, retrieves 20 candidates, reranks them and returns three
-  source clauses. The RAG service needs `OPENAI_API_KEY`; its first semantic
-  search indexes the mounted SOP/WI/SPEC source files into the persistent
-  `sop-postgres` volume. Failed or unavailable semantic search is reported as
+  source clauses. Run the one-shot `rag-ingest` service to index `sop-ocap/`
+  (SOP and OCAP source files) into the persistent `sop-postgres` volume before
+  testing semantic search. This explicit `rag-index` profile is not started
+  by a normal Compose startup. Both ingest and semantic search need `OPENAI_API_KEY`.
+  Search never modifies the corpus or requires mounted source files.
+  `search_documents` still resolves the separate legacy sample IDs; semantic
+  indexing does not migrate case/document references.
+  Failed or unavailable semantic search is reported as
   unavailable, not replaced with a locally generated checklist.
+- Optional shared RAG: `SHARED_RAG_MCP_URL` selects a remote HTTP MCP endpoint
+  for the Agent and `RAG_MCP_TOKEN` supplies its Bearer token. The `rag-share`
+  Compose profile runs a dedicated Cloudflare connector using
+  `CF_RAG_TUNNEL_TOKEN`; its remote ingress routes only `/mcp` to `rag-mcp:8000`.
+  PostgreSQL and the backend are not exposed by this tunnel. See
+  `docs/rag-sharing.md` for startup, refresh, and client instructions.
 - Scope agent -> Business MCP: `list_investigations(user_name,user_role)`;
   the backend re-enforces worker ownership and engineer/admin read permissions.
   Similar approved reports are references, not proof of the current root cause.
