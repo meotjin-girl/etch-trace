@@ -74,7 +74,7 @@ services:
       SOP_DOCUMENTS_DIR: /sop
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
-      - ./sop:/sop:ro
+      - ./sop-ocap:/sop:ro
     depends_on:
       seed:
         condition: service_completed_successfully

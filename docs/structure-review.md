@@ -90,6 +90,8 @@ backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 �
   - `test_sop_retrieval.ChunkTest.test_evaluation_ids_exist_and_categories_have_planned_counts`
   - `test_sop_rerank.RerankTest.test_additional_questions_reference_real_sections`
   - 뒤의 두 테스트는 평가셋(`mcp/sop_questions*.json`)의 문서 ID가 실제 문서에 있는지 검사한다. 경로를 고쳐도 평가셋을 `sop-ocap/` 기준으로 갱신하기 전까지는 실패한다.
+  - 첫 테스트는 옛 문서 기준 단언이다. 문서 7개, `db/documents.json`의 조항 ID 5개(`WI-`, `SPEC-` 문서 포함) 존재, 모든 조각의 `> ` 안내문을 검사한다. 새 `sop-ocap/` 문서는 22개이고 `WI-`·`SPEC-` 문서와 안내문 줄이 없다.
+- 수정 후(이 브랜치): 파서·로더 테스트는 통과한다(새 머리 표 테스트 추가, 21개 중 실패 3·건너뜀 5). 남은 3개 실패는 모두 위 데이터 내용 단언이다. 평가셋·`db/documents.json`·안내문 정책은 SOP 실험·문서 작성자가 정하도록 그대로 둔다(결정: 그대로 두고 PR에 명시).
 - 변경안
   - 파서가 새 머리 표에서 `버전`·`최근 개정`을 읽는다(옛 `| 개정 |` 행도 유지).
   - 접두사에 `OCAP-`를 추가한다.

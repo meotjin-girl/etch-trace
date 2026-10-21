@@ -145,6 +145,21 @@ revision notes
         self.assertEqual(chunks[1].section_title, "parent / 1.1 child")
         self.assertEqual(chunks[1].notice, "[demo]")
 
+    def test_parser_reads_sop_ocap_header_table_and_loader_keeps_ocap(self) -> None:
+        # Given
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _ = (root / "OCAP-TEST-01.md").write_text(
+                "# OCAP-TEST-01 test\n\n| 담당 팀 | 버전 | 최근 개정 |\n| --- | --- | --- |\n"
+                "| Etch설비기술팀 | 1.1 | 2026-10-20 |\n\n## 1. 적용 범위\n\nbody\n",
+                encoding="utf-8",
+            )
+            # When
+            chunks = load_chunks(root)
+        # Then
+        self.assertEqual([chunk.id for chunk in chunks], ["OCAP-TEST-01#1"])
+        self.assertEqual(chunks[0].revision, "1.1 (2026-10-20)")
+
     def test_loader_excludes_notes_when_only_sop_is_evidence(self) -> None:
         # Given
         with tempfile.TemporaryDirectory() as directory:
@@ -173,7 +188,7 @@ revision notes
             (ROOT / "db/documents.json").read_bytes()
         )
         # When
-        chunks = load_chunks(ROOT / "sop")
+        chunks = load_chunks(ROOT / "sop-ocap")
         # Then
         self.assertEqual(len({chunk.document_id for chunk in chunks}), 7)
         self.assertTrue({document["id"] for document in legacy} <= {chunk.id for chunk in chunks})
@@ -205,7 +220,7 @@ revision notes
 
     def test_evaluation_ids_exist_and_categories_have_planned_counts(self) -> None:
         # Given
-        ids = {chunk.id for chunk in load_chunks(ROOT / "sop")}
+        ids = {chunk.id for chunk in load_chunks(ROOT / "sop-ocap")}
         # When
         questions = TypeAdapter(list[Question]).validate_json(QUESTIONS.read_bytes())
         # Then

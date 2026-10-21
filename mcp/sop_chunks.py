@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 HEADING: Final = re.compile(r"^(#{2,3}) (\d+(?:\.\d+)*)\.? (.+)$", re.MULTILINE)
+LEGACY_REVISION: Final = re.compile(r"^\| 개정 \| (.+?) \|$", re.MULTILINE)
+DOCUMENT_PREFIXES: Final = ("SOP-", "WI-", "SPEC-", "OCAP-")
 
 
 class Chunk(BaseModel):
@@ -36,13 +38,32 @@ class Chunk(BaseModel):
         return hashlib.sha256(content.encode()).hexdigest()
 
 
+def _cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def revision(source: str) -> str | None:
+    """Read `| 개정 | … |` or the sop-ocap header table `| 담당 팀 | 버전 | 최근 개정 |`."""
+    if legacy := LEGACY_REVISION.search(source):
+        return legacy[1]
+    lines = source.splitlines()
+    for index, line in enumerate(lines[:-2]):
+        if not line.startswith("|"):
+            continue
+        header = _cells(line)
+        if "버전" in header and "최근 개정" in header:
+            row = dict(zip(header, _cells(lines[index + 2]), strict=False))
+            return f"{row['버전']} ({row['최근 개정']})"
+    return None
+
+
 def parse_document(path: Path) -> list[Chunk]:
     """Keep numbered sections, including parent introductions, without table splitting."""
     source = path.read_text(encoding="utf-8")
     document_title = source.splitlines()[0].removeprefix("# ")
     document_id = document_title.split()[0]
-    revision_match = re.search(r"^\| 개정 \| (.+?) \|$", source, re.MULTILINE)
-    if revision_match is None:
+    document_revision = revision(source)
+    if document_revision is None:
         raise RuntimeError(f"Missing revision: {path}")
     notice = "\n".join(line[2:] for line in source.splitlines() if line.startswith("> "))
     headings = list(HEADING.finditer(source))
@@ -69,7 +90,7 @@ def parse_document(path: Path) -> list[Chunk]:
                 section_title=section_title,
                 text=text,
                 source=f"sop/{path.name}",
-                revision=revision_match[1],
+                revision=document_revision,
                 notice=notice,
             )
         )
@@ -77,10 +98,8 @@ def parse_document(path: Path) -> list[Chunk]:
 
 
 def load_chunks(directory: Path) -> list[Chunk]:
-    """Only SOP/WI/SPEC files are evidence, not README or research notes."""
-    paths = sorted(
-        path for path in directory.glob("*.md") if path.name.startswith(("SOP-", "WI-", "SPEC-"))
-    )
+    """Only SOP/WI/SPEC/OCAP files are evidence, not README or research notes."""
+    paths = sorted(path for path in directory.glob("*.md") if path.name.startswith(DOCUMENT_PREFIXES))
     chunks = [chunk for path in paths for chunk in parse_document(path)]
     if not chunks:
         raise RuntimeError(f"No SOP sections found: {directory}")
