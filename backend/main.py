@@ -17,6 +17,7 @@ from v1_auth import actor, identity, internal
 from v1_commands import accept_message, accept_review, callback
 from v1_dispatch import dispatch
 from v1_models import (
+    DEFAULT_SOP_DIR,
     Actor,
     ApprovalInput,
     Callback,
@@ -28,6 +29,9 @@ from v1_models import (
     Task,
     TaskInput,
 )
+from v1_sop import Sop, SopSummary
+from v1_sop import document as sop_document
+from v1_sop import summaries as sop_summaries
 from v1_store import Row, Store
 
 
@@ -52,6 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             os.getenv("DATABASE_URL", "postgresql://trace:trace@localhost:5432/trace"),
             os.getenv("AGENT_URL", "http://agent:8001"),
             os.getenv("INTERNAL_API_KEY", "dev-internal-key"),
+            os.getenv("SOP_DOCUMENTS_DIR", DEFAULT_SOP_DIR),
         )
         if not config.internal_api_key:
             raise RuntimeError("INTERNAL_API_KEY must not be empty")
@@ -90,6 +95,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/ai/investigations/{tid}")
     def history_detail(tid: UUID, who: Annotated[Actor, Depends(actor)]) -> InvestigationRecord:
         return current().store.investigation(tid, who)
+
+    @app.get("/api/sops", dependencies=[Depends(actor)])
+    def list_sops() -> list[SopSummary]:
+        return sop_summaries(current().settings.sop_dir)
+
+    @app.get("/api/sops/{doc_id}", dependencies=[Depends(actor)])
+    def get_sop(doc_id: str) -> Sop:
+        return sop_document(current().settings.sop_dir, doc_id)
 
     @app.post("/api/ai/tasks", status_code=202)
     def create_task(
