@@ -27,6 +27,12 @@
 | POST | `/api/ai/tasks/{id}/approval` | 검토 결정 -> 202 `{taskId}`; engineer, WAITING_APPROVAL |
 | GET | `/api/ai/tasks/{id}/events?after=0` | 200 `seq > after` 이벤트 배열 |
 | GET | `/api/ai/tasks/{id}/stream` | SSE; 아래 신원·커서 쿼리 사용 |
+| GET | `/api/ai/investigations` | 200 저장된 승인 조사 배열(승인 최신순); worker는 본인 것만 |
+| GET | `/api/ai/investigations/{id}` | 200 승인 조사 하나; 저장 전이거나 볼 수 없으면 404 |
+| GET | `/api/sops` | 200 `sop-ocap/` SOP·OCAP 요약 배열(`markdown` 제외) |
+| GET | `/api/sops/{id}` | 200 요약 + `markdown` 원문; 없으면 404 `{"detail":"문서를 찾을 수 없습니다."}` |
+
+승인 이력 응답은 `id`, `user_name`, `user_role`, `question`, `status:"DONE"`, `report`, `approved_by`, `approved_role`, `event_time`, `lot_id`, `approved_at`, `created_at`, `updated_at`이며 대화·이벤트·검토 이력은 포함하지 않는다. SOP 응답 필드는 `id`, `title`, `category`(`SOP`/`OCAP`), `version`, `updatedAt`, `owner`, `description`, `tags`, `demo`이며 문서 머리 표(`| 담당 팀 | 버전 | 최근 개정 |`)에서 읽는다.
 
 ### 생성과 재질문
 

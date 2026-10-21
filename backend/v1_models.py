@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import ClassVar, Literal
 from uuid import UUID
 
@@ -208,8 +209,13 @@ class Actor:
     role: Role
 
 
+# compose mounts sop-ocap/ at SOP_DOCUMENTS_DIR; locally the repository folder is used.
+DEFAULT_SOP_DIR = str(Path(__file__).resolve().parent.parent / "sop-ocap")
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     database_url: str
     agent_url: str
     internal_api_key: str
+    sop_dir: str = DEFAULT_SOP_DIR

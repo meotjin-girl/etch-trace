@@ -41,6 +41,9 @@ services:
       DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
       AGENT_URL: http://agent:8000
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
+      SOP_DOCUMENTS_DIR: /sop
+    volumes:
+      - ./sop-ocap:/sop:ro
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -74,7 +77,7 @@ services:
       SOP_DOCUMENTS_DIR: /sop
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
-      - ./sop:/sop:ro
+      - ./sop-ocap:/sop:ro
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -120,8 +123,6 @@ services:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       backend:
-        condition: service_healthy
-      business-mcp:
         condition: service_healthy
 volumes:
   v1_pgdata:

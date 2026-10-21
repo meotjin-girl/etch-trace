@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다. 브라우저의 작업 요청은 backend로, 이력 조회는 nginx를 통해 business-mcp의 HTTP API로 전달하며, backend는 작업·신원·권한·검토·이벤트·승인 스냅샷을 소유한다. 유일한 LangGraph는 `agent/`에 있으며 MCP로 근거를 읽는다.
+식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다. 브라우저의 모든 `/api` 요청은 nginx를 거쳐 backend로 가며, backend는 작업·신원·권한·검토·이벤트·승인 스냅샷과 승인 이력·SOP 문서 조회를 소유한다. MCP는 에이전트 전용 도구다. 유일한 LangGraph는 `agent/`에 있으며 MCP로 근거를 읽는다.
 
 ## WHERE TO LOOK
 
@@ -16,9 +16,11 @@
 | 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·문서·보고서·검토 |
 | MCP 어댑터 | `agent/evidence.py` | business/rag MCP만 사용, 업무 DB 직접 조회 금지 |
 | 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
-| 문서 | `mcp/rag.py` | `search_documents` exact-ID 조회와 `search_sop` SOP/WI/SPEC 벡터 검색. SOP 색인은 별도 `sop-postgres`에 저장하며 `OPENAI_API_KEY` 필요 |
+| 문서 | `mcp/rag.py` | `search_documents` exact-ID 조회와 `search_sop` SOP·OCAP 벡터 검색(`sop-ocap/` 마운트). SOP 색인은 별도 `sop-postgres`에 저장하며 `OPENAI_API_KEY` 필요 |
 | 샘플 적재 | `db/seed.py`, `cases.json`, `documents.json` | PHM 아님, demo/source 표시 보존 |
-| 화면 | `frontend/app.js`, `frontend/api.js` | 공개 backend 연동, seq 기반 이벤트 복원 |
+| 화면 | `frontend/src/` (Vue 3 + TS, Pinia, Router), `docs/frontend.md` | 공개 backend 연동, seq 기반 이벤트 복원, 채팅 판별. `npm run dev:mock`으로 backend 없이 실행 |
+| SOP 화면 API | `backend/v1_sop.py` | `sop-ocap/` 머리 표·원문 파싱, `/api/sops` |
+| 경로 지도 | `docs/structure-review.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |
 
 ## CONVENTIONS
@@ -43,7 +45,7 @@ uv sync --group dev
 (cd agent && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
-node --test frontend/frontend.test.mjs
+(cd frontend && npm ci && npm run type-check && npm test)
 ```
 
 - `agent/tests/`: 질문 추출·보완, 재질문, 수정·승인, 근거 보존, 콜백 replay, PostgreSQL 프로세스 재시작(`AGENT_TEST_DATABASE_URL` 필요).

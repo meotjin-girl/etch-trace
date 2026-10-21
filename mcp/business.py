@@ -5,19 +5,16 @@ from __future__ import annotations
 import json
 import os
 from contextlib import closing
-from http.client import HTTPConnection, HTTPException, HTTPSConnection
+from http.client import HTTPConnection, HTTPSConnection
 from urllib.error import HTTPError
-from urllib.parse import unquote, urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit
 from uuid import UUID
 
-import anyio
 from evidence import Case, Context, MetricAnalysis, ScoredCase
 from evidence import analyze_metrics as calculate_metrics
 from evidence import search_cases as score_cases
 from fastmcp import FastMCP
 from pydantic import JsonValue, TypeAdapter
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 mcp = FastMCP("etch-business", version="1.0.0")
 
@@ -104,37 +101,6 @@ def list_investigations(user_name: str, user_role: str) -> list[dict[str, JsonVa
 def get_investigation(task_id: UUID, user_name: str, user_role: str) -> dict[str, JsonValue]:
     """Read the approved investigation report and its storage metadata."""
     return _read_investigations(user_name, user_role, task_id)
-
-
-@mcp.custom_route("/api/ai/investigations", methods=["GET"])
-@mcp.custom_route("/api/ai/investigations/{task_id}", methods=["GET"])
-async def history_http(request: Request) -> JSONResponse:
-    """Browser history gateway; backend retains ownership and access checks."""
-    name = request.headers.get("x-user-name")
-    role = request.headers.get("x-user-role")
-    if not name or not unquote(name).strip() or role not in {"worker", "engineer", "admin"}:
-        return JSONResponse(
-            {"detail": "X-User-Name and a valid X-User-Role are required"}, status_code=401,
-        )
-    task_id = request.path_params.get("task_id")
-    try:
-        tid = UUID(task_id) if task_id is not None else None
-    except ValueError:
-        return JSONResponse({"detail": "Invalid investigation ID"}, status_code=422)
-    try:
-        # Preserve the encoded header: backend identity() decodes it once.
-        data = await anyio.to_thread.run_sync(_read_investigations, name, role, tid)
-        if not isinstance(data, dict if tid else list):
-            raise TypeError("Invalid history response")
-        return JSONResponse(data)
-    except HTTPError as exc:
-        if exc.code in {401, 403, 404, 422}:
-            details = {401: "Unauthorized", 403: "Forbidden",
-                       404: "Investigation not found", 422: "Invalid history request"}
-            return JSONResponse({"detail": details[exc.code]}, status_code=exc.code)
-        return JSONResponse({"detail": "조사 이력 조회에 실패했습니다. 다시 시도해 주세요."}, status_code=502)
-    except (OSError, HTTPException, ValueError, TypeError, KeyError):
-        return JSONResponse({"detail": "조사 이력 조회에 실패했습니다. 다시 시도해 주세요."}, status_code=502)
 
 
 if __name__ == "__main__":

@@ -66,7 +66,7 @@ class RerankTest(unittest.TestCase):
 
     def test_additional_questions_reference_real_sections(self) -> None:
         # Given
-        ids = {chunk.id for chunk in load_chunks(ROOT / "sop")}
+        ids = {chunk.id for chunk in load_chunks(ROOT / "sop-ocap")}
         # When
         questions = TypeAdapter(list[Question]).validate_json(
             (ROOT / "mcp/sop_questions_holdout.json").read_bytes()

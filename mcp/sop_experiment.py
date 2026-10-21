@@ -91,7 +91,7 @@ def score(question: Question, hits: list[Hit]) -> bool | None:
 
 @app.command("ingest")
 def ingest_command(
-    sop_dir: Annotated[Path, typer.Option(exists=True, file_okay=False)] = ROOT / "sop",
+    sop_dir: Annotated[Path, typer.Option(exists=True, file_okay=False)] = ROOT / "sop-ocap",
     database_url: DatabaseOption = DATABASE_URL,
     env_file: KeyOption = KEY_FILE,
     model: Annotated[EmbeddingModel, typer.Option()] = MODEL,

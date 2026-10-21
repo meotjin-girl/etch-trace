@@ -27,6 +27,10 @@ administrators may read all tasks. Only engineers may approve or revise.
 | POST | `/api/ai/tasks/{id}/approval` | `{action,comment,event_time?,lot_id?}`; engineer, WAITING_APPROVAL only |
 | GET | `/api/ai/tasks/{id}/events` | Events after `after` sequence |
 | GET | `/api/ai/tasks/{id}/stream` | SSE; query user_name/user_role/after |
+| GET | `/api/ai/investigations` | Saved approved investigations visible to the caller |
+| GET | `/api/ai/investigations/{id}` | One saved investigation; 404 when not saved or not visible |
+| GET | `/api/sops` | SOP/OCAP summaries from `sop-ocap/` (no markdown) |
+| GET | `/api/sops/{id}` | One SOP/OCAP with its original markdown; 404 when missing |
 
 Approval action is `approve` or `revise`. The backend derives the reviewer
 from request identity, never an arbitrary reviewer field in the body.
@@ -76,7 +80,7 @@ All backend/agent internal requests require `X-Internal-Key`.
   `etch_documents`; `search_sop(query)` embeds the query against a separate
   pgvector corpus, retrieves 20 candidates, reranks them and returns three
   source clauses. The RAG service needs `OPENAI_API_KEY`; its first semantic
-  search indexes the mounted SOP/WI/SPEC source files into the persistent
+  search indexes the mounted SOP/OCAP source files (`sop-ocap/`) into the persistent
   `sop-postgres` volume. Failed or unavailable semantic search is reported as
   unavailable, not replaced with a locally generated checklist.
 - Scope agent -> Business MCP: `list_investigations(user_name,user_role)`;
@@ -90,11 +94,13 @@ resume the same waiting state.
 
 ## Saved history panel
 
-`GET /api/ai/investigations` and `GET /api/ai/investigations/{id}` route
-through nginx directly to custom HTTP routes on Business MCP (not MCP protocol
-requests). These reuse the MCP tools’ internal read helper, then call the backend `/internal/investigations` APIs. Internal reads require the internal
-key and recheck the forwarded identity. Only saved approved records are
-listed; worker ownership and engineer/admin read access are preserved.
+`GET /api/ai/investigations` and `GET /api/ai/investigations/{id}` are served
+by the backend directly from `v1_investigations` (nginx proxies all `/api` to
+the backend). Business MCP exposes no browser HTTP routes; its
+`list_investigations` / `get_investigation` tools remain for the agent and call
+the backend `/internal/investigations` APIs with the internal key. Only saved
+approved records are listed; worker ownership and engineer/admin read access
+are preserved.
 Active task APIs and read-only local legacy records retain their existing flow.
 
 History uses the existing `v1_investigations.report` snapshot and approval/LOT/time
