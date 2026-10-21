@@ -82,6 +82,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def internal_history_detail(tid: UUID, user_name: str, user_role: str) -> InvestigationRecord:
         return current().store.investigation(tid, identity(user_name, user_role))
 
+    # Screen history reads come straight from the store; MCP tools stay agent-only.
+    @app.get("/api/ai/investigations")
+    def list_history(who: Annotated[Actor, Depends(actor)]) -> list[InvestigationRecord]:
+        return current().store.investigations(who)
+
+    @app.get("/api/ai/investigations/{tid}")
+    def history_detail(tid: UUID, who: Annotated[Actor, Depends(actor)]) -> InvestigationRecord:
+        return current().store.investigation(tid, who)
+
     @app.post("/api/ai/tasks", status_code=202)
     def create_task(
         body: TaskInput, bg: BackgroundTasks, who: Annotated[Actor, Depends(actor)],

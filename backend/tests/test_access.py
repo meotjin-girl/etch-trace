@@ -108,3 +108,24 @@ def test_invalid_sse_cursor_is_rejected(client: TestClient) -> None:
     )
     # Then the API rejects malformed input before streaming.
     assert response.status_code == 422
+
+
+def test_public_history_is_served_by_backend_with_role_scope(client: TestClient) -> None:
+    tid = task(client)
+    task(client, name="another")
+    event(client, tid, "APPROVAL_REQUIRED", {"report": {}})
+    client.post(f"{API}/{tid}/approval", headers=headers("reviewer", "engineer"),
+                json={"action": "approve", "lot_id": "LOT-1"})
+    event(client, tid, "DONE", {"report": {}})
+    url = "/api/ai/investigations"
+    assert client.get(url).status_code == 401
+    assert [row["id"] for row in client.get(url, headers=headers()).json()] == [tid]
+    assert client.get(url, headers=headers("another")).json() == []
+    assert client.get(f"{url}/{tid}", headers=headers("another")).status_code == 404
+    result = client.get(f"{url}/{tid}", headers=headers("reader", "engineer")).json()
+    assert result["approved_by"] == "reviewer"
+    assert result["lot_id"] == "LOT-1"
+    assert not ({"messages", "events", "reviews", "command_id"} & result.keys())
+    assert client.get(f"{url}/not-a-uuid", headers=headers()).status_code == 422
+    unsaved = task(client)
+    assert client.get(f"{url}/{unsaved}", headers=headers()).status_code == 404

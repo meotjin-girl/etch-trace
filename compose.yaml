@@ -121,8 +121,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-      business-mcp:
-        condition: service_healthy
 volumes:
   v1_pgdata:
   sop_pgdata:
