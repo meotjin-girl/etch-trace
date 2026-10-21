@@ -63,7 +63,7 @@ test('rejection with a comment rewrites at once without a follow-up question', a
   expect(types(taskId).filter(type => type === 'QUESTION')).toHaveLength(0)
 })
 
-test('access and state rules follow docs/api.md', async () => {
+test('access and state rules follow docs/development/api.md', async () => {
   const {taskId} = store.create(engineer, {question:'ETCH-07 endpoint 지연'})
   fails(() => store.create(engineer, {question:'  '}), 422)
   expect(store.detail({name:'작업자', role:'worker'}, taskId).id).toBe(taskId)

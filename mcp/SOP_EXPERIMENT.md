@@ -7,7 +7,7 @@
 현재 기본 방법은 **small 임베딩 후보 20개 → LLM 재순위화 → 조항 3개 반환**이다.
 원래 세트 13/13, 추가 고정 세트 8/8을 확인했다.
 문제 정의·대안 비교·실패한 모델 교체 실험·비용·한계는
-[검색 개선 의사결정 기록](../docs/sop-rag-retrieval-decision.md)에 있다.
+[검색 개선 의사결정 기록](../docs/development/sop-rag-retrieval-decision.md)에 있다.
 
 ## 실행
 

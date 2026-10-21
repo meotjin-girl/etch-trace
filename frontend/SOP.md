@@ -1,6 +1,6 @@
 # SOP 화면 데이터 연동
 
-SOP 화면은 API 8·9번(`docs/frontend.md` 필요 API)을 호출합니다. 실제 backend에는 아직
+SOP 화면은 API 8·9번(`docs/development/frontend.md` 필요 API)을 호출합니다. 실제 backend에는 아직
 없으므로 `npm run dev:mock`의 목업(`frontend/mock/fixtures.ts` 샘플)으로 확인합니다.
 샘플은 실제 작업 지침이 아니라고 목록과 본문에 표시합니다.
 

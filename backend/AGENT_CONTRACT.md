@@ -1,7 +1,7 @@
 # Backend v1 integration notes
 
 Public routes and simple `/internal/tasks/{id}/run` bodies follow
-`docs/v1-contract.md`. All internal requests use `X-Internal-Key`.
+`docs/development/v1-contract.md`. All internal requests use `X-Internal-Key`.
 
 Each accepted command gets a new UUID, exposed as `command_id` in the task
 snapshot and sent to the agent as `X-Command-ID`. The agent MUST echo that

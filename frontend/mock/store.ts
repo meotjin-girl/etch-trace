@@ -1,5 +1,5 @@
-// In-memory mock of the backend + agent, following docs/api.md and the
-// conversational proposal in docs/frontend.md (QUESTION.options, TOKEN,
+// In-memory mock of the backend + agent, following docs/development/api.md and the
+// conversational proposal in docs/development/frontend.md (QUESTION.options, TOKEN,
 // chat approval with follow-up questions). Dev/test only.
 import { randomUUID } from 'node:crypto'
 import type { Report, Review, Task, TaskEvent } from '../src/api/types'

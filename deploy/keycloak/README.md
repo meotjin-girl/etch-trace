@@ -67,4 +67,4 @@ nullable ID 열을 추가하고 예전 역할·표시 이름은 보존한다. �
   저장된 요청자 정보는 로그인 토큰이나 만료 정보를 대체하지 않는다.
 
 이 구성은 로컬 개발용이다. 운영용 Keycloak DB·TLS·프록시 신뢰 정책은 별도 구성이다.
-검증한 범위는 `docs/keycloak-validation.md`를 참고한다.
+인증 통합 검증 기록은 `docs/development/v1-validation.md`를 참고한다.
