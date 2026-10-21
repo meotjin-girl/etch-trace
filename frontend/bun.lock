@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "etch-trace-frontend",
+      "dependencies": {
+        "keycloak-js": "26.2.4",
+      },
+    },
+  },
+  "packages": {
+    "keycloak-js": ["keycloak-js@26.2.4", "", {}, "sha512-PnXpR3ubETGOt0B/Qt2lxmPbkZr5bc3vlQsOqDoTPPQsZRp7JjhTKxlJ187uWh8qJhvBab6Gsjb06a8ayOPfuw=="],
+  }
+}

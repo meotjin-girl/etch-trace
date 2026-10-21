@@ -7,11 +7,12 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Queue
 from threading import Thread
-from urllib.parse import quote
 from uuid import uuid4
 
+import jwt
 import psycopg
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from httpx import Response
 from main import create_app
@@ -22,10 +23,30 @@ from v1_models import Detail, Settings
 
 API = "/api/ai/tasks"
 KEY = {"X-Internal-Key": "test-key"}
+SIGNING_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+ISSUER = "http://localhost:8080/auth/realms/trace"
 
 
 def headers(name: str = "owner", role: str = "worker") -> dict[str, str]:
-    return {"X-User-Name": quote(name), "X-User-Role": role}
+    return {"Authorization": f"Bearer {token(name, realm_access={'roles': [role]})}"}
+
+
+def token(name: str = "owner", /, **overrides: JsonValue) -> str:
+    claims: dict[str, JsonValue] = {
+        "iss": ISSUER,
+        "aud": "trace-api",
+        "sub": f"account:{name}",
+        "preferred_username": name,
+        "typ": "Bearer",
+        "exp": 4102444800,
+        "iat": 1700000000,
+    }
+    claims.update(overrides)
+    return jwt.encode(claims, SIGNING_KEY, algorithm="RS256", headers={"kid": "test-key"})
+
+
+def settings(database_url: str, wire: "Wire") -> Settings:
+    return Settings(database_url, wire.url, "test-key", keycloak_jwks_url=f"{wire.url}/certs")
 
 
 @dataclass
@@ -35,6 +56,7 @@ class Wire:
     commands: Queue[tuple[str, dict[str, str], dict[str, JsonValue]]] = field(default_factory=Queue)
     status: int = 202
     url: str = ""
+    jwks_status: int = 200
 
 
 @pytest.fixture
@@ -42,6 +64,14 @@ def wire() -> Iterator[Wire]:
     state = Wire()
 
     class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            key = jwt.algorithms.RSAAlgorithm.to_jwk(SIGNING_KEY.public_key(), as_dict=True)
+            key["kid"] = "test-key"
+            self.send_response(state.jwks_status)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"keys": [key]}).encode())
+
         def do_POST(self) -> None:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             state.commands.put((self.path, dict(self.headers), body))
@@ -79,7 +109,7 @@ def database_url() -> Iterator[str]:
 
 @pytest.fixture
 def client(database_url: str, wire: Wire) -> Iterator[TestClient]:
-    app = create_app(Settings(database_url, wire.url, "test-key"))
+    app = create_app(settings(database_url, wire))
     with TestClient(app) as test_client:
         yield test_client
 
@@ -96,8 +126,12 @@ def detail(client: TestClient, tid: str) -> Detail:
 
 
 def event(
-    client: TestClient, tid: str, kind: str, payload: dict[str, JsonValue] | None = None,
-    event_id: str | None = None, command_id: str | None = None,
+    client: TestClient,
+    tid: str,
+    kind: str,
+    payload: dict[str, JsonValue] | None = None,
+    event_id: str | None = None,
+    command_id: str | None = None,
 ) -> Response:
     command = command_id or str(detail(client, tid).command_id)
     return client.post(

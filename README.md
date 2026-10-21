@@ -8,7 +8,7 @@
 
 ```bash
 cp .env.example .env
-# .env의 INTERNAL_API_KEY, POSTGRES_PASSWORD를 환경에 맞게 변경
+# .env의 INTERNAL_API_KEY, POSTGRES_PASSWORD, Keycloak 관리자 암호를 변경
 docker compose -f compose.yaml up -d --build
 docker compose -f compose.yaml ps
 ```
@@ -19,17 +19,20 @@ docker compose -f compose.yaml ps
 
 ## 단일 v1 구조
 
+첫 실행 후 `/auth/admin/`의 Keycloak 관리 콘솔에서 `trace` realm을 선택하고 사용자 계정과 비밀번호를 생성합니다. 회원가입은 비활성화되어 있습니다. 브라우저는 `keycloak-js`의 PKCE 로그인으로 받은 토큰을 메모리에만 보관합니다. 자세한 설정·계정 생성·볼륨 유지 방법은 [Keycloak 개발 안내](deploy/keycloak/README.md)를 참고하세요. 프론트 파일 변경은 이제 `docker compose up -d --build web`으로 이미지에 반영합니다.
+
 ```text
 브라우저 -> nginx -> backend (REST / SSE, 작업·검토·이력)
                          -> agent (유일한 LangGraph, PostgreSQL 체크포인트)
                               -> business-mcp -> backend 내부 사례 API
                               -> rag-mcp -> PostgreSQL 샘플 문서
+               -> Keycloak (/auth, 로그인·토큰 발급)
 ```
 
 | 경로 | 책임 |
 |---|---|
 | `frontend/` | backend API 연동 화면, 요청·재질문·검토·서버 이력 표시 |
-| `backend/main.py`, `backend/v1_*.py` | 공개 API, 목업 신원, 권한, 상태·메시지·검토·이벤트·승인 스냅샷 |
+| `backend/main.py`, `backend/v1_*.py` | 공개 API, Keycloak 토큰 검증, 상태·메시지·검토·이벤트·승인 스냅샷 |
 | `agent/` | 질문 추출, 재질문, MCP 조사, 보고서, 검토 중단·재개 |
 | `mcp/` | 사례 조회·결정론적 통계 계산, 문서 조항 조회 |
 | `db/` | 샘플 사례·문서와 적재 스크립트 |
@@ -39,18 +42,18 @@ docker compose -f compose.yaml ps
 
 ## 요청과 검토
 
-HTTP API에는 URL 인코딩한 `X-User-Name`과 `X-User-Role`이 **필수**입니다. 역할은 `worker`, `engineer`, `admin`입니다. 이는 검증된 인증이 아닌 개발용 신원입니다. 작업자는 자기 작업만, 엔지니어와 관리자는 전체 작업을 읽을 수 있습니다. 재질문 답변은 요청자만, 승인·수정은 엔지니어만 가능합니다.
+작업 API에는 `Authorization: Bearer <access token>`이 필수입니다. FastAPI는 서명·발급자·대상 API·만료·사용자를 검증합니다. 이번에는 역할 구분 없이 로그인한 누구나 모든 조사를 조회·응답·검토할 수 있습니다. 이전 신원 헤더는 더 이상 인증하지 않습니다. 세분화된 인가는 후속 범위입니다.
 
 ```bash
 curl -sS http://localhost:18080/api/ai/tasks \
   -H 'Content-Type: application/json' \
-  -H 'X-User-Name: worker-demo' -H 'X-User-Role: worker' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d '{"question":"ETCH-07 CH-B OX-120 endpoint 지연 118초, RF reflected power 상승 29W"}'
 ```
 
-반환된 `taskId`로 상세·이력을 조회합니다. 정보가 부족하면 `WAITING_INPUT`에서 `/messages`에 `{text}`를 보냅니다. `WAITING_APPROVAL`에서는 엔지니어가 `/approval`에 `{action:"revise",comment:"..."}` 또는 `{action:"approve",comment:"..."}`를 보냅니다. 검토자 이름은 본문이 아니라 요청 신원에서 결정됩니다.
+반환된 `taskId`로 상세·이력을 조회합니다. 정보가 부족하면 `WAITING_INPUT`에서 `/messages`에 `{text}`를 보냅니다. `WAITING_APPROVAL`에서는 `/approval`에 `{action:"revise",comment:"..."}` 또는 `{action:"approve",comment:"..."}`를 보냅니다. 검토자 이름과 ID는 서버가 토큰에서 결정합니다.
 
-SSE는 `/api/ai/tasks/{id}/stream?user_name=worker-demo&user_role=worker&after=0`입니다. `EventSource`는 사용자 정의 헤더를 못 보내므로 목업 신원을 쿼리로 전달합니다. 이벤트 `seq`로 재연결·중복 제거하며 `DONE`, `INCOMPLETE`, `FAILED`에서 종료합니다. 목록에는 미완료 작업도 포함되고 상세에는 메시지·검토·이벤트·승인 스냅샷이 복원됩니다.
+SSE는 `/api/ai/tasks/{id}/stream?after=0`이며 Bearer 헤더를 포함한 fetch 스트리밍을 사용합니다. 이벤트 `seq`로 재연결·중복 제거하며 `DONE`, `INCOMPLETE`, `FAILED`에서 종료합니다. 토큰은 URL이나 localStorage에 저장하지 않습니다. 목록에는 미완료 작업도 포함되고 상세에는 메시지·검토·이벤트·승인 스냅샷이 복원됩니다.
 
 ## 개발과 검증
 
@@ -74,6 +77,6 @@ node --test frontend/frontend.test.mjs
 - 기존 브라우저 `localStorage` 기록은 **로컬 읽기 전용 과거 기록**입니다. 서버 승인 기록으로 이관하거나 새 조사 근거로 사용하지 않습니다.
 - 중복 백엔드 그래프·도구와 PHM 전용 적재·점검 스크립트는 제거했습니다. 이전 구현은 Git 이력에서 확인할 수 있습니다.
 
-Keycloak 인증과 승인된 조사 기록을 다음 조사의 근거로 검색하는 기능은 후속 범위입니다. 현재 이력 조회와 향후 근거 검색은 구분합니다.
+승인된 조사 기록을 다음 조사의 근거로 검색하는 기능은 후속 범위입니다. 현재 이력 조회와 향후 근거 검색은 구분합니다.
 
 문서: [목차](docs/README.md), [계약](docs/v1-contract.md), [API](docs/api.md), [에이전트](docs/agent.md), [아키텍처](docs/architecture.md).

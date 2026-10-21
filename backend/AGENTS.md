@@ -13,7 +13,7 @@ v1 공개 API와 작업·검토·이벤트 영속화 경계다. LangGraph 실행
 | DB 접속·이벤트 | `v1_store.py`, `v1_schema.sql` | lifespan에서 풀 초기화 |
 | 명령과 상태 전이 | `v1_commands.py` | 작업 행 잠금과 명령 ID 검사 |
 | Agent HTTP 호출 | `v1_dispatch.py` | 전달 실패는 FAILED로 기록 |
-| 목업 신원·권한 | `v1_auth.py` | 이름과 역할; Keycloak 후속 |
+| 로그인 신원 검증 | `v1_auth.py` | Keycloak JWT 서명·issuer·audience·expiry·subject |
 | 회귀 테스트 | `tests/` | 실제 PostgreSQL 격리 스키마 |
 | 실제 서비스 흐름 | `../tests/check_stack.py` | 실행 중인 전체 스택 필요 |
 
@@ -22,8 +22,9 @@ v1 공개 API와 작업·검토·이벤트 영속화 경계다. LangGraph 실행
 - 서버 모듈은 이 디렉터리에서 실행한다: `uv run uvicorn main:app --port 8000`.
 - 업무 테이블은 `v1_` 접두사로 기존 PHM 테이블과 분리한다.
 - 이벤트 기록은 작업 행 잠금을 먼저 확보하며 명령별 event_id로 중복 제거한다.
-- 추가 답변은 요청자만, 검토는 어느 엔지니어든 가능하다. 담당자 배정은 없다.
-- 읽기 권한을 목록·상세·이벤트·SSE에서 동일하게 적용한다.
+- 로그인한 모두가 전체 작업에 답변·검토할 수 있다. 대기 상태 제약은 유지하며 담당자 배정은 없다.
+- Bearer 인증을 목록·상세·이벤트·fetch SSE에 동일하게 적용한다. 내부 키 인증은 별도다.
+- `sub`는 `user_id`/`approved_by_id`로 보존하고 이름은 표시용이다. 과거 목업 행은 ID null을 유지한다. 공통 role `user`와 과거 role은 접근 제한에 쓰지 않는다.
 
 ## ANTI-PATTERNS
 

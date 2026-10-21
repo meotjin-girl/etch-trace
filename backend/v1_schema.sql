@@ -59,3 +59,20 @@ CREATE TABLE IF NOT EXISTS v1_investigations (
     approved_at timestamptz NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Nullable for historical mock identities; never infer an account from its name.
+ALTER TABLE v1_tasks ADD COLUMN IF NOT EXISTS user_id text;
+ALTER TABLE v1_messages ADD COLUMN IF NOT EXISTS user_id text;
+ALTER TABLE v1_reviews ADD COLUMN IF NOT EXISTS user_id text;
+ALTER TABLE v1_investigations ADD COLUMN IF NOT EXISTS approved_by_id text;
+
+-- Preserve historical role values without labeling new users as engineers.
+ALTER TABLE v1_tasks DROP CONSTRAINT IF EXISTS v1_tasks_user_role_check;
+ALTER TABLE v1_tasks ADD CONSTRAINT v1_tasks_user_role_check
+    CHECK (user_role IN ('user', 'worker', 'engineer', 'admin'));
+ALTER TABLE v1_reviews DROP CONSTRAINT IF EXISTS v1_reviews_user_role_check;
+ALTER TABLE v1_reviews ADD CONSTRAINT v1_reviews_user_role_check
+    CHECK (user_role IN ('user', 'engineer'));
+ALTER TABLE v1_investigations DROP CONSTRAINT IF EXISTS v1_investigations_approved_role_check;
+ALTER TABLE v1_investigations ADD CONSTRAINT v1_investigations_approved_role_check
+    CHECK (approved_role IN ('user', 'engineer'));

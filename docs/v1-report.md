@@ -2,6 +2,9 @@
 
 Date: 2026-10-20
 
+Historical integration report, before Keycloak login. Current authentication and
+shared-access rules are documented in `v1-contract.md` and `api.md`.
+
 ## Delivered
 
 The existing static investigation screen now uses server-owned tasks, evidence,

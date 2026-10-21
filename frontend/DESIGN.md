@@ -31,7 +31,14 @@ Conversation, records, dialog preview, and evidence own their existing scrolling
 Keep message/avatar, metric-card, cause-item/citation, evidence-item,
 record-list-item, detail-status, record-cta, report-dialog, and button classes.
 Server reports populate these primitives without frontend analysis.
-Identity uses labeled name and role controls; review uses readonly actor,
+Session controls display the parsed token name, login/logout, loading, and an
+inline authentication error with retry using the existing secondary buttons.
+The authentication group reserves a 44px control row during loading. Its buttons
+have 44px minimum targets, green-soft hover and mint pressed feedback, with the
+existing focus ring. The login action names Keycloak and disables duplicate
+redirects while its inline status announces navigation.
+Unauthenticated workspace regions are inert and hidden from interaction.
+Review uses readonly actor,
 optional occurrence time/Lot ID, comment, approve/revise, and non-submit close.
 Records show every server status and a timestamped message/event/review timeline.
 Legacy records use the same cards but explicitly say local, unverified, readonly.

@@ -1,5 +1,8 @@
 # v1.0.0 validation ledger
 
+Historical mock-identity validation, before Keycloak integration. These results
+do not describe the current authentication or shared-access rules; see `api.md`.
+
 Executed on 2026-10-20 against `etchtrace-v1`, port 18080. The existing
 `etch_trace` POC on port 8080 was not stopped or modified.
 

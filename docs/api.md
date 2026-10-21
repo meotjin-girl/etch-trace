@@ -2,17 +2,13 @@
 
 기준: `backend/main.py`, `backend/v1_models.py`, `v1_auth.py`, `v1_commands.py`, `v1_store.py`와 [통합 계약](v1-contract.md). 공개 경로는 nginx의 `/api`다. `.env.example` 사용 시 로컬 기준 주소는 `http://localhost:18080`이다.
 
-## 개발 신원과 접근
+## 로그인과 접근
 
-일반 HTTP 요청에는 `X-User-Name`, `X-User-Role`이 필수다. 이름은 `encodeURIComponent(name)`으로 URL 인코딩한다. 역할은 `worker`, `engineer`, `admin`이다. 누락·빈 이름·잘못된 역할은 401이다. 이는 목업 신원이며 실제 로그인 인증이 아니다. Keycloak 연동은 후속 범위다.
+작업 API와 SSE에는 `Authorization: Bearer <access token>`이 필수다. Keycloak은 로그인과 토큰 발급을, FastAPI는 RS256 서명·발급자·대상(`trace-api`)·만료·사용자(`sub`)·access token 유형 검증을 담당한다. 이전 신원 헤더·쿼리는 인증하지 않는다.
 
-| 역할 | 목록·상세·이벤트·SSE | 재질문 답변 | 승인·수정 |
-|---|---|---|---|
-| worker | 본인 작업 | 본인 작업만 | 불가 |
-| engineer | 전체 | 본인 작업만 | 승인 대기 작업 |
-| admin | 전체 | 본인 작업만 | 불가 |
+로그인한 사용자는 모두 같은 권한으로 모든 조사를 공동 조회·응답·검토한다. 역할·소유자별 제한은 없으며 답변은 `WAITING_INPUT`, 검토는 `WAITING_APPROVAL`에서만 가능하다.
 
-담당자 배정 기반 제한은 없다. 본인 작업 여부는 디코딩한 요청자 이름으로 비교한다. 조회·답변 범위 밖 작업은 404, 검토 역할 위반은 403, 잘못된 상태·중복 경쟁 명령은 409, 본문·커서 검증 실패는 422다. 오류는 `detail` 필드로 반환한다.
+누락·잘못된 토큰은 401, 키 조회 장애는 503, 없는 작업은 404, 잘못된 상태·중복 경쟁 명령은 409, 본문·커서 검증 실패는 422다. 오류는 `detail` 필드로 반환한다. 공개 `GET /api/auth/config`는 비밀값 없는 `{url,realm,clientId}`를 반환한다. [계정 생성과 실행](../deploy/keycloak/README.md)을 참고한다.
 
 ## 공개 경로
 
@@ -23,10 +19,10 @@
 | POST | `/api/ai/tasks` | `{question}` -> 202 `{taskId}` |
 | GET | `/api/ai/tasks` | 200 접근 가능한 작업 배열, 최신순; 미완료 포함 |
 | GET | `/api/ai/tasks/{id}` | 200 작업과 메시지·이벤트·검토·승인 스냅샷 |
-| POST | `/api/ai/tasks/{id}/messages` | `{text}` -> 202 `{taskId}`; 요청자, WAITING_INPUT |
-| POST | `/api/ai/tasks/{id}/approval` | 검토 결정 -> 202 `{taskId}`; engineer, WAITING_APPROVAL |
+| POST | `/api/ai/tasks/{id}/messages` | `{text}` -> 202 `{taskId}`; 로그인 사용자, WAITING_INPUT |
+| POST | `/api/ai/tasks/{id}/approval` | 검토 결정 -> 202 `{taskId}`; 로그인 사용자, WAITING_APPROVAL |
 | GET | `/api/ai/tasks/{id}/events?after=0` | 200 `seq > after` 이벤트 배열 |
-| GET | `/api/ai/tasks/{id}/stream` | SSE; 아래 신원·커서 쿼리 사용 |
+| GET | `/api/ai/tasks/{id}/stream` | Bearer 인증 SSE; after 커서 사용 |
 
 ### 생성과 재질문
 
@@ -34,13 +30,13 @@
 {"question":"ETCH-07 CH-B OX-120 endpoint 지연 118초, RF reflected power 상승 29W"}
 ```
 
-`question`과 답변 `text`는 공백만 아닌 1~10,000자다. 생성은 모든 지원 역할에 허용된다. `tool`, `run_id`, 분류, 담당자 필드는 받지 않는다. 이상 현상과 범위(장비·챔버·레시피 중 하나)가 부족하면 `QUESTION {text,missing}` 이벤트와 `WAITING_INPUT` 상태가 된다.
+`question`과 답변 `text`는 공백만 아닌 1~10,000자다. 생성은 모든 로그인 사용자에게 허용된다. `tool`, `run_id`, 분류, 담당자 필드는 받지 않는다. 이상 현상과 범위(장비·챔버·레시피 중 하나)가 부족하면 `QUESTION {text,missing}` 이벤트와 `WAITING_INPUT` 상태가 된다.
 
 ```json
 {"text":"ETCH-07 CH-B에서 발생했고 레시피는 OX-120입니다"}
 ```
 
-답변은 원래 요청자만 가능하며 재개 결과는 상세·이벤트·SSE로 확인한다. 세 차례 보완 후에도 부족하면 `INCOMPLETE`다.
+답변은 로그인한 누구나 가능하며 재개 결과는 상세·이벤트·SSE로 확인한다. 세 차례 보완 후에도 부족하면 `INCOMPLETE`다.
 
 ### 검토
 
@@ -58,7 +54,7 @@
 
 ### 상세와 이력
 
-작업 필드: `id`, `user_name`, `user_role`, `question`, `command_id`, `status`, `report`, `created_at`, `updated_at`. 상세에는 다음이 추가된다.
+작업 필드: `id`, `user_id`, `user_name`, `user_role`, `question`, `command_id`, `status`, `report`, `created_at`, `updated_at`. `user_id`는 Keycloak `sub`이며 메시지·검토에도 저장한다. 승인 스냅샷에는 `approved_by_id`로 저장한다. 과거 목업 기록의 ID는 null이고 이름으로 계정과 자동 연결하지 않는다. 새 사용자 활동의 role 필드는 공통 `user`이며 과거 역할 값은 보존한다. 이 필드는 권한이 아니다. 상세에는 다음이 추가된다.
 
 - `messages`: 첫 질문, 추가 답변, agent 재질문. 발화 역할·신원·시각 포함.
 - `events`: `task_id`, `seq`, `event_id`, `type`, `payload`, `created_at`.
@@ -71,14 +67,15 @@
 
 상태는 `QUEUED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `DONE`, `INCOMPLETE`, `FAILED`다. 답변·검토는 대기 상태를 RUNNING으로 되돌린다. 뒤의 세 상태는 종료 상태다.
 
-`EventSource`는 사용자 정의 헤더를 설정하지 못하므로 SSE만 `user_name`, `user_role` 쿼리로 목업 신원을 받는다.
+프론트는 Bearer 헤더를 보낼 수 있는 fetch 스트리밍을 사용한다. 토큰을 URL에 넣지 않는다. 호출 전 keycloak-js로 토큰을 갱신한다.
 
 ```js
-const url = `/api/ai/tasks/${id}/stream?user_name=${encodeURIComponent(name)}&user_role=${role}&after=${lastSeq}`;
-const source = new EventSource(url);
-for (const type of ['DONE', 'INCOMPLETE', 'FAILED']) {
-  source.addEventListener(type, () => source.close());
-}
+await keycloak.updateToken(30);
+const response = await fetch(`/api/ai/tasks/${id}/stream?after=${lastSeq}`, {
+  headers: {Authorization: `Bearer ${keycloak.token}`},
+  signal
+});
+// response.body를 SSE로 읽는다. 구현은 frontend/api.js 참고.
 ```
 
 각 SSE 이벤트는 `id: <seq>`, `event: <TYPE>`, `data: <JSON>`이다. `data`에는 payload와 `at` 시각이 들어간다. 서버는 `after`와 `Last-Event-ID` 중 큰 커서보다 뒤의 이벤트만 재생한다. 커서는 음수가 아닌 정수다. 클라이언트는 작업별 `seq`로 중복 제거하고 마지막 커서를 보존한다. 새로고침은 상세 조회로 전체 이력을 복원한 뒤 이어받는다. 빈 조회 주기에는 keep-alive 주석을 보내며 종료 상태의 이벤트를 전달한 뒤 스트림을 닫는다.
@@ -93,7 +90,7 @@ for (const type of ['DONE', 'INCOMPLETE', 'FAILED']) {
 | ANALYSIS_STARTED | 통계·문서 조회 시작 |
 | REPORT_STARTED | 보고서 구성 시작 |
 | APPROVAL_REQUIRED | `{report}` 검토 대기 |
-| REVIEWED | `{action,comment,event_time,lot_id,by,role}` 검토 접수 |
+| REVIEWED | `{action,comment,event_time,lot_id,by,user_id}` 검토 접수 |
 | DONE | `{report,approved,by}` 승인 후 완료 |
 | INCOMPLETE | `{reason}` 정보 또는 사례 근거 부족 |
 | FAILED | `{error}` 실행·전달·중단 오류 |
@@ -110,17 +107,20 @@ for (const type of ['DONE', 'INCOMPLETE', 'FAILED']) {
 | agent -> backend | POST `/internal/tasks/{id}/events` | `{event_id,type,payload}` |
 | business MCP -> backend | GET `/internal/cases` | 샘플 사례 배열 |
 
-agent 실행에는 `X-Command-ID`가 필수이며 agent는 현재 명령 ID를 실행 config에 넣어 이벤트 콜백으로 전달한다. backend는 동일 command ID 헤더를 요구한다. 명령별 event ID 중복은 재반영하지 않고, 이전 명령의 지연 콜백은 409로 거절한다. 이 문서 정리에서는 서비스 코드를 수정하거나 테스트 통과를 확인하지 않았다.
+agent 실행에는 `X-Command-ID`가 필수이며 agent는 현재 명령 ID를 실행 config에 넣어 이벤트 콜백으로 전달한다. backend는 동일 command ID 헤더를 요구한다. 명령별 event ID 중복은 재반영하지 않고, 이전 명령의 지연 콜백은 409로 거절한다. 사용자 access token은 내부 서비스 인증을 대신하지 않는다.
 
 ## curl
 
 ```bash
 curl -sS http://localhost:18080/api/ai/tasks \
   -H 'Content-Type: application/json' \
-  -H 'X-User-Name: worker-demo' -H 'X-User-Role: worker' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d '{"question":"endpoint 지연 118초"}'
 # 반환된 UUID를 사용한다.
 curl -sS http://localhost:18080/api/ai/tasks/<taskId> \
-  -H 'X-User-Name: worker-demo' -H 'X-User-Role: worker'
-curl -N 'http://localhost:18080/api/ai/tasks/<taskId>/stream?user_name=worker-demo&user_role=worker&after=0'
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -N 'http://localhost:18080/api/ai/tasks/<taskId>/stream?after=0' \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
+
+`ACCESS_TOKEN`은 PKCE 로그인으로 발급받은 토큰을 현재 셸에만 설정한다. 저장소·로그·URL에 기록하지 않는다. 서버는 스트림 토큰 만료 시 연결을 닫는다. 프론트는 갱신한 토큰과 마지막 커서로 재연결한다. 로그아웃은 실행 중인 조사를 취소하지 않는다. JWT의 매 요청 로컬 검증만으로 다른 곳에서 수행한 로그아웃·계정 비활성화를 즉시 감지하지는 않으며, 이미 발급된 토큰은 만료까지 유효할 수 있다.

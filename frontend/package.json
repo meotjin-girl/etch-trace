@@ -1,0 +1,12 @@
+{
+  "name": "etch-trace-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./node_modules/keycloak-js/lib/keycloak.js --target browser --format esm --minify --outfile ./vendor/keycloak.js",
+    "test": "node --test frontend.test.mjs"
+  },
+  "dependencies": {
+    "keycloak-js": "26.2.4"
+  }
+}

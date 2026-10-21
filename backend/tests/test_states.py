@@ -5,26 +5,34 @@ from threading import Barrier
 from uuid import UUID
 
 import pytest
-from conftest import API, Wire, detail, event, headers, task
+from conftest import API, Wire, detail, event, headers, settings, task
 from fastapi.testclient import TestClient
 from main import create_app
 from v1_commands import dispatch_failed
-from v1_models import Settings
 
 
-@pytest.mark.parametrize("name,role,expected", [
-    ("other", "worker", 404), ("reader", "engineer", 404),
-    ("reader", "admin", 404), ("owner", "worker", 202),
-])
-def test_only_owner_can_answer_waiting_question(
-    client: TestClient, name: str, role: str, expected: int,
+@pytest.mark.parametrize(
+    "name,role,expected",
+    [
+        ("other", "worker", 202),
+        ("reader", "engineer", 202),
+        ("reader", "admin", 202),
+        ("owner", "worker", 202),
+    ],
+)
+def test_any_logged_in_user_can_answer_waiting_question(
+    client: TestClient,
+    name: str,
+    role: str,
+    expected: int,
 ) -> None:
     # Given a task waiting for its owner's input.
     tid = task(client)
     assert event(client, tid, "QUESTION", {"text": "Which chamber?"}).status_code == 200
     # When an actor responds.
-    response = client.post(f"{API}/{tid}/messages", headers=headers(name, role),
-                           json={"text": "CH-A"})
+    response = client.post(
+        f"{API}/{tid}/messages", headers=headers(name, role), json={"text": "CH-A"}
+    )
     # Then only the owner resumes and their identity is persisted.
     assert response.status_code == expected
     data = detail(client, tid)
@@ -34,14 +42,17 @@ def test_only_owner_can_answer_waiting_question(
         assert data.messages[-1].text == "CH-A"
 
 
-@pytest.mark.parametrize("role,expected", [("worker", 403), ("admin", 403), ("engineer", 202)])
-def test_only_engineer_reviews(client: TestClient, role: str, expected: int) -> None:
+@pytest.mark.parametrize("role,expected", [("worker", 202), ("admin", 202), ("engineer", 202)])
+def test_any_logged_in_user_reviews(client: TestClient, role: str, expected: int) -> None:
     # Given a reviewable report.
     tid = task(client)
     event(client, tid, "APPROVAL_REQUIRED", {"report": {"summary": "Hypothesis"}})
     # When an actor approves.
-    response = client.post(f"{API}/{tid}/approval", headers=headers("reviewer", role),
-                           json={"action": "approve", "comment": "Reviewed"})
+    response = client.post(
+        f"{API}/{tid}/approval",
+        headers=headers("reviewer", role),
+        json={"action": "approve", "comment": "Reviewed"},
+    )
     # Then only an engineer can transition the task.
     assert response.status_code == expected
     if expected == 202:
@@ -52,10 +63,16 @@ def test_approval_preserves_reviewed_snapshot_with_identity(client: TestClient) 
     # Given an approved report and server-derived reviewer identity.
     tid = task(client)
     event(client, tid, "APPROVAL_REQUIRED", {"report": {"summary": "Reviewed hypothesis"}})
-    client.post(f"{API}/{tid}/approval", headers=headers("엔지니어", "engineer"), json={
-        "action": "approve", "comment": "Verified evidence", "lot_id": "LOT-1",
-        "event_time": "2026-10-20T01:00:00Z",
-    })
+    client.post(
+        f"{API}/{tid}/approval",
+        headers=headers("엔지니어", "engineer"),
+        json={
+            "action": "approve",
+            "comment": "Verified evidence",
+            "lot_id": "LOT-1",
+            "event_time": "2026-10-20T01:00:00Z",
+        },
+    )
     # When the agent completes with its final report.
     response = event(client, tid, "DONE", {"report": {"summary": "Final hypothesis"}})
     # Then approval is audited against the exact report the engineer reviewed.
@@ -67,6 +84,8 @@ def test_approval_preserves_reviewed_snapshot_with_identity(client: TestClient) 
     assert data.investigation is not None
     assert data.investigation.report.summary == "Reviewed hypothesis"
     assert data.investigation.approved_by == "엔지니어"
+    assert data.investigation.approved_by_id == "account:엔지니어"
+    assert data.reviews[0].user_id == "account:엔지니어"
     assert data.investigation.lot_id == "LOT-1"
 
 
@@ -107,8 +126,12 @@ def test_competing_reviews_only_dispatch_one_resume(client: TestClient, wire: Wi
 
     def review(name: str) -> int:
         barrier.wait(timeout=5)
-        return client.post(f"{API}/{tid}/approval", headers=headers(name, "engineer"),
-                           json={"action": "revise", "comment": name}).status_code
+        return client.post(
+            f"{API}/{tid}/approval",
+            headers=headers(name, "engineer"),
+            json={"action": "revise", "comment": name},
+        ).status_code
+
     # When both reviewers submit concurrently.
     with ThreadPoolExecutor(max_workers=2) as executor:
         responses = list(executor.map(review, ["A", "B"]))
@@ -144,14 +167,17 @@ def test_old_dispatch_failure_cannot_fail_resumed_command(client: TestClient) ->
 
 @pytest.mark.parametrize("status", ["WAITING_INPUT", "WAITING_APPROVAL", "RUNNING", "QUEUED"])
 def test_restart_only_fails_interrupted_active_tasks(
-    client: TestClient, database_url: str, wire: Wire, status: str,
+    client: TestClient,
+    database_url: str,
+    wire: Wire,
+    status: str,
 ) -> None:
     # Given a stored task in one startup-relevant state.
     tid = task(client)
     with client.app.state.store.pool.connection() as conn:
         conn.execute("UPDATE v1_tasks SET status=%s WHERE id=%s", (status, tid))
     # When another backend lifespan recovers the database.
-    with TestClient(create_app(Settings(database_url, wire.url, "test-key"))) as restarted:
+    with TestClient(create_app(settings(database_url, wire))) as restarted:
         data = detail(restarted, tid)
     # Then waiting checkpoints are preserved and active work visibly fails.
     assert data.status == (status if status.startswith("WAITING") else "FAILED")

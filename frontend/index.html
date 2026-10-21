@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="서비스 탐색">
+    <aside class="sidebar" aria-label="서비스 탐색" inert>
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <div><strong>FAB Insight</strong><small>Etch Investigation</small></div>
@@ -38,7 +38,7 @@
 
       <div class="sidebar-footer">
         <span class="status-dot"></span>
-        <div><strong>Demo workspace</strong><small>서버 기반 조사 · 데모 인증</small></div>
+        <div><strong>Demo workspace</strong><small>서버 기반 조사 · Keycloak 인증</small></div>
       </div>
     </aside>
 
@@ -48,16 +48,21 @@
           <p class="eyebrow">INVESTIGATION ASSISTANT</p>
           <h1>식각 장비 이상 조사</h1>
         </div>
-        <div class="topbar-actions">
+        <div class="topbar-actions" inert>
           <span class="mode-badge"><i></i> 근거 기반 분석</span>
           <button class="icon-button" id="openEvidence" type="button" aria-label="근거 패널 열기">근거 <span id="evidenceCount">0</span></button>
         </div>
       </header>
 
-      <section class="session-controls" aria-label="데모 사용자 및 탐색">
-        <label>사용자 이름 <input id="userName" value="이엔지니어" autocomplete="off"></label>
-        <label>역할 <select id="userRole"><option value="worker">작업자</option><option value="engineer" selected>엔지니어</option><option value="admin">관리자</option></select></label>
-        <span class="mobile-navigation">
+      <section class="session-controls" aria-label="로그인 및 탐색">
+        <div class="auth-session">
+          <span id="authStatus" role="status">로그인 확인 중…</span>
+          <span id="sessionName"></span>
+          <button id="login" type="button" class="secondary-button" hidden>Keycloak 로그인</button>
+          <button id="authRetry" type="button" class="secondary-button" hidden>다시 시도</button>
+          <button id="logout" type="button" class="secondary-button" hidden>로그아웃</button>
+        </div>
+        <span class="mobile-navigation" id="mobileNavigation" inert>
           <button type="button" id="mobileNew" class="secondary-button">새 조사</button>
           <button type="button" id="mobileInvestigation" class="secondary-button">이상 조사</button>
           <button type="button" id="mobileRecords" class="secondary-button">조사 기록</button>
@@ -70,7 +75,7 @@
         <button id="retryConnection" type="button" class="secondary-button">다시 연결</button>
       </div>
 
-      <section class="conversation" id="conversation" aria-live="polite">
+      <section class="conversation" id="conversation" aria-live="polite" inert>
         <div class="message assistant-message intro-message">
           <div class="avatar" aria-hidden="true">AI</div>
           <div class="message-body">
@@ -90,7 +95,7 @@
         </div>
       </section>
 
-      <section class="records-page" id="recordsPage" hidden>
+      <section class="records-page" id="recordsPage" hidden inert>
         <div class="records-heading">
           <div>
             <p class="eyebrow">INVESTIGATION RECORDS</p>
@@ -112,7 +117,7 @@
         </div>
       </section>
 
-      <section class="sop-page" id="sopPage" hidden aria-labelledby="sopHeading">
+      <section class="sop-page" id="sopPage" hidden inert aria-labelledby="sopHeading">
         <header class="sop-heading">
           <p class="eyebrow">STANDARD OPERATING PROCEDURES</p>
           <h2 id="sopHeading">SOP 목록</h2>
@@ -133,15 +138,15 @@
         </div>
       </section>
 
-      <form class="composer" id="questionForm">
+      <form class="composer" id="questionForm" inert>
         <label for="questionInput" class="sr-only">이상 조사 질문</label>
-        <textarea id="questionInput" rows="1" placeholder="특정 이상에 대해 질문해 주세요…" required></textarea>
-        <button class="send-button" type="submit" aria-label="질문 보내기">↑</button>
+        <textarea id="questionInput" rows="1" placeholder="특정 이상에 대해 질문해 주세요…" required disabled></textarea>
+        <button class="send-button" type="submit" aria-label="질문 보내기" disabled>↑</button>
         <p>Enter로 전송 · Shift + Enter로 줄바꿈</p>
       </form>
     </main>
 
-    <aside class="evidence-panel" id="evidencePanel" aria-label="조사 근거">
+    <aside class="evidence-panel" id="evidencePanel" aria-label="조사 근거" inert>
       <div class="evidence-header">
         <div><p class="eyebrow">EVIDENCE</p><h2>조사 근거</h2></div>
         <button class="close-panel" id="closeEvidence" type="button" aria-label="근거 패널 닫기">×</button>

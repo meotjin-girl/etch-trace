@@ -1,5 +1,6 @@
 import {createApi, mergeEvents} from './api.js';
 import {mountSops} from './sop.js';
+import {createAuth} from './auth.js';
 
 const $ = id => document.getElementById(id);
 const labels = {endpoint_sec:'Endpoint', etch_rate_nm_min:'Etch rate', rf_reflected_w:'RF reflected', pressure_mtorr:'Pressure'};
@@ -7,18 +8,48 @@ const units = {endpoint_sec:'sec', etch_rate_nm_min:'nm/min', rf_reflected_w:'W'
 const statuses = {
   QUEUED:'접수됨', RUNNING:'조사 중', SEARCH_STARTED:'근거 검색 중',
   ANALYSIS_STARTED:'수치 분석 중', REPORT_STARTED:'보고서 작성 중',
-  WAITING_INPUT:'추가 정보 대기', WAITING_APPROVAL:'엔지니어 검토 대기',
+  WAITING_INPUT:'추가 정보 대기', WAITING_APPROVAL:'검토 대기',
   DONE:'완료', INCOMPLETE:'근거 부족', FAILED:'실패', REVIEWED:'검토됨', LOADING:'조사 불러오는 중'
 };
 const terminal = new Set(['DONE', 'INCOMPLETE', 'FAILED']);
 const intro = $('conversation').innerHTML;
 const state = {
-  identity: {name:'이엔지니어', role:'engineer'}, api:null,
+  authenticated:false, name:'', api:null,
   task:null, selected:null, records:[], events:[], after:0,
   controller:new AbortController(), listController:null, detailController:null,
   closeStream:null, busy:false, reviewBusy:false, reviewTask:null, epoch:0, syncVersion:0
 };
-state.api = createApi(state.identity);
+const auth = createAuth({onChange:sessionChanged});
+state.api = createApi(auth);
+
+function sessionChanged(session) {
+  state.authenticated = session.status === 'authenticated';
+  state.name = session.name;
+  $('sessionName').textContent = session.name;
+  $('authStatus').textContent = session.error || {
+    loading:'로그인 확인 중…', authenticated:'로그인됨',
+    anonymous:'로그인 후 조사를 시작해 주세요.', error:'인증 연결에 실패했습니다.',
+    redirecting:'로그인 화면으로 이동 중…'
+  }[session.status];
+  $('login').hidden = !['anonymous', 'redirecting'].includes(session.status);
+  $('login').disabled = session.status === 'redirecting';
+  $('logout').hidden = !state.authenticated;
+  $('authRetry').hidden = session.status !== 'error';
+  for (const selector of ['.sidebar', '.topbar-actions', '#mobileNavigation',
+    '#conversation', '#recordsPage', '#sopPage', '#questionForm', '#evidencePanel', '#networkNotice']) {
+    document.querySelector(selector).inert = !state.authenticated;
+  }
+  if (!state.authenticated) {
+    state.listController?.abort();
+    state.listController = null;
+    resetInvestigation();
+    state.detailController = null;
+    state.records = [];
+    state.selected = null;
+    renderRecords();
+  } else refreshRecords();
+  updateControls();
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -41,11 +72,8 @@ function notify(error) {
   $('networkNotice').hidden = false;
 }
 function clearError() { $('networkNotice').hidden = true; }
-function isOwner(task) {
-  return task?.user_name === state.identity.name;
-}
 function canReview(task) {
-  return state.identity.role === 'engineer' && task?.status === 'WAITING_APPROVAL' && !task.legacy;
+  return state.authenticated && task?.status === 'WAITING_APPROVAL' && !task.legacy;
 }
 function stopTask() {
   state.epoch++;
@@ -60,6 +88,7 @@ function stopTask() {
   $('reportDialog').close();
 }
 function setPage(page) {
+  if (!state.authenticated) return;
   const records = page === true;
   const sop = page === 'sop';
   $('recordsPage').hidden = !records;
@@ -89,13 +118,13 @@ function resetInvestigation() {
 }
 function updateControls() {
   const task = state.task;
-  const blocked = task && !(task.status === 'WAITING_INPUT' && isOwner(task));
+  const blocked = !state.authenticated || task && (task.status !== 'WAITING_INPUT' || task.legacy);
   $('questionInput').disabled = state.busy || Boolean(blocked);
   document.querySelector('.send-button').disabled = state.busy || Boolean(blocked);
   $('taskStatus').textContent = state.busy ? '요청 전송 중' :
     task ? `${statuses[task.status] || task.status} · ${task.id}` : '질문을 입력해 주세요';
   $('questionInput').placeholder = task?.status === 'WAITING_INPUT' ?
-    (isOwner(task) ? '추가 정보를 입력해 주세요…' : '조사 소유자만 추가 정보를 보낼 수 있습니다') :
+    '추가 정보를 입력해 주세요…' :
     task ? '새 질문은 새 조사를 시작해 주세요' : '특정 이상에 대해 질문해 주세요…';
   let step = 1;
   for (const event of state.events) {
@@ -164,6 +193,7 @@ function renderEvidence(report) {
       `<article class="evidence-item" data-evidence-id="${escapeHtml(item.id)}"><header><strong>${escapeHtml(item.id)}</strong></header><p class="report-text"><b>${escapeHtml(item.title)}</b><br>${escapeHtml(item.text)}</p></article>`).join('')}</section>`;
 }
 function openEvidence(id) {
+  if (!state.authenticated) return;
   if ($('reportDialog').open) $('reportDialog').close();
   document.querySelector('.app-shell').classList.remove('evidence-closed');
   $('evidencePanel').classList.add('open');
@@ -191,7 +221,7 @@ function applyEvents(events) {
 }
 function connectStream() {
   const task = state.task;
-  if (!task || terminal.has(task.status)) return;
+  if (!state.authenticated || !task || task.legacy || terminal.has(task.status)) return;
   state.closeStream?.();
   const epoch = state.epoch;
   state.closeStream = state.api.stream(task.id, state.after, {
@@ -231,6 +261,7 @@ async function syncTask(epoch = state.epoch) {
   } catch (error) { if (epoch === state.epoch && version === state.syncVersion) notify(error); }
 }
 async function activateTask(id) {
+  if (!state.authenticated) return;
   stopTask();
   clearError();
   const epoch = state.epoch;
@@ -257,7 +288,7 @@ async function activateTask(id) {
 async function submitQuestion(event) {
   event.preventDefault();
   const question = $('questionInput').value.trim();
-  if (!question || state.busy || $('questionInput').disabled) return;
+  if (!state.authenticated || !question || state.busy || $('questionInput').disabled) return;
   const epoch = state.epoch;
   const task = state.task;
   state.busy = true;
@@ -265,7 +296,7 @@ async function submitQuestion(event) {
   updateControls();
   try {
     if (task) {
-      if (task.status !== 'WAITING_INPUT' || !isOwner(task)) return;
+      if (task.status !== 'WAITING_INPUT' || task.legacy) return;
       await state.api.message(task.id, question, state.controller.signal);
       if (epoch !== state.epoch) return;
       $('questionInput').value = '';
@@ -275,7 +306,7 @@ async function submitQuestion(event) {
       const created = await state.api.create(question, state.controller.signal);
       if (epoch !== state.epoch) return;
       // Keep the accepted id even if the first detail request fails.
-      state.task = {id:created.taskId, question, status:'QUEUED', user_name:state.identity.name, user_role:state.identity.role};
+      state.task = {id:created.taskId, question, status:'QUEUED'};
       $('questionInput').value = '';
       await activateTask(created.taskId);
     }
@@ -297,6 +328,7 @@ function legacyRecords() {
   } catch { return []; }
 }
 async function refreshRecords() {
+  if (!state.authenticated) return;
   state.listController?.abort();
   const controller = state.listController = new AbortController();
   const api = state.api;
@@ -323,6 +355,7 @@ function renderRecords() {
   if (!state.selected) $('recordDetail').innerHTML = `<div class="records-empty"><strong>${state.records.length ? '조사 기록을 선택해 주세요' : '조사 기록이 없습니다'}</strong><p>모든 서버 상태와 기존 로컬 기록을 표시합니다.</p><button type="button" data-start>이상 조사 시작</button></div>`;
 }
 async function selectRecord(id) {
+  if (!state.authenticated) return;
   state.detailController?.abort();
   const controller = state.detailController = new AbortController();
   const item = state.records.find(record => record.id === id);
@@ -352,7 +385,7 @@ function renderDetail(task) {
     return delta || (a.seq || 0) - (b.seq || 0);
   });
   $('recordDetail').innerHTML = `<div class="detail-status"><div><p class="eyebrow">${escapeHtml(task.legacyId || task.id)}</p><h3>${escapeHtml(task.question)}</h3></div><span class="approved-badge">${escapeHtml(statuses[task.status] || task.status)}</span></div>
-    <div class="detail-meta"><div><span>요청자</span><strong>${escapeHtml(task.user_name || '기존 로컬 기록')} / ${escapeHtml(task.user_role || '미검증')}</strong></div><div><span>생성</span><strong>${escapeHtml(date(task.created_at))}</strong></div><div><span>최근 갱신</span><strong>${escapeHtml(date(task.updated_at))}</strong></div></div>
+    <div class="detail-meta"><div><span>요청자</span><strong>${escapeHtml(task.user_name || '기존 로컬 기록')}</strong></div><div><span>생성</span><strong>${escapeHtml(date(task.created_at))}</strong></div><div><span>최근 갱신</span><strong>${escapeHtml(date(task.updated_at))}</strong></div></div>
     ${task.legacy ? '<p class="data-notice">읽기 전용 로컬 기록 · 서버 검증 승인 아님</p>' : `<div class="record-cta"><button type="button" class="record-button" data-resume="${escapeHtml(task.id)}">조사 열기 / 이어가기</button>${task.report ? '<button type="button" class="record-button" data-detail-review>조사 기록 만들기</button>' : ''}</div>`}
     ${renderReport(task.report, true)}
     <h4>대화 · 진행 · 검토 시간순 이력</h4>
@@ -360,14 +393,14 @@ function renderDetail(task) {
   renderEvidence(task.report);
 }
 function openReview(task) {
-  if (!task?.report || task.legacy) return;
+  if (!state.authenticated || !task?.report || task.legacy) return;
   state.reviewTask = task;
-  $('recordReviewer').value = state.identity.name;
+  $('recordReviewer').value = state.name;
   $('recordTime').value = '';
   $('recordLot').value = '';
   $('reviewComment').value = '';
   $('reportPreview').innerHTML = renderReport(task.report, true);
-  $('reviewNotice').textContent = canReview(task) ? '엔지니어 권한으로 서버에 검토를 제출합니다.' : '검토 대기 상태의 조사만 엔지니어가 승인하거나 수정 요청할 수 있습니다. 현재는 읽기 전용입니다.';
+  $('reviewNotice').textContent = canReview(task) ? '로그인한 사용자로 서버에 검토를 제출합니다.' : '검토 대기 상태의 조사만 승인하거나 수정 요청할 수 있습니다. 현재는 읽기 전용입니다.';
   $('approveReport').disabled = $('reviseReport').disabled = !canReview(task);
   $('reportDialog').showModal();
 }
@@ -409,19 +442,6 @@ async function submitReview(event) {
     }
   }
 }
-function changeIdentity() {
-  const name = $('userName').value.trim() || state.identity.name;
-  $('userName').value = name;
-  state.listController?.abort();
-  state.detailController?.abort();
-  resetInvestigation();
-  state.identity = {name, role:$('userRole').value};
-  state.api = createApi(state.identity);
-  state.records = [];
-  state.selected = null;
-  renderRecords();
-  refreshRecords();
-}
 $('questionForm').addEventListener('submit', submitQuestion);
 $('questionInput').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -435,7 +455,7 @@ $('questionInput').addEventListener('input', () => {
 });
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
-  if (!button) return;
+  if (!button || !state.authenticated) return;
   if (button.dataset.prompt) { $('questionInput').value = button.dataset.prompt; $('questionInput').focus(); }
   if (button.hasAttribute('data-evidence')) openEvidence(button.dataset.evidence);
   if (button.hasAttribute('data-review')) openReview(state.task);
@@ -457,9 +477,11 @@ $('closeEvidence').addEventListener('click', () => {
 });
 $('reviewForm').addEventListener('submit', submitReview);
 for (const id of ['closeReport', 'cancelReport']) $(id).addEventListener('click', () => $('reportDialog').close());
-$('userName').addEventListener('change', changeIdentity);
-$('userRole').addEventListener('change', changeIdentity);
+$('login').addEventListener('click', () => auth.login());
+$('authRetry').addEventListener('click', () => auth.init());
+$('logout').addEventListener('click', () => auth.logout());
 $('retryConnection').addEventListener('click', async () => {
+  if (!state.authenticated) return;
   clearError();
   if (state.task) {
     const epoch = state.epoch;
@@ -479,5 +501,5 @@ window.addEventListener('pagehide', () => {
   state.detailController?.abort();
 });
 updateControls();
-refreshRecords();
+auth.init();
 mountSops();
