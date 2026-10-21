@@ -72,10 +72,15 @@ export const useRecordsStore = defineStore('records', () => {
     }
   }
 
-  function abortDetail() { detailController?.abort() }
+  function abortDetail() {
+    detailController?.abort()
+    detailController = null
+  }
   function abort() {
     listController?.abort()
-    detailController?.abort()
+    listController = null
+    refreshing.value = false
+    abortDetail()
   }
   function clear() {
     records.value = []

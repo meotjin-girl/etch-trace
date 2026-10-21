@@ -66,14 +66,14 @@ test('rejection with a comment rewrites at once without a follow-up question', a
 test('access and state rules follow docs/api.md', async () => {
   const {taskId} = store.create(engineer, {question:'ETCH-07 endpoint 지연'})
   fails(() => store.create(engineer, {question:'  '}), 422)
-  fails(() => store.detail({name:'작업자', role:'worker'}, taskId), 404)
+  expect(store.detail({name:'작업자', role:'worker'}, taskId).id).toBe(taskId)
   fails(() => store.approval(engineer, taskId, {action:'approve'}), 409)
   fails(() => store.message(engineer, taskId, {text:'추가'}), 409)
   await run()
-  fails(() => store.approval({name:'관리자', role:'admin'}, taskId, {action:'approve'}), 403)
   fails(() => store.approval(engineer, taskId, {action:'maybe'}), 422)
   fails(() => store.sop('NOPE'), 404)
-  expect(store.list({name:'작업자', role:'worker'})).toEqual([])
+  expect(store.list({name:'작업자', role:'worker'}).map(task => task.id)).toEqual([taskId])
+  expect(store.approval({name:'관리자', role:'admin'}, taskId, {action:'approve'})).toEqual({taskId})
 })
 
 test('keywords drive terminal states for UI testing', async () => {

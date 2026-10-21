@@ -16,7 +16,7 @@ backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 �
 | `/api/ai/investigations`, `/api/ai/investigations/{id}` | ⚠️ business-mcp:8000 직접 (PR #34) | ➖ nginx 블록 삭제 → `/api/` 규칙으로 backend 응답 |
 | `/api/**` | backend:8000 (SSE 버퍼링 off) | 유지 |
 
-### backend 공개 API (`X-User-Name` URL 인코딩, `X-User-Role`; SSE는 쿼리)
+### backend 공개 API (REST·SSE 모두 Keycloak Bearer; 익명 설정은 `/api/auth/config`)
 
 | 메서드·경로 | 호출자 | 상태 |
 |---|---|---|

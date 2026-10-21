@@ -39,12 +39,13 @@ export const useInvestigationStore = defineStore('investigation', () => {
   let controller = new AbortController()
   let closeStream: (() => void) | null = null
 
-  const isOwner = (item: Task | null | undefined) => item?.user_name === identity.name
+  const isOwner = (item: Task | null | undefined) => Boolean(identity.subject && item?.user_id === identity.subject)
   const canReview = (item: Task | null | undefined) =>
-    identity.role === 'engineer' && item?.status === 'WAITING_APPROVAL' && !item.legacy
+    identity.status === 'authenticated' && item?.status === 'WAITING_APPROVAL' && !item.legacy
 
-  const canAnswer = (item: Task | null | undefined) => item?.status === 'WAITING_INPUT' && isOwner(item)
-  const inputBlocked = computed(() => busy.value ||
+  const canAnswer = (item: Task | null | undefined) =>
+    identity.status === 'authenticated' && item?.status === 'WAITING_INPUT' && !item.legacy
+  const inputBlocked = computed(() => identity.status !== 'authenticated' || busy.value ||
     Boolean(task.value && !canAnswer(task.value) && !canReview(task.value)))
   const statusText = computed(() => busy.value ? '요청 전송 중' :
     task.value ? `${statuses[task.value.status] || task.value.status} · ${task.value.id}` : '질문을 입력해 주세요')
@@ -52,7 +53,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
     const current = task.value
     if (!current) return '특정 이상에 대해 질문해 주세요…'
     if (canReview(current)) return '수정할 내용을 입력하면 미승인으로 보냅니다…'
-    if (current.status === 'WAITING_INPUT') return isOwner(current) ? '추가 정보를 입력해 주세요…' : '조사 소유자만 추가 정보를 보낼 수 있습니다'
+    if (current.status === 'WAITING_INPUT') return '추가 정보를 입력해 주세요…'
     return terminal.has(current.status) ? '새 질문은 새 조사를 시작해 주세요' : '에이전트가 작업 중입니다…'
   })
   const flow = computed(() => agentFlow(events.value, task.value?.report))
@@ -214,7 +215,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
         const created = await identity.api.create(question, controller.signal)
         if (started !== epoch) return
         // Keep the accepted id even if the first detail request fails.
-        task.value = {id:created.taskId, question, status:'QUEUED', user_name:identity.name, user_role:identity.role}
+        task.value = {id:created.taskId, question, status:'QUEUED', user_name:identity.name, user_role:identity.role, user_id:identity.subject}
         if (override === undefined) draft.value = ''
         await activateTask(created.taskId)
       }
@@ -237,7 +238,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
     records.refresh()
   }
 
-  // Engineer judgement in chat; the agent follows up with its next question.
+  // Authenticated collaborators can judge a waiting report in chat.
   async function decide(action: 'approve' | 'revise', comment = '') {
     const current = task.value
     if (!current || !canReview(current) || busy.value) return

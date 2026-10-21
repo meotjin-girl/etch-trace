@@ -1,33 +1,65 @@
-"""Development identity and internal service authentication boundaries."""
+"""Validate Keycloak access tokens; internal services use separate credentials."""
 
 from secrets import compare_digest
-from urllib.parse import unquote
+from typing import ClassVar, Literal
 
-from fastapi import HTTPException, Request
-from v1_models import Actor, Role
-
-
-def identity(name: str | None, role: str | None) -> Actor:
-    if not name or role not in {"worker", "engineer", "admin"}:
-        raise HTTPException(401, "X-User-Name and a valid X-User-Role are required")
-    decoded = unquote(name).strip()
-    if not decoded:
-        raise HTTPException(401, "User name must not be blank")
-    parsed_role: Role
-    match role:
-        case "worker":
-            parsed_role = "worker"
-        case "engineer":
-            parsed_role = "engineer"
-        case "admin":
-            parsed_role = "admin"
-        case _:
-            raise HTTPException(401, "Invalid role")
-    return Actor(decoded, parsed_role)
+import jwt
+from fastapi import HTTPException
+from jwt import PyJWKClient, PyJWKClientConnectionError, PyJWKClientError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from v1_models import Actor, Settings
 
 
-def actor(request: Request) -> Actor:
-    return identity(request.headers.get("x-user-name"), request.headers.get("x-user-role"))
+class Claims(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    sub: str = Field(min_length=1)
+    exp: int
+    typ: Literal["Bearer"]
+    preferred_username: str = ""
+    name: str = ""
+
+
+class Authenticator:
+    def __init__(self, settings: Settings) -> None:
+        self.settings: Settings = settings
+        self.keys: PyJWKClient = PyJWKClient(
+            settings.keycloak_jwks_url or f"{settings.issuer}/protocol/openid-connect/certs",
+            timeout=5,
+            lifespan=300,
+        )
+
+    def authenticate(self, authorization: str | None) -> Actor:
+        scheme, _, token = (authorization or "").partition(" ")
+        if scheme.lower() != "bearer" or not token or " " in token:
+            raise HTTPException(
+                401,
+                "Bearer access token is required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        try:
+            key = self.keys.get_signing_key_from_jwt(token)
+            data = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                issuer=self.settings.issuer,
+                audience=self.settings.keycloak_audience,
+                options={"require": ["exp", "iss", "aud", "sub"]},
+            )
+            claims = Claims.model_validate(data)
+            if not claims.sub.strip():
+                raise HTTPException(401, "Invalid access token")
+        except PyJWKClientConnectionError as exc:
+            raise HTTPException(503, "Login service is unavailable") from exc
+        except (jwt.InvalidTokenError, PyJWKClientError, ValidationError, TypeError) as exc:
+            raise HTTPException(
+                401,
+                "Invalid or expired access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
+        name = claims.preferred_username.strip() or claims.name.strip() or claims.sub
+        return Actor(name, "user", claims.sub, claims.exp)
 
 
 def internal(expected: str, key: str | None) -> None:

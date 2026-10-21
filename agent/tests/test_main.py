@@ -26,9 +26,34 @@ def test_internal_key_when_missing_or_wrong_is_rejected(api):
     url = f"/internal/tasks/{uuid4()}/run"
     # When / Then
     assert client.post(url, json={"question": "ETCH-07 endpoint 지연"}).status_code == 403
-    assert client.post(url, headers={"X-Internal-Key": "wrong"},
-                       json={"question": "ETCH-07 endpoint 지연"}).status_code == 403
+    assert (
+        client.post(
+            url, headers={"X-Internal-Key": "wrong"}, json={"question": "ETCH-07 endpoint 지연"}
+        ).status_code
+        == 403
+    )
     assert not events.values
+
+
+def test_requester_when_authenticated_user_is_forwarded(api):
+    # Given a trusted backend request using the shared user role.
+    client, _ = api
+    task_id = str(uuid4())
+    # When the graph starts with stored requester attribution.
+    response = client.post(
+        f"/internal/tasks/{task_id}/run",
+        headers={
+            "X-Internal-Key": "test-key",
+            "X-Requester-Name": "collaborator",
+            "X-Requester-Role": "user",
+        },
+        json={"question": "endpoint 지연"},
+    )
+    # Then the role survives the real HTTP model and graph checkpoint.
+    assert response.status_code == 200
+    snapshot = client.app.state.graph.get_state({"configurable": {"thread_id": task_id}})
+    assert snapshot.values["requester"].role == "user"
+    assert snapshot.values["requester"].name == "collaborator"
 
 
 def test_http_flow_when_clarifying_revising_then_approving(api):
@@ -38,41 +63,67 @@ def test_http_flow_when_clarifying_revising_then_approving(api):
     headers = {"X-Internal-Key": "test-key"}
     initial = client.post(url, headers=headers, json={"question": "endpoint 지연 94초"})
     assert initial.json() == {"status": "interrupted", "waiting": "clarification"}
-    assert client.post(url, headers=headers, json={
-        "resume": {"action": "approve", "comment": "", "by": "engineer"},
-    }).status_code == 409
+    assert (
+        client.post(
+            url,
+            headers=headers,
+            json={
+                "resume": {"action": "approve", "comment": "", "by": "engineer"},
+            },
+        ).status_code
+        == 409
+    )
     clarified = client.post(url, headers=headers, json={"resume": {"text": "ETCH-07"}})
     assert clarified.json()["waiting"] == "review"
-    revised = client.post(url, headers=headers, json={
-        "resume": {"action": "revise", "comment": "근거 보완 요청", "by": "engineer"},
-    })
+    revised = client.post(
+        url,
+        headers=headers,
+        json={
+            "resume": {"action": "revise", "comment": "근거 보완 요청", "by": "engineer"},
+        },
+    )
     assert revised.json()["waiting"] == "review"
     # When
-    approved = client.post(url, headers=headers, json={
-        "resume": {"action": "approve", "comment": "", "by": "engineer"},
-    })
+    approved = client.post(
+        url,
+        headers=headers,
+        json={
+            "resume": {"action": "approve", "comment": "", "by": "engineer"},
+        },
+    )
     # Then
     assert approved.json() == {"status": "completed"}
     assert events.values[-1].payload["report"]["feedback"] == ["근거 보완 요청"]
-    assert client.post(url, headers=headers, json={
-        "resume": {"action": "approve", "comment": "", "by": "engineer"},
-    }).status_code == 409
+    assert (
+        client.post(
+            url,
+            headers=headers,
+            json={
+                "resume": {"action": "approve", "comment": "", "by": "engineer"},
+            },
+        ).status_code
+        == 409
+    )
     assert client.post(url, headers=headers, json={"question": "새 조사"}).status_code == 409
 
 
-@pytest.mark.parametrize("payload", [
-    {},
-    {"question": "x", "resume": {"text": "x"}},
-    {"resume": {"text": "x", "action": "approve", "comment": "", "by": "x"}},
-    {"resume": {"action": "save", "comment": "", "by": "x"}},
-    {"resume": {"action": "approve", "comment": ""}},
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"question": "x", "resume": {"text": "x"}},
+        {"resume": {"text": "x", "action": "approve", "comment": "", "by": "x"}},
+        {"resume": {"action": "save", "comment": "", "by": "x"}},
+        {"resume": {"action": "approve", "comment": ""}},
+    ],
+)
 def test_payload_when_not_one_valid_command_is_rejected(api, payload):
     # Given
     client, events = api
     # When
-    response = client.post(f"/internal/tasks/{uuid4()}/run",
-                           headers={"X-Internal-Key": "test-key"}, json=payload)
+    response = client.post(
+        f"/internal/tasks/{uuid4()}/run", headers={"X-Internal-Key": "test-key"}, json=payload
+    )
     # Then
     assert response.status_code == 422
     assert not events.values

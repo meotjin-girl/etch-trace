@@ -3,18 +3,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { MockError, createMockStore, type MockIdentity, type MockStore, type Pushed } from './store'
 
-const roles = new Set(['worker', 'engineer', 'admin'])
-
-function identityOf(req: IncomingMessage, query: URLSearchParams, stream: boolean): MockIdentity {
-  let name = stream ? query.get('user_name') : req.headers['x-user-name']
-  const role = stream ? query.get('user_role') : req.headers['x-user-role']
-  if (typeof name === 'string' && !stream) {
-    try { name = decodeURIComponent(name) } catch { name = '' }
-  }
-  if (typeof name !== 'string' || !name.trim() || typeof role !== 'string' || !roles.has(role)) {
-    throw new MockError(401, '신원 정보가 필요합니다.')
-  }
-  return {name: name.trim(), role}
+function identityOf(req: IncomingMessage): MockIdentity {
+  if (req.headers.authorization !== 'Bearer trace-mock-user') throw new MockError(401, '목업 신원 정보가 필요합니다.')
+  return {name: '목업 사용자', role: 'user'}
 }
 
 async function body(req: IncomingMessage) {
@@ -68,12 +59,12 @@ export function mockApi(): Plugin {
           const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
           const method = req.method || 'GET'
           if (parts[0] === 'sops' && method === 'GET') {
-            identityOf(req, url.searchParams, false)
+            identityOf(req)
             return send(res, 200, parts[1] ? store.sop(parts[1]) : store.sops())
           }
           if (parts[0] !== 'ai' || parts[1] !== 'tasks') throw new MockError(404, 'Not Found')
           const [, , id, action] = parts
-          const identity = identityOf(req, url.searchParams, action === 'stream')
+          const identity = identityOf(req)
           if (!id && method === 'GET') return send(res, 200, store.list(identity))
           if (!id && method === 'POST') return send(res, 202, store.create(identity, await body(req)))
           if (id && !action && method === 'GET') return send(res, 200, store.detail(identity, id))

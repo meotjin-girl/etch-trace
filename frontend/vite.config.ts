@@ -7,6 +7,7 @@ import { mockApi } from './mock/plugin'
 const mock = Boolean(process.env.MOCK_API)
 
 export default defineConfig({
+  define: { __TRACE_MOCK__: JSON.stringify(mock) },
   plugins: [vue(), ...(mock ? [mockApi()] : [])],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

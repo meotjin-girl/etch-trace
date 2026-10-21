@@ -1,6 +1,6 @@
 // Shapes from docs/v1-contract.md. Backend fields stay optional where older
 // tasks, unfinished tasks, or legacy local records may omit them.
-export type Role = 'worker' | 'engineer' | 'admin'
+export type Role = 'user' | 'worker' | 'engineer' | 'admin'
 
 export interface Identity {
   name: string
@@ -122,6 +122,7 @@ export interface Task {
   question?: string
   user_name?: string
   user_role?: string
+  user_id?: string | null
   created_at?: string
   updated_at?: string
   report?: Report | null

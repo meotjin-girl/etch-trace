@@ -94,4 +94,4 @@ Agent의 역할별 문구 분석은 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두
 
 `agent/tests/test_query.py`는 추출·병합, `test_graph.py`는 재질문·보고서·수정·승인·정보/사례 부족·콜백 재실행을 검증한다. `test_checkpoint.py`는 `AGENT_TEST_DATABASE_URL`이 있을 때 실제 PostgreSQL과 별도 프로세스로 대기·수정·승인 재시작을 검증한다. `backend/tests/`는 HTTP 권한·승인 스냅샷·경쟁·이벤트/SSE·실패 처리를 다룬다. 이는 테스트 코드의 범위이며 이번 문서 변경에서 통과를 확인했다는 뜻이 아니다.
 
-CLI 전용 Markdown 출력·입력 루프·답변 후 선택적 기록 제안은 폐기했다. Keycloak과 승인된 조사 이력의 근거 검색은 후속 범위다. 현재 승인 이력 조회를 검색 도구로 오해하지 않는다.
+CLI 전용 Markdown 출력·입력 루프·답변 후 선택적 기록 제안은 폐기했다. 공개 사용자 인증은 backend가 Keycloak JWT로 검증하며 Agent에는 토큰을 전달하지 않는다. 역할·소유자별 접근 분리는 후속 범위다.

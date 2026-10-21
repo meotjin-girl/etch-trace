@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
 import EvidencePanel from '@/components/EvidencePanel.vue'
+import AuthGate from '@/components/AuthGate.vue'
+import { useIdentityStore } from '@/stores/identity'
 import { useInvestigationStore } from '@/stores/investigation'
 import { useRecordsStore } from '@/stores/records'
 import { useUiStore } from '@/stores/ui'
@@ -11,6 +13,10 @@ const investigation = useInvestigationStore()
 const records = useRecordsStore()
 const ui = useUiStore()
 const router = useRouter()
+const identity = useIdentityStore()
+watch(() => identity.status, status => {
+  if (status === 'authenticated') void records.refresh()
+})
 
 async function newInvestigation() {
   investigation.reset()
@@ -23,14 +29,16 @@ function leave() {
 }
 
 onMounted(() => {
-  records.refresh()
+  if (identity.status === 'loading') void identity.init()
+  else if (identity.status === 'authenticated') void records.refresh()
   window.addEventListener('pagehide', leave)
 })
 onUnmounted(() => window.removeEventListener('pagehide', leave))
 </script>
 
 <template>
-  <div class="app-shell" :class="{'sop-open': $route.name === 'sop', 'evidence-closed': ui.evidenceClosed}">
+  <AuthGate v-if="identity.status !== 'authenticated'" />
+  <div v-else class="app-shell" :class="{'sop-open': $route.name === 'sop', 'evidence-closed': ui.evidenceClosed}">
     <AppSidebar @new="newInvestigation" />
 
     <main class="workspace">
@@ -38,6 +46,10 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
         <div>
           <p class="eyebrow">INVESTIGATION ASSISTANT</p>
           <h1>{{ $route.meta.title }}</h1>
+        </div>
+        <div class="account-controls">
+          <span>{{ identity.name }}</span>
+          <button type="button" class="secondary-button" @click="identity.logout()">로그아웃</button>
         </div>
       </header>
 
@@ -68,3 +80,12 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
   </div>
 
 </template>
+
+<style scoped>
+.topbar { height: auto; min-height: 84px; }
+.account-controls { display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 14px; }
+.account-controls span { overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .topbar { min-height: 72px; flex-wrap: wrap; gap: 12px; }
+}
+</style>

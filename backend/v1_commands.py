@@ -11,38 +11,59 @@ from v1_store import Store
 
 def accept_message(store: Store, tid: UUID, text: str, actor: Actor) -> UUID:
     with store.locked(tid) as (conn, row):
-        store.access(row, actor, owner=True)
         if row.status != "WAITING_INPUT":
             raise HTTPException(409, "Task is not waiting for input")
         store.status(conn, tid, "RUNNING")
         command_id = uuid4()
         _ = conn.execute("UPDATE v1_tasks SET command_id=%s WHERE id=%s", (command_id, tid))
         store.message(conn, tid, text, actor, "user")
-        store.emit(conn, tid, "MESSAGE", {"text": text, "by": actor.name})
-        store.emit(conn, tid, "RUNNING", {"by": actor.name})
+        store.emit(
+            conn,
+            tid,
+            "MESSAGE",
+            {
+                "text": text,
+                "by": actor.name,
+                "user_id": actor.subject,
+            },
+        )
+        store.emit(conn, tid, "RUNNING", {"by": actor.name, "user_id": actor.subject})
         return command_id
 
 
 def accept_review(store: Store, tid: UUID, body: ApprovalInput, actor: Actor) -> UUID:
-    if actor.role != "engineer":
-        raise HTTPException(403, "Only engineers may approve or revise")
     with store.locked(tid) as (conn, row):
         if row.status != "WAITING_APPROVAL":
             raise HTTPException(409, "Task is not waiting for approval")
         _ = conn.execute(
-            """INSERT INTO v1_reviews(task_id,action,comment,user_name,user_role,
-               report,event_time,lot_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (tid, body.action, body.comment, actor.name, actor.role,
-             Jsonb(row.report.model_dump(mode="json") if row.report else None),
-             body.event_time, body.lot_id),
+            """INSERT INTO v1_reviews(task_id,action,comment,user_name,user_role,user_id,
+               report,event_time,lot_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (
+                tid,
+                body.action,
+                body.comment,
+                actor.name,
+                actor.role,
+                actor.subject,
+                Jsonb(row.report.model_dump(mode="json") if row.report else None),
+                body.event_time,
+                body.lot_id,
+            ),
         )
         store.status(conn, tid, "RUNNING")
         command_id = uuid4()
         _ = conn.execute("UPDATE v1_tasks SET command_id=%s WHERE id=%s", (command_id, tid))
-        store.emit(conn, tid, "REVIEWED", {
-            **body.model_dump(mode="json"), "by": actor.name, "role": actor.role,
-        })
-        store.emit(conn, tid, "RUNNING", {"by": actor.name})
+        store.emit(
+            conn,
+            tid,
+            "REVIEWED",
+            {
+                **body.model_dump(mode="json"),
+                "by": actor.name,
+                "user_id": actor.subject,
+            },
+        )
+        store.emit(conn, tid, "RUNNING", {"by": actor.name, "user_id": actor.subject})
         return command_id
 
 
@@ -86,8 +107,11 @@ def callback(store: Store, tid: UUID, body: Callback, command_id: UUID) -> bool:
         if row.status != "RUNNING":
             raise HTTPException(409, "Task is not running")
         statuses: dict[str, Status] = {
-            "QUESTION": "WAITING_INPUT", "APPROVAL_REQUIRED": "WAITING_APPROVAL",
-            "DONE": "DONE", "INCOMPLETE": "INCOMPLETE", "FAILED": "FAILED",
+            "QUESTION": "WAITING_INPUT",
+            "APPROVAL_REQUIRED": "WAITING_APPROVAL",
+            "DONE": "DONE",
+            "INCOMPLETE": "INCOMPLETE",
+            "FAILED": "FAILED",
         }
         status = statuses.get(body.type, "RUNNING")
         if body.type == "QUESTION":
@@ -109,9 +133,10 @@ def callback(store: Store, tid: UUID, body: Callback, command_id: UUID) -> bool:
         if body.type == "DONE":
             _ = conn.execute(
                 """INSERT INTO v1_investigations(task_id,review_id,report,approved_by,
-                   approved_role,event_time,lot_id,approved_at)
-                   SELECT task_id,id,report,user_name,user_role,event_time,lot_id,created_at
+                   approved_role,approved_by_id,event_time,lot_id,approved_at)
+                   SELECT task_id,id,report,user_name,user_role,user_id,event_time,lot_id,created_at
                    FROM (SELECT * FROM v1_reviews WHERE task_id=%s ORDER BY id DESC LIMIT 1) r
-                   WHERE action='approve'""", (tid,),
+                   WHERE action='approve'""",
+                (tid,),
             )
     return True

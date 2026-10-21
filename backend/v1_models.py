@@ -8,10 +8,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
-Role = Literal["worker", "engineer", "admin"]
+Role = Literal["user", "worker", "engineer", "admin"]
 Status = Literal[
-    "QUEUED", "RUNNING", "WAITING_INPUT", "WAITING_APPROVAL",
-    "DONE", "INCOMPLETE", "FAILED",
+    "QUEUED",
+    "RUNNING",
+    "WAITING_INPUT",
+    "WAITING_APPROVAL",
+    "DONE",
+    "INCOMPLETE",
+    "FAILED",
 ]
 
 
@@ -136,6 +141,7 @@ class Message(Output):
     text: str
     user_name: str
     user_role: str
+    user_id: str | None = None
     created_at: datetime
 
 
@@ -146,6 +152,7 @@ class Review(Output):
     comment: str
     user_name: str
     user_role: Role
+    user_id: str | None = None
     report: Report | None
     event_time: datetime | None
     lot_id: str | None
@@ -159,6 +166,7 @@ class Investigation(Output):
     report: Report
     approved_by: str
     approved_role: Role
+    approved_by_id: str | None = None
     event_time: datetime | None
     lot_id: str | None
     approved_at: datetime
@@ -172,11 +180,13 @@ class InvestigationRecord(Output):
     id: UUID
     user_name: str
     user_role: Role
+    user_id: str | None = None
     question: str
     status: Literal["DONE"] = "DONE"
     report: Report
     approved_by: str
     approved_role: Role
+    approved_by_id: str | None = None
     event_time: datetime | None
     lot_id: str | None
     approved_at: datetime
@@ -188,6 +198,7 @@ class Task(Output):
     id: UUID
     user_name: str
     user_role: Role
+    user_id: str | None = None
     question: str
     command_id: UUID
     status: Status
@@ -207,6 +218,16 @@ class Detail(Task):
 class Actor:
     name: str
     role: Role
+    subject: str
+    expires_at: int
+
+
+@dataclass(frozen=True, slots=True)
+class Requester:
+    """Stored attribution for trusted dispatch, not a live login session."""
+
+    name: str
+    role: Role
 
 
 # compose mounts sop-ocap/ at SOP_DOCUMENTS_DIR; locally the repository folder is used.
@@ -219,3 +240,12 @@ class Settings:
     agent_url: str
     internal_api_key: str
     sop_dir: str = DEFAULT_SOP_DIR
+    keycloak_url: str = "http://localhost:8080/auth"
+    keycloak_realm: str = "trace"
+    keycloak_client_id: str = "trace-web"
+    keycloak_audience: str = "trace-api"
+    keycloak_jwks_url: str = ""
+
+    @property
+    def issuer(self) -> str:
+        return f"{self.keycloak_url.rstrip('/')}/realms/{self.keycloak_realm}"

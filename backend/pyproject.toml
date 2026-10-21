@@ -12,6 +12,7 @@ dependencies = [
   "psycopg[binary,pool]",
   "python-dotenv",
   "anyio",
+  "PyJWT[crypto]>=2.10,<3",
 ]
 
 [dependency-groups]

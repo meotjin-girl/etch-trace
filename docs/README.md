@@ -6,7 +6,9 @@
 |---|---|
 | [../README.md](../README.md) | 실행, 환경, 검증 명령, 이전 구성에서 이동 |
 | [v1-contract.md](v1-contract.md) | 서비스 간 통합 계약 |
-| [api.md](api.md) | 필수 목업 신원 헤더, 재질문·검토·이력·SSE |
+| [api.md](api.md) | Bearer 인증, 공동 재질문·검토·이력·fetch SSE |
+| [../deploy/keycloak/README.md](../deploy/keycloak/README.md) | Keycloak 계정 생성·URL·영속성 |
+| [keycloak-validation.md](keycloak-validation.md) | Vue·최신 backend 인증 이식 검증 |
 | [agent.md](agent.md) | 실제 그래프, 중단·재개, MCP, 보고서 |
 | [architecture.md](architecture.md) | 단일 v1 구조, 저장 책임, 배포·데이터 |
 | [frontend.md](frontend.md) | Vue 화면 구조, 필요 API와 예시, 대화형 계약 제안, 목업 서버 |
@@ -32,6 +34,6 @@ deploy/nginx.conf           빌드된 화면과 /api(backend) 프록시
 
 구형 `docker-compose*.yml`은 `compose.yaml` include wrapper이며 별도 DB/agent 구성을 시작하지 않는다. 이전 CLI·JSON 요청 예제·CLI 테스트는 서비스 커버리지 확인 후 제거했다. 이전 localStorage 기록은 **로컬 읽기 전용**이며 서버 승인 이력으로 자동 전환하지 않는다.
 
-샘플 데이터는 PHM이 아니다. 문서 조회는 정확한 문서 ID 조회와 `sop-ocap/` SOP·OCAP 의미 검색 두 가지다. Keycloak과 승인된 조사 이력을 다음 조사의 근거로 검색하는 기능은 미래 범위다. 분류별 서브그래프와 담당자 자동 배정을 현재 구현으로 읽지 않는다.
+샘플 데이터는 PHM이 아니다. 문서 조회는 정확한 문서 ID 조회와 `sop-ocap/` SOP·OCAP 의미 검색 두 가지다. Keycloak 로그인 사용자는 공동 작업하며 세부 역할·소유자별 인가는 후속 범위다. 분류별 서브그래프와 담당자 자동 배정을 현재 구현으로 읽지 않는다.
 
 문서 정리는 서비스 테스트 통과를 의미하지 않는다. 내부 신원·명령 ID 경계는 [API 문서](api.md#내부-http-경계), 검증 실행 조건은 루트 README를 참고한다.

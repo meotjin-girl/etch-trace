@@ -2163,6 +2163,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
@@ -2184,6 +2185,7 @@ requires-dist = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "psycopg", extras = ["binary", "pool"] },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10,<3" },
     { name = "python-dotenv" },
     { name = "uvicorn" },
 ]

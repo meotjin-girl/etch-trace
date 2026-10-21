@@ -37,8 +37,12 @@ Conversation, records, and evidence own their existing scrolling.
 Keep message/avatar, metric-card, cause-item/citation, evidence-item,
 record-list-item, detail-status, record-cta, quick-replies, and button classes.
 Server reports populate these primitives without frontend analysis.
-The sidebar footer shows the current user name only (login is not yet
-implemented). Judgement happens in chat: the latest pending prompt shows
+The sidebar footer shows the signed-in user name. Account/logout controls are
+also available in the topbar at mobile widths. The anonymous/loading/error login
+gate uses the existing monochrome buttons, line borders and 12px corners:
+one 440px-wide surface, 24px padding, 24px gaps, 25px heading and 15px body text.
+It has no decoration, password input or signup; Keycloak owns the login form.
+Judgement happens in chat: the latest pending prompt shows
 equal-size quick replies (승인 primary black, others secondary); typed text
 while awaiting judgement is sent as a revision request. Streaming replies show
 a blinking caret.
