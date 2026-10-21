@@ -20,7 +20,8 @@ docker compose -f compose.yaml ps
 ## 단일 v1 구조
 
 ```text
-브라우저 -> nginx -> backend (REST / SSE, 작업·검토·이력)
+브라우저 -> nginx -> business-mcp HTTP API -> backend 내부 이력 API -> DB (이력 조회)
+              -> backend (REST / SSE, 작업·검토)
                          -> agent (유일한 LangGraph, PostgreSQL 체크포인트)
                               -> business-mcp -> backend 내부 사례 API
                               -> rag-mcp -> PostgreSQL 샘플 문서

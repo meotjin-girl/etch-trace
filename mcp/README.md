@@ -118,10 +118,12 @@ errors. MCP has no investigation database write access.
 ## History panel reads
 
 The browser calls `GET /api/ai/investigations` and
-`GET /api/ai/investigations/{task_id}`. Backend forwards the authenticated
-identity to Business MCP `list_investigations(user_name,user_role)` or
-`get_investigation(task_id,user_name,user_role)`. MCP calls the corresponding
-`/internal/investigations` endpoint with the internal key. The internal API
+`GET /api/ai/investigations/{task_id}`. Nginx forwards only these history paths
+directly to custom HTTP routes on Business MCP. These are ordinary HTTP routes,
+not MCP protocol calls. They validate the mock identity headers and UUID, then
+reuse the tools' read helper to call the corresponding backend
+`/internal/investigations` endpoint with the internal key and forwarded identity.
+Backend no longer proxies history requests to MCP. The internal API
 filters to saved approved investigations and enforces worker ownership;
 engineers/admins can read all. Detail contains only the approved report and existing storage metadata;
-conversation, progress events and review timelines are excluded. MCP failures surface as 502, never as an empty history list.
+conversation, progress events and review timelines are excluded. Upstream failures surface as 502, never as an empty history list; access and validation errors retain 401/403/404/422.

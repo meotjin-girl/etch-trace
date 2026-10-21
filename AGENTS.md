@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다. 브라우저는 backend만 호출하고, backend는 작업·신원·권한·검토·이벤트·승인 스냅샷을 소유한다. 유일한 LangGraph는 `agent/`에 있으며 MCP로 근거를 읽는다.
+식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다. 브라우저의 작업 요청은 backend로, 이력 조회는 nginx를 통해 business-mcp의 HTTP API로 전달하며, backend는 작업·신원·권한·검토·이벤트·승인 스냅샷을 소유한다. 유일한 LangGraph는 `agent/`에 있으며 MCP로 근거를 읽는다.
 
 ## WHERE TO LOOK
 

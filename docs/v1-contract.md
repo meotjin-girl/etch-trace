@@ -76,8 +76,8 @@ resume the same waiting state.
 ## Saved history panel
 
 `GET /api/ai/investigations` and `GET /api/ai/investigations/{id}` route
-through Business MCP `list_investigations` / `get_investigation`, then the
-backend `/internal/investigations` APIs. Internal reads require the internal
+through nginx directly to custom HTTP routes on Business MCP (not MCP protocol
+requests). These reuse the MCP tools’ internal read helper, then call the backend `/internal/investigations` APIs. Internal reads require the internal
 key and recheck the forwarded identity. Only saved approved records are
 listed; worker ownership and engineer/admin read access are preserved.
 Active task APIs and read-only local legacy records retain their existing flow.

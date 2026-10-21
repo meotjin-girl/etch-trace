@@ -5,10 +5,11 @@
 ```mermaid
 flowchart LR
   UI[브라우저] --> W[nginx / web]
-  W --> B[backend / REST와 SSE]
+  W -- 작업·검토 --> B[backend / REST와 SSE]
+  W -- 이력 조회 HTTP --> BM
   B --> A[agent / 유일한 LangGraph]
   A --> BM[business MCP]
-  BM --> BI[backend /internal/cases]
+  BM --> BI[backend 내부 사례·이력 API]
   A --> RM[rag MCP]
   B --> PG[(PostgreSQL)]
   BI --> PG
@@ -19,11 +20,11 @@ flowchart LR
 
 | 구성 | 책임 | 경계 |
 |---|---|---|
-| frontend | 요청·재질문·검토·서버 이력과 실시간 진행 표시 | 공개 backend만 호출 |
+| frontend | 요청·재질문·검토·서버 이력과 실시간 진행 표시 | 동일 출처의 공개 API 호출; nginx가 작업은 backend, 이력은 business MCP로 전달 |
 | nginx | 정적 파일, `/api`와 SSE 프록시 | 유일한 호스트 공개 포트 |
 | backend | 신원·권한, 작업·메시지·검토·이벤트·승인 스냅샷 | 그래프를 직접 실행하지 않고 agent HTTP 호출 |
 | agent | 접수·재질문·MCP 근거·보고서·검토 interrupt/resume | 업무 DB 직접 조회 없이 MCP 사용 |
-| business MCP | backend 내부 사례 조회와 결정론적 통계 | DB 업무 테이블 직접 접속 안 함 |
+| business MCP | backend 내부 사례·이력 조회, 결정론적 통계, 화면용 이력 HTTP API | DB 업무 테이블 직접 접속 안 함 |
 | rag MCP | 샘플 문서 ID 조회 | PostgreSQL 문서 레코드 직접 조회 |
 | PostgreSQL | 샘플 근거·backend 이력·agent 체크포인트 | 각 서비스가 소유한 영역 구분 |
 
