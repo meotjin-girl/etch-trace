@@ -1,4 +1,4 @@
-// Mock-only sample data. Shapes follow docs/frontend.md (필요 API) and docs/api.md.
+// Mock-only sample data. Shapes follow docs/development/frontend.md (필요 API) and docs/development/api.md.
 import type { Report, Sop } from '../src/api/types'
 
 // Sample SOPs moved from the former hard-coded src/api/sop.ts.

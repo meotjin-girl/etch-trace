@@ -39,7 +39,7 @@ export const agentMode = (mode?: string) => mode === 'llm' ? 'LLM 사용' : '규
 // Compact labels for the narrow sidebar; the report keeps the full wording.
 const stageShort: Record<string, string> = {sample_based:'데모 사례', partial:'일부 확인', unavailable:'데이터 미연결', provisional:'임시 권고'}
 
-// develop agent graph (docs/agent.md): intake, five specialist agents, report, review.
+// develop agent graph (docs/development/agent.md): intake, five specialist agents, report, review.
 export const AGENT_FLOW = [
   {key:'intake', title:'질문 접수', hint:'범위·이상 현상 확인'},
   {key:'scope', title:'범위 조사', hint:'유사 사례·승인 이력'},

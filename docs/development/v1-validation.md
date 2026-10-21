@@ -82,25 +82,3 @@ Keycloak, semantic/vector search, historical investigations as retrieval
 evidence and durable queued command recovery remain follow-up work.
 Running work fails visibly after backend restart; there is no automatic retry.
 No GitHub issues were posted. External-model narrative mode was not tested.
-
-## 2026-10-21 backend-integration checks
-
-Branch `feature/backend-integration` on develop `d2be127`. Full stack ran with
-`docker compose -f compose.yaml -p trace-fe-check up -d --build` (`WEB_PORT=18080`,
-separate project name so existing containers were untouched); `OPENAI_API_KEY`
-was present, `OPENAI_MODEL` was not (agents ran rule-based).
-
-| Area | Command or path | Result |
-|---|---|---|
-| Backend | `TEST_DATABASE_URL=… uv run --group dev pytest` (temporary pgvector container) | 52 passed |
-| Frontend | `npm run type-check && npm test && npm run build` | 35 passed, build ok |
-| SOP parser/index | `SOP_TEST_DATABASE_URL=… uv run --project mcp --group rag-experiment python -m unittest discover -s tests -p 'test_sop_*.py'` | 21 run, 18 passed, 3 known data assertions fail (see structure-review 2.1) |
-| API flow | question without scope → QUESTION → `/messages` → APPROVAL_REQUIRED → worker revise 403 → engineer revise → APPROVAL_REQUIRED → approve → DONE | 16 events in order; investigation saved with lot; SSE replay closes on DONE |
-| Report content | endpoint 135 s from the question; 5 stages; RAG checks `SOP-ETCH-12#4.2`, `OCAP-ETCH-EPD#4.1`, `#4.2` | ok |
-| History | `GET /api/ai/investigations/{id}` served by backend | ok |
-| SOP | `GET /api/sops` 22 rows; `/api/sops/OCAP-ETCH-RF` 200; missing 404; no identity 401 | ok |
-| Vector DB | `sop_rag_model_chunks` in sop-postgres | 240 chunks, 22 documents, text-embedding-3-small (1536) |
-| Browser (headless Chrome, 1440x900) | ask → typed clarification → report (sidebar steps 1–7 done, 8 active) → 미승인 → 승인 → 완료; records list; SOP OCAP detail | no network notice, no script errors |
-
-Not covered: agent LLM narrative mode (`OPENAI_MODEL` unset), TOKEN streaming
-(agent does not emit it yet), mobile layouts.

@@ -1,6 +1,6 @@
 # TRACE Agent 안내
 
-실제 조사 그래프 흐름과 데이터 한계는 [한국어 Agent 설명](../docs/agent.md)을 기준으로 확인하세요.
+실제 조사 그래프 흐름과 데이터 한계는 [한국어 Agent 설명](../docs/development/agent.md)을 기준으로 확인하세요.
 
 ## 실행
 

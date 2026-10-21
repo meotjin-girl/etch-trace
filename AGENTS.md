@@ -8,7 +8,7 @@
 
 | 작업 | 위치 | 계약 |
 |---|---|---|
-| 통합 계약 | `docs/v1-contract.md` | 구현과 함께 읽고 차이는 명시 |
+| 통합 계약 | `docs/development/v1-contract.md` | 구현과 함께 읽고 차이는 명시 |
 | 공개 REST/SSE | `backend/main.py` | `/api/ai/tasks`, 질문 본문 `{question}` |
 | 로그인·공동 작업 인가 | `backend/v1_auth.py`, `v1_commands.py` | Keycloak JWT 검증, 로그인 사용자 전체 조회·답변·검토 |
 | 상태·메시지·검토·이벤트·스냅샷 | `backend/v1_store.py`, `v1_schema.sql` | DB 연결은 lifespan에서 열림 |
@@ -18,9 +18,9 @@
 | 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
 | 문서 | `mcp/rag.py` | `search_documents` exact-ID 조회와 `search_sop` SOP·OCAP 벡터 검색(`sop-ocap/` 마운트). SOP 색인은 별도 `sop-postgres`에 저장하며 `OPENAI_API_KEY` 필요 |
 | 샘플 적재 | `db/seed.py`, `cases.json`, `documents.json` | PHM 아님, demo/source 표시 보존 |
-| 화면 | `frontend/src/` (Vue 3 + TS, Pinia, Router), `docs/frontend.md` | 공개 backend 연동, seq 기반 이벤트 복원, 채팅 판별. `npm run dev:mock`으로 backend 없이 실행 |
+| 화면 | `frontend/src/` (Vue 3 + TS, Pinia, Router), `docs/development/frontend.md` | 공개 backend 연동, seq 기반 이벤트 복원, 채팅 판별. `npm run dev:mock`으로 backend 없이 실행 |
 | SOP 화면 API | `backend/v1_sop.py` | `sop-ocap/` 머리 표·원문 파싱, `/api/sops` |
-| 경로 지도 | `docs/structure-review.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
+| 구조 | `docs/development/architecture.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |
 
 ## CONVENTIONS

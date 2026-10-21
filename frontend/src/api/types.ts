@@ -1,4 +1,4 @@
-// Shapes from docs/v1-contract.md. Backend fields stay optional where older
+// Shapes from docs/development/v1-contract.md. Backend fields stay optional where older
 // tasks, unfinished tasks, or legacy local records may omit them.
 export type Role = 'user' | 'worker' | 'engineer' | 'admin'
 
@@ -52,7 +52,7 @@ export interface EvidenceDocument {
 
 export type StageKey = 'scope' | 'run_comparison' | 'sensor' | 'maintenance' | 'recommendation'
 
-// One specialist agent's result (docs/v1-contract.md `stages`).
+// One specialist agent's result (docs/development/v1-contract.md `stages`).
 export interface InvestigationStage {
   key: StageKey
   title: string

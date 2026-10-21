@@ -30,7 +30,7 @@ docker compose -f compose.yaml ps
 
 | 경로 | 책임 |
 |---|---|
-| `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/frontend.md](docs/frontend.md) |
+| `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/development/frontend.md](docs/development/frontend.md) |
 | `backend/main.py`, `backend/v1_*.py` | 공개 API, JWT 검증·공동 작업 인가, 상태·메시지·검토·이벤트·승인 스냅샷 |
 | `agent/` | 질문 추출, 재질문, MCP 조사, 보고서, 검토 중단·재개 |
 | `mcp/` | 사례 조회·결정론적 통계·승인 이력 도구, 문서 조항 조회·SOP 의미 검색 |
@@ -78,6 +78,6 @@ uv run --project mcp --group rag-experiment python -m unittest discover -s tests
 - 기존 브라우저 `localStorage` 기록은 **로컬 읽기 전용 과거 기록**입니다. 서버 승인 기록으로 이관하거나 새 조사 근거로 사용하지 않습니다.
 - 중복 백엔드 그래프·도구와 PHM 전용 적재·점검 스크립트는 제거했습니다. 이전 구현은 Git 이력에서 확인할 수 있습니다.
 
-Keycloak은 개발용 Compose 서비스로 포함합니다. 실제 검증 범위는 [인증 이식 검증 기록](docs/keycloak-validation.md)을 참고하세요.
+Keycloak은 개발용 Compose 서비스로 포함합니다. 설정은 [Keycloak 안내](deploy/keycloak/README.md)를 참고하세요.
 
-문서: [목차](docs/README.md), [계약](docs/v1-contract.md), [API](docs/api.md), [에이전트](docs/agent.md), [아키텍처](docs/architecture.md).
+문서: [개발 목차](docs/development/README.md), [기획 보고서](docs/planning/final.md), [계약](docs/development/v1-contract.md), [API](docs/development/api.md), [에이전트](docs/development/agent.md), [아키텍처](docs/development/architecture.md).
