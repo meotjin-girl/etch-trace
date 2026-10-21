@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 
 def test_initial_dispatch_uses_simple_body_and_command_header(
-    client: TestClient, wire: Wire,
+    client: TestClient,
+    wire: Wire,
 ) -> None:
     # Given the agent HTTP boundary.
     # When an initial task is accepted.
@@ -17,6 +18,9 @@ def test_initial_dispatch_uses_simple_body_and_command_header(
     assert body == {"question": "Investigate etch"}
     assert request_headers["X-Internal-Key"] == "test-key"
     assert request_headers["X-Command-ID"] == str(detail(client, tid).command_id)
+    assert request_headers["X-Requester-Name"] == "owner"
+    assert request_headers["X-Requester-Role"] == "user"
+    assert "Authorization" not in request_headers
 
 
 def test_message_dispatch_contains_only_resume_text(client: TestClient, wire: Wire) -> None:
@@ -34,15 +38,19 @@ def test_message_dispatch_contains_only_resume_text(client: TestClient, wire: Wi
 
 
 def test_review_dispatch_derives_actor_and_keeps_metadata_local(
-    client: TestClient, wire: Wire,
+    client: TestClient,
+    wire: Wire,
 ) -> None:
     # Given a task waiting for engineer review.
     tid = task(client)
     wire.commands.get_nowait()
     event(client, tid, "APPROVAL_REQUIRED", {"report": {}})
     # When an engineer requests revision with optional business metadata.
-    response = client.post(f"{API}/{tid}/approval", headers=headers("검토자", "engineer"),
-                           json={"action": "revise", "comment": "Check RF", "lot_id": "L1"})
+    response = client.post(
+        f"{API}/{tid}/approval",
+        headers=headers("검토자", "engineer"),
+        json={"action": "revise", "comment": "Check RF", "lot_id": "L1"},
+    )
     # Then identity is server-derived and only the agreed resume fields reach the agent.
     assert response.status_code == 202
     _, _, body = wire.commands.get_nowait()
@@ -76,18 +84,22 @@ def test_conflicting_event_replay_is_rejected(client: TestClient) -> None:
     assert len([row for row in detail(client, tid).events if row.type == "SEARCH_STARTED"]) == 1
 
 
-@pytest.mark.parametrize("suffix,body", [
-    ("/messages", {"text": "Unexpected response"}),
-    ("/approval", {"action": "approve", "comment": ""}),
-])
+@pytest.mark.parametrize(
+    "suffix,body",
+    [
+        ("/messages", {"text": "Unexpected response"}),
+        ("/approval", {"action": "approve", "comment": ""}),
+    ],
+)
 def test_commands_reject_nonwaiting_tasks(
-    client: TestClient, suffix: str, body: dict[str, str],
+    client: TestClient,
+    suffix: str,
+    body: dict[str, str],
 ) -> None:
     # Given a running task.
     tid = task(client)
     # When a waiting-only command is submitted.
-    response = client.post(f"{API}/{tid}{suffix}", headers=headers("owner", "engineer"),
-                           json=body)
+    response = client.post(f"{API}/{tid}{suffix}", headers=headers("owner", "engineer"), json=body)
     # Then state is unchanged.
     assert response.status_code == 409
     assert detail(client, tid).status == "RUNNING"
@@ -107,8 +119,11 @@ def test_unscoped_callbacks_are_rejected(client: TestClient) -> None:
     # Given a valid service identity but no command scope.
     tid = task(client)
     # When a callback omits command identity.
-    response = client.post(f"/internal/tasks/{tid}/events", headers=KEY,
-                           json={"event_id": "one", "type": "FAILED", "payload": {}})
+    response = client.post(
+        f"/internal/tasks/{tid}/events",
+        headers=KEY,
+        json={"event_id": "one", "type": "FAILED", "payload": {}},
+    )
     # Then it cannot affect any task state.
     assert response.status_code == 422
     assert detail(client, tid).status == "RUNNING"

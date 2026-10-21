@@ -17,6 +17,9 @@ function stores() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  useIdentityStore().status = 'authenticated'
+  useIdentityStore().name = name
+  useIdentityStore().subject = 'account-1'
   calls = []
   api = {
     async list() { return [] },
@@ -47,14 +50,14 @@ test('chat follows saved event order across question, answer, report and judgeme
   expect(investigation.pending).toEqual({seq:7, options:['건너뛰기'], decision:false})
 })
 
-test('quick replies only for the owner on the latest pending prompt, decisions default to 승인/미승인', () => {
+test('quick replies allow collaborators on the latest pending prompt, decisions default to 승인/미승인', () => {
   const {investigation} = stores()
   investigation.task = {id:'a', status:'WAITING_INPUT', user_name:name}
   investigation.events = [{seq:1, type:'QUESTION', payload:{text:'?'}}]
   expect(investigation.pending).toBeNull()
   investigation.task = {id:'a', status:'WAITING_INPUT', user_name:'다른 사람'}
   investigation.events = [{seq:1, type:'QUESTION', payload:{text:'?', options:['예']}}]
-  expect(investigation.pending).toBeNull()
+  expect(investigation.pending).toEqual({seq:1, options:['예'], decision:false})
   investigation.task = {id:'a', status:'WAITING_APPROVAL', user_name:name}
   investigation.events = [{seq:2, type:'APPROVAL_REQUIRED', payload:{report:{}}}]
   expect(investigation.pending).toEqual({seq:2, options:['승인', '미승인'], decision:true})
@@ -62,23 +65,25 @@ test('quick replies only for the owner on the latest pending prompt, decisions d
   expect(investigation.pending).toBeNull()
 })
 
-test('review permissions: engineer waiting only, not worker/admin/legacy', () => {
+test('review permissions: authenticated waiting only, independent of role, never legacy', () => {
   const {investigation, identity} = stores()
   const task: Task = {id:'a', status:'WAITING_APPROVAL'}
   expect(investigation.canReview(task)).toBe(true)
   for (const role of ['worker', 'admin'] as const) {
     identity.role = role
-    expect(investigation.canReview(task)).toBe(false)
+    expect(investigation.canReview(task)).toBe(true)
   }
   identity.role = 'engineer'
   expect(investigation.canReview({...task, legacy:true})).toBe(false)
   expect(investigation.canReview({id:'a', status:'DONE'})).toBe(false)
+  identity.status = 'anonymous'
+  expect(investigation.canReview(task)).toBe(false)
 })
 
-test('owner identity survives a role change and citations highlight evidence', () => {
+test('attribution uses stable subject rather than display name and citations highlight evidence', () => {
   const {investigation, identity, ui} = stores()
   identity.role = 'worker'
-  expect(investigation.isOwner({id:'a', status:'DONE', user_name:name, user_role:'engineer'})).toBe(true)
+  expect(investigation.isOwner({id:'a', status:'DONE', user_name:'renamed', user_id:'account-1'})).toBe(true)
   expect(investigation.isOwner({id:'a', status:'DONE', user_name:'another-worker', user_role:'worker'})).toBe(false)
   ui.openEvidence('DOC#1')
   expect(ui.highlight.id).toBe('DOC#1')

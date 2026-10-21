@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ReportView from '@/components/ReportView.vue'
@@ -45,6 +45,7 @@ test('app shell mounts every route with backend data', async () => {
   const {default: App} = await import('@/App.vue')
   const {default: router} = await import('@/router')
   const {useIdentityStore} = await import('@/stores/identity')
+  useIdentityStore().status = 'authenticated'
   const task = {id:'t1', status:'WAITING_APPROVAL', question:'질문', user_name:'이엔지니어', user_role:'engineer',
     report:{documents:[{id:'DOC#1', title:'문서', text:'본문'}], docIds:['DOC#1'], metrics:[], causeCases:[]}, events:[]}
   useIdentityStore().api = {
@@ -63,12 +64,12 @@ test('app shell mounts every route with backend data', async () => {
     ['/records/t1', '조사 열기 / 이어가기', true], ['/sop', 'SOP-ETCH-12', false]]
   for (const [path, expected, progress] of pages) {
     await router.push(path)
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await flushPromises()
     expect(wrapper.text()).toContain(expected)
     expect(wrapper.find('.process-card').exists()).toBe(progress)
   }
   await router.push('/records/t1')
-  await new Promise(resolve => setTimeout(resolve, 0))
+  await flushPromises()
   expect(wrapper.find('[data-evidence-id="DOC#1"]').exists()).toBe(true)
   wrapper.unmount()
 })
@@ -76,6 +77,8 @@ test('app shell mounts every route with backend data', async () => {
 test('pending judgement renders 승인/미승인 under the report bubble', async () => {
   const {default: InvestigationView} = await import('@/views/InvestigationView.vue')
   const {useInvestigationStore} = await import('@/stores/investigation')
+  const {useIdentityStore} = await import('@/stores/identity')
+  useIdentityStore().status = 'authenticated'
   const investigation = useInvestigationStore()
   investigation.task = {id:'a', status:'WAITING_APPROVAL', question:'질문', user_name:'이엔지니어'}
   investigation.events = [{seq:1, type:'QUEUED', payload:{}},

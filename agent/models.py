@@ -5,8 +5,14 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 type EventType = Literal[
-    "SEARCH_STARTED", "ANALYSIS_STARTED", "REPORT_STARTED",
-    "QUESTION", "APPROVAL_REQUIRED", "DONE", "INCOMPLETE", "FAILED",
+    "SEARCH_STARTED",
+    "ANALYSIS_STARTED",
+    "REPORT_STARTED",
+    "QUESTION",
+    "APPROVAL_REQUIRED",
+    "DONE",
+    "INCOMPLETE",
+    "FAILED",
 ]
 
 
@@ -24,11 +30,12 @@ class Context(Model):
 
 class Requester(Model):
     name: str
-    role: Literal["worker", "engineer", "admin"]
+    role: Literal["user", "worker", "engineer", "admin"]
 
 
 class HistoryEvidence(Model):
     """Approved, identity-filtered history returned by the Business MCP."""
+
     id: str
     question: str
     summary: str
@@ -75,6 +82,7 @@ class Document(Model):
 
 class InvestigationCheck(Model):
     """A retrieved SOP clause; legacy provisional records remain readable."""
+
     title: str
     rationale: str
     source: Literal["rag_mcp", "provisional_sop"] = "rag_mcp"
@@ -83,6 +91,7 @@ class InvestigationCheck(Model):
 
 class InvestigationStage(Model):
     """One specialist node's traceable result and its evidence boundary."""
+
     key: Literal["scope", "run_comparison", "sensor", "maintenance", "recommendation"]
     title: str
     status: Literal["sample_based", "partial", "unavailable", "provisional"]

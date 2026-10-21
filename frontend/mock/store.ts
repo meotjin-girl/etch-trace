@@ -98,7 +98,7 @@ export function createMockStore({delay = 700, tokenDelay = 35, seed = true} = {}
   // --- access ----------------------------------------------------------
   function visible(identity: MockIdentity, id: string) {
     const task = tasks.get(id)
-    if (!task || (identity.role === 'worker' && task.user_name !== identity.name)) throw new MockError(404, '작업을 찾을 수 없습니다.')
+    if (!task) throw new MockError(404, '작업을 찾을 수 없습니다.')
     return task
   }
   function requireText(value: unknown, field: string) {
@@ -112,7 +112,6 @@ export function createMockStore({delay = 700, tokenDelay = 35, seed = true} = {}
   const api = {
     list(identity: MockIdentity) {
       return [...tasks.values()]
-        .filter(task => identity.role !== 'worker' || task.user_name === identity.name)
         .sort((a, b) => b.created_at!.localeCompare(a.created_at!))
         .map(summary)
     },
@@ -136,7 +135,6 @@ export function createMockStore({delay = 700, tokenDelay = 35, seed = true} = {}
     },
     message(identity: MockIdentity, id: string, body: {text?: unknown}) {
       const task = visible(identity, id)
-      if (task.user_name !== identity.name) throw new MockError(404, '작업을 찾을 수 없습니다.')
       if (task.status !== 'WAITING_INPUT') throw new MockError(409, '추가 정보를 기다리는 상태가 아닙니다.')
       const text = requireText(body?.text, 'text')
       task.messages!.push({role:'user', text, created_at:now()})
@@ -152,7 +150,6 @@ export function createMockStore({delay = 700, tokenDelay = 35, seed = true} = {}
     },
     approval(identity: MockIdentity, id: string, body: {action?: unknown, comment?: unknown}) {
       const task = visible(identity, id)
-      if (identity.role !== 'engineer') throw new MockError(403, '엔지니어만 판별할 수 있습니다.')
       if (task.status !== 'WAITING_APPROVAL') throw new MockError(409, '판별 대기 상태가 아닙니다.')
       const action = body?.action
       if (action !== 'approve' && action !== 'revise') throw new MockError(422, 'action은 approve 또는 revise입니다.')

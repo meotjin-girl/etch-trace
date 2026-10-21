@@ -8,12 +8,13 @@
 
 | 위치 | 책임 | 이전 |
 |---|---|---|
-| `src/api/client.ts` | `/api/ai/tasks` REST·SSE 호출, 목업 신원(`X-User-Name`, `X-User-Role`, SSE 쿼리), `mergeEvents` | `api.js` |
+| `src/api/client.ts` | Bearer REST·fetch SSE, 토큰 갱신 후 커서 복원, `mergeEvents` | `api.js` |
+| `src/auth.ts`, `src/components/AuthGate.vue` | Keycloak PKCE·메모리 토큰·로그인 게이트 | 인증 이식 |
 | `src/api/types.ts` | `Task`, `TaskEvent`, `Report`, `Metric`, `CauseCase`, `Document`, `Review`, `Role` | — |
 | `src/api/sop.ts` | SOP 샘플 `listSops()`, `getSop(id)`. 백엔드 SOP API로 교체할 경계 | `sop-data.js` |
 | `src/lib/markdown.ts` | 표시 전용 마크다운 렌더러(원시 HTML 이스케이프, 링크 http/https/mailto 제한). SOP 본문 표시 | `markdown.js` |
 | `src/lib/format.ts` | 상태·단계 라벨, 날짜 포맷, 사이드바 에이전트 흐름 계산(`agentFlow`) | `app.js` 상단 |
-| `src/stores/identity.ts` | 이름·역할, 역할별 `api` 인스턴스. 변경 시 조사·기록 초기화 | `changeIdentity` |
+| `src/stores/identity.ts` | 검증된 로그인 상태·표시 이름·subject, 로그아웃 시 조사·기록·진행 요청 초기화 | `changeIdentity` |
 | `src/stores/investigation.ts` | 현재 조사, 이벤트·`after` 커서, SSE 연결, `epoch`/`syncVersion` 가드, 질문·추가 정보·검토 제출 | `app.js` state |
 | `src/stores/records.ts` | 서버 기록 목록·상세, 로컬 읽기 전용 기록(`etch-investigation-records-v1`) | `refreshRecords`, `selectRecord` |
 | `src/stores/ui.ts` | 근거 패널 열림·하이라이트, SOP 검색어, 네트워크 알림 | DOM 토글 |
@@ -26,7 +27,7 @@
 - 아이콘은 Flaticon UIcons(`@flaticon/flaticon-uicons`, regular rounded, `fi-rr-*` 클래스)를 쓴다. 무료 라이선스 조건인 출처 표기("Uicons by Flaticon")를 사이드바 하단에 유지한다.
 - backend·사용자·로컬 기록 값은 Vue 보간으로만 출력한다. `v-html`은 `renderMarkdown` 결과에만 쓴다.
 - 상태는 backend detail이 기준이고, 이벤트 replay는 진행 표시와 이력만 만든다. 늦게 도착한 응답·콜백은 `epoch`/`syncVersion`으로 버린다.
-- `/messages`는 소유자 + `WAITING_INPUT`, 검토는 engineer + `WAITING_APPROVAL`일 때만 UI에서 허용한다. 최종 권한 검사는 backend가 한다.
+- 로그인 사용자는 `WAITING_INPUT`에 답변하고 `WAITING_APPROVAL`을 검토할 수 있다. 소유자·역할 제한은 없고 로컬 기록은 수정할 수 없다. 최종 인증·상태 검사는 backend가 한다.
 - 로컬 기록은 읽기 전용이며 승인으로 취급하지 않는다.
 
 ## 필요 API
@@ -45,9 +46,9 @@
 | 8 | `GET /api/sops` | SOP 목록 | backend 구현(`feature/backend-integration`, `sop-ocap/` 문서) |
 | 9 | `GET /api/sops/{id}` | SOP 상세 | backend 구현(`feature/backend-integration`) |
 | — | `GET /api/ai/investigations`, `/{id}` | (화면 미사용) 승인된 조사 이력 | backend가 직접 응답(`docs/structure-review.md` 2.2). nginx → business-mcp 직통은 제거 |
-| — | `GET /api/me` | 사이드바 사용자 | 후속(로그인). 지금은 `identity` 스토어 기본값 |
+| — | `GET /api/auth/config` | Keycloak 초기화 | 구현됨. 사용자 표시는 어댑터 claims에서 가져오며 `/api/me`는 사용하지 않음 |
 
-공통 헤더는 `X-User-Name: %EC%9D%B4%EC%97%94%EC%A7%80%EB%8B%88%EC%96%B4`(URL 인코딩한 이름)와 `X-User-Role: engineer`다. SSE만 같은 값을 `user_name`, `user_role` 쿼리로 보낸다. 오류는 `{"detail":"..."}`이며 401(신원 없음), 403(역할 위반), 404(볼 수 없는 작업), 409(상태 불일치), 422(본문·커서 검증 실패)다.
+공통 헤더는 REST·SSE 모두 `Authorization: Bearer <access token>`이다. 토큰은 메모리에만 두며 요청 전 갱신한다. 로그아웃·갱신 실패·401은 조사·기록·SSE를 정리한다. 오류는 `{"detail":"..."}`이며 401(인증 실패), 404(자료 없음), 409(상태 불일치), 422(본문·커서 검증 실패), 503(JWKS 연결 장애)다. `npm run dev:mock`만 개발 전용 목업 세션을 사용하며 프로덕션 빌드에서 인증을 우회하지 않는다.
 
 ### 예시
 
@@ -95,7 +96,7 @@ report (develop 계약 `docs/v1-contract.md`, 아래 "보고서 형식" 참고):
 
 **6. `GET /api/ai/tasks/{id}/events?after=3`** → 200 `[{"seq":4,"type":"SEARCH_STARTED","payload":{},"created_at":"…"}]`
 
-**7. `GET /api/ai/tasks/{id}/stream?user_name=…&user_role=engineer&after=3`** (`text/event-stream`)
+**7. `GET /api/ai/tasks/{id}/stream?after=3`** (Bearer 헤더, `text/event-stream`)
 ```
 id: 4
 event: SEARCH_STARTED
@@ -119,7 +120,7 @@ data: {"seq":7,"type":"APPROVAL_REQUIRED","payload":{"report":{…},"text":"보�
 
 **9. `GET /api/sops/{id}`** → 200: 8번 항목 하나에 `"markdown":"## 1. 목적\n…"`이 추가된다. 없으면 404 `{"detail":"문서를 찾을 수 없습니다."}`.
 
-**후속 `GET /api/me`** → 200 `{"name":"이엔지니어","role":"engineer"}`
+**`GET /api/auth/config`** → 200 `{"url":"http://localhost:18080/auth","realm":"trace","clientId":"trace-web"}`. 사용자 이름·subject는 Keycloak 어댑터 claims로 표시한다.
 
 ## 대화형 계약 제안 (agent·backend 구현 요청)
 
@@ -129,7 +130,7 @@ data: {"seq":7,"type":"APPROVAL_REQUIRED","payload":{"report":{…},"text":"보�
    ```json
    {"type":"QUESTION","payload":{"text":"어느 장비와 챔버에서 발생했나요?","missing":["scope"],"options":["ETCH-07 CH-B","ETCH-09 CH-A"]}}
    ```
-2. **`APPROVAL_REQUIRED {report, text?, options?}`**: 채팅에 판별 버튼을 띄운다. `/approval`은 지금처럼 engineer + `WAITING_APPROVAL`만 허용한다.
+2. **`APPROVAL_REQUIRED {report, text?, options?}`**: 채팅에 판별 버튼을 띄운다. `/approval`은 로그인 사용자 + `WAITING_APPROVAL`만 허용한다.
 3. **판별 이후 agent 동작**
    - `revise` + 빈 comment → `QUESTION {"text":"어떤 부분을 수정할까요?"}` → 답변 → 재작성 → `APPROVAL_REQUIRED`
    - `revise` + comment → 바로 재작성 → `APPROVAL_REQUIRED`(현재 동작)
@@ -138,7 +139,7 @@ data: {"seq":7,"type":"APPROVAL_REQUIRED","payload":{"report":{…},"text":"보�
 5. **보고서 형식**: develop 계약(`docs/v1-contract.md`)을 그대로 따른다. 화면은 develop의 순서로 그린다: 요약 → 수치 카드(`metrics`) → 조사 단계별 결과(`stages`, 상태·LLM 사용 여부·미확인 항목) → 유사 승인 조사 이력(`history`) → 우선 확인할 항목(`causeCases`) → SOP RAG 검색 결과(`checks`, `docId` 인용) → 문서 근거(`docIds`). 인용 버튼은 같은 `id`의 `documents` 항목을 근거 패널에서 강조한다(SOP 조항 ID는 `SOP-ETCH-12#4.2` 형식).
 
    **사이드바 에이전트 흐름**: develop 그래프(`docs/agent.md`) 순서로 8단계를 표시한다 — 질문 접수, 범위 조사, 과거 Run 비교, 센서 교차 확인, 정비 이력 확인, 원인 후보·점검 추천, 보고서 구성, 엔지니어 판별. 진행은 저장 이벤트로만 판단한다(`SEARCH_STARTED` → 범위 조사, `ANALYSIS_STARTED` → 전문 에이전트 4단계 함께 진행 중, `REPORT_STARTED` → 보고서 구성, `APPROVAL_REQUIRED` → 판별). 센서·정비·추천 에이전트는 개별 이벤트가 없어 함께 표시하며, 보고서가 오면 `stages`의 상태로 단계별 결과를 보여 준다. 정확한 개별 진행을 원하면 agent가 `{key}`를 담은 단계 시작 이벤트를 추가하는 것을 제안한다.
-6. **역할**: 화면은 engineer만 쓴다. worker·admin 규칙은 backend에 남지만 화면에서 사용하지 않는다.
+6. **역할**: 로그인한 사용자는 동등하게 조회·답변·검토한다. 역할·소유자별 분리는 후속 범위다.
 
 ## 목업 서버
 
@@ -168,6 +169,11 @@ npm run build        # dist/
 ```
 
 web 서비스는 `frontend/Dockerfile` 멀티스테이지(node 빌드 → nginx)로 만들고 `deploy/nginx.conf`로 `dist`를 서빙한다. 기존 `try_files ... /index.html`이 SPA 새로고침을 처리한다.
+
+실제 로그인으로 Vite dev 서버를 쓸 때는 `trace-web` 클라이언트의 Valid redirect URIs에
+`http://localhost:5173/*`, Web origins에 `http://localhost:5173`을 별도로 추가한다.
+기본 realm은 Compose의 공개 origin만 허용한다. backend issuer와 Keycloak URL은
+Compose 공개 주소를 유지한다. `dev:mock`에는 이 설정이나 Keycloak이 필요하지 않다.
 
 ## 테스트
 

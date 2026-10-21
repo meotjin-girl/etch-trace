@@ -1,25 +1,25 @@
 """Exercise the running v1 stack, including real MCP calls and checkpoints.
 
-Run: TRACE_URL=http://localhost:18080 python3 tests/check_stack.py
+Run with PKCE-issued TRACE_ACCESS_TOKEN and TRACE_REVIEWER_TOKEN in the environment.
 """
 
 import json
 import os
 from urllib.error import HTTPError
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 BASE = os.getenv("TRACE_URL", "http://localhost:18080")
+OWNER = os.getenv("TRACE_ACCESS_TOKEN", "")
+REVIEWER = os.getenv("TRACE_REVIEWER_TOKEN", "")
 
 
-def call(path, body=None, actor=("qa-owner", "worker"), method=None):
+def call(path, body=None, actor=OWNER, method=None):
     request = Request(
         BASE + path,
         data=json.dumps(body).encode() if body is not None else None,
         headers={
             "Content-Type": "application/json",
-            "X-User-Name": quote(actor[0]),
-            "X-User-Role": actor[1],
+            "Authorization": f"Bearer {actor}",
         },
         method=method or ("POST" if body is not None else "GET"),
     )
@@ -29,9 +29,10 @@ def call(path, body=None, actor=("qa-owner", "worker"), method=None):
 
 def until(task_id, expected, after=0):
     """Subscribe to persisted SSE events; do not depend on timing sleeps."""
-    path = f"/api/ai/tasks/{task_id}/stream?user_name=qa-owner&user_role=worker&after={after}"
+    path = f"/api/ai/tasks/{task_id}/stream?after={after}"
     event_type, sequence = "", after
-    with urlopen(BASE + path, timeout=120) as response:
+    request = Request(BASE + path, headers={"Authorization": f"Bearer {OWNER}"})
+    with urlopen(request, timeout=120) as response:
         for line in response:
             text = line.decode().rstrip("\r\n")
             if text.startswith("id: "):
@@ -57,40 +58,52 @@ def denied(path, actor, body=None, status=403):
 
 
 def main():
+    if not OWNER or not REVIEWER:
+        raise RuntimeError("Set TRACE_ACCESS_TOKEN and TRACE_REVIEWER_TOKEN from two PKCE logins")
     code, created = call("/api/ai/tasks", {"question": "비슷한 이상 사례를 찾아줘"})
     assert code == 202
     task_id = created["taskId"]
     path = f"/api/ai/tasks/{task_id}"
     seq, _ = until(task_id, "QUESTION")
-    denied(path, ("qa-other", "worker"), status=404)
-    denied(path + "/events", ("qa-other", "worker"), status=404)
-    denied(
-        path + "/messages", ("qa-other", "worker"),
-        {"text": "가로채기"}, status=404,
+    denied(path, "", status=401)
+    denied(path + "/events", "", status=401)
+    assert call(path, actor=REVIEWER)[0] == 200
+    assert call(path + "/events", actor=REVIEWER)[0] == 200
+    call(
+        path + "/messages",
+        {
+            "text": "ETCH-07 CH-B OX-120 endpoint가 118초로 지연되고 RF reflected power가 29W로 상승했어",
+        },
+        REVIEWER,
     )
-    call(path + "/messages", {
-        "text": "ETCH-07 CH-B OX-120 endpoint가 118초로 지연되고 RF reflected power가 29W로 상승했어",
-    })
     seq, payload = until(task_id, "APPROVAL_REQUIRED", seq)
     report = payload["report"]
     assert report["demo"] is True
     assert report["context"]["metrics"]["endpoint_sec"] == 118
     assert report["scored"] and report["documents"]
     assert any(metric["key"] == "endpoint_sec" for metric in report["metrics"])
-    for role in ("worker", "admin"):
-        denied(path + "/approval", ("qa-owner", role), {"action": "approve"})
-    reviewer = ("qa-reviewer", "engineer")
-    call(path + "/approval", {"action": "revise", "comment": "원인 확정 대신 점검 가설임을 유지"}, reviewer)
+    reviewer = REVIEWER
+    call(
+        path + "/approval",
+        {"action": "revise", "comment": "원인 확정 대신 점검 가설임을 유지"},
+        reviewer,
+    )
     seq, revised = until(task_id, "APPROVAL_REQUIRED", seq)
     assert revised["report"]["feedback"]
-    call(path + "/approval", {
-        "action": "approve", "event_time": "2026-10-20T10:00:00+09:00",
-        "lot_id": "QA-LOT",
-    }, reviewer)
+    call(
+        path + "/approval",
+        {
+            "action": "approve",
+            "event_time": "2026-10-20T10:00:00+09:00",
+            "lot_id": "QA-LOT",
+        },
+        reviewer,
+    )
     seq, _ = until(task_id, "DONE", seq)
     _, detail = call(path)
     assert detail["status"] == "DONE"
-    assert detail["investigation"]["approved_by"] == reviewer[0]
+    assert detail["investigation"]["approved_by_id"] == detail["reviews"][-1]["user_id"]
+    assert detail["investigation"]["approved_by_id"] != detail["user_id"]
     assert detail["investigation"]["lot_id"] == "QA-LOT"
     assert len(detail["reviews"]) == 2
     denied(path + "/approval", reviewer, {"action": "approve"}, status=409)
@@ -104,9 +117,13 @@ def main():
     for attempt in range(3):
         call(f"/api/ai/tasks/{incomplete_id}/messages", {"text": "아직 몰라"})
         cursor, _ = until(
-            incomplete_id, "INCOMPLETE" if attempt == 2 else "QUESTION", cursor,
+            incomplete_id,
+            "INCOMPLETE" if attempt == 2 else "QUESTION",
+            cursor,
         )
-    print(f"PASS real stack: clarification, MCP report, revise, approve, scopes, replay, incomplete; task={task_id}")
+    print(
+        f"PASS real stack: Bearer auth, shared clarification, MCP report, revise, approve, identity, replay, incomplete; task={task_id}"
+    )
 
 
 if __name__ == "__main__":
