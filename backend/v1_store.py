@@ -49,6 +49,16 @@ class Store:
                 raise HTTPException(404, "Task not found")
             yield conn, Task.model_validate(row)
 
+    def task_actor(self, tid: UUID) -> Actor:
+        """Return the server-stored requester identity for trusted internal dispatch."""
+        with self.pool.connection() as conn:
+            row = conn.execute(
+                "SELECT user_name,user_role FROM v1_tasks WHERE id=%s", (tid,),
+            ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Task not found")
+        return Actor(name=row["user_name"], role=row["user_role"])
+
     @staticmethod
     def access(row: Task, actor: Actor, *, owner: bool = False) -> None:
         if (owner or actor.role == "worker") and row.user_name != actor.name:

@@ -1,7 +1,7 @@
 """Checkpointed investigation workflow with replay-safe interrupt boundaries."""
 
 from collections.abc import Callable
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 from uuid import UUID, uuid5
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -12,15 +12,34 @@ from pydantic import JsonValue
 
 from .agents import (
     comparison_agent as comparison_agent_module,
+)
+from .agents import (
     maintenance_agent as maintenance_agent_module,
+)
+from .agents import (
     recommendation_agent as recommendation_agent_module,
+)
+from .agents import (
     scope_agent as scope_agent_module,
+)
+from .agents import (
     sensor_agent as sensor_agent_module,
 )
 from .evidence import EvidenceProvider
 from .models import (
-    Case, Clarification, Context, Document, Event, EventType, InvestigationCheck,
-    InvestigationStage, Metric, Report, Review,
+    Case,
+    Clarification,
+    Context,
+    Document,
+    Event,
+    EventType,
+    HistoryEvidence,
+    InvestigationCheck,
+    InvestigationStage,
+    Metric,
+    Report,
+    Requester,
+    Review,
 )
 from .query import clarification_message, missing_fields, parse_question
 
@@ -28,11 +47,13 @@ from .query import clarification_message, missing_fields, parse_question
 class State(TypedDict):
     task_id: str
     question: str
+    requester: Requester | None
     context: Context
     clarifications: int
     scored: list[Case]
     metrics: list[Metric]
     documents: list[Document]
+    history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
     stages: list[InvestigationStage]
     feedback: list[str]
@@ -44,6 +65,7 @@ class State(TypedDict):
 class TaskInput(TypedDict):
     task_id: str
     question: str
+    requester: NotRequired[Requester | None]
 
 
 class Update(TypedDict, total=False):
@@ -52,6 +74,7 @@ class Update(TypedDict, total=False):
     scored: list[Case]
     metrics: list[Metric]
     documents: list[Document]
+    history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
     stages: list[InvestigationStage]
     feedback: list[str]
@@ -92,13 +115,22 @@ def template_report(state: State) -> Report:
         unknowns.append("현재 계측값이 제공되지 않아 수치 비교를 수행하지 않았습니다.")
     if missing:
         unknowns.append("검색되지 않은 문서 조항: " + ", ".join(missing))
+    if state.get("history"):
+        unknowns.append(
+            "과거 승인 조사 이력은 참고 근거이며 현재 조사 대상의 원인 확정이나 "
+            "재현을 의미하지 않습니다."
+        )
     return Report(
         context=state["context"],
         scored=state["scored"],
         metrics=state["metrics"],
         causeCases=cause_cases(state["scored"]),
-        docIds=document_ids(state["scored"]),
+        docIds=list(dict.fromkeys([
+            *document_ids(state["scored"]),
+            *(document.id for document in state["documents"]),
+        ])),
         documents=state["documents"],
+        history=state.get("history", []),
         checks=state["checks"],
         stages=state["stages"],
         summary=summary,
@@ -166,9 +198,12 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         return {}
 
     def scope_agent(state: State) -> Update:
-        result = scope_graph.invoke({"context": state["context"]})
+        result = scope_graph.invoke({
+            "context": state["context"], "requester": state.get("requester"),
+        })
         return {
             "scored": result.get("cases", []),
+            "history": result.get("history", []),
             "stages": [*state.get("stages", []), result["result"]],
         }
 
@@ -200,6 +235,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         result = recommendation_graph.invoke({
             "context": state["context"], "cases": state["scored"],
             "metrics": state["metrics"], "stages": state["stages"],
+            "history": state.get("history", []),
         })
         return {
             "documents": result.get("documents", []),

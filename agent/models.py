@@ -22,8 +22,26 @@ class Context(Model):
     metrics: dict[str, float] = Field(default_factory=dict)
 
 
+class Requester(Model):
+    name: str
+    role: Literal["worker", "engineer", "admin"]
+
+
+class HistoryEvidence(Model):
+    """Approved, identity-filtered history returned by the Business MCP."""
+    id: str
+    question: str
+    summary: str
+    causes: list[str] = Field(default_factory=list)
+    docIds: list[str] = Field(default_factory=list)
+    approvedBy: str
+    approvedAt: str
+    eventTime: str | None = None
+    lotId: str | None = None
+
+
 class Case(Model):
-    model_config = ConfigDict(frozen=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, extra="allow")
     id: str
     equipment: str
     chamber: str
@@ -49,17 +67,18 @@ class Metric(Model):
 
 
 class Document(Model):
-    model_config = ConfigDict(frozen=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, extra="allow")
     id: str
     title: str
     text: str
 
 
 class InvestigationCheck(Model):
-    """Provisional local checklist, never presented as retrieved evidence."""
+    """A retrieved SOP clause; legacy provisional records remain readable."""
     title: str
     rationale: str
-    source: Literal["provisional_sop"] = "provisional_sop"
+    source: Literal["rag_mcp", "provisional_sop"] = "rag_mcp"
+    docId: str | None = None
 
 
 class InvestigationStage(Model):
@@ -68,6 +87,7 @@ class InvestigationStage(Model):
     title: str
     status: Literal["sample_based", "partial", "unavailable", "provisional"]
     agent_mode: Literal["llm", "rule_based"] = "rule_based"
+    historyIds: list[str] = Field(default_factory=list)
     findings: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     caseIds: list[str] = Field(default_factory=list)
@@ -81,6 +101,7 @@ class Report(Model):
     causeCases: list[Case]
     docIds: list[str]
     documents: list[Document]
+    history: list[HistoryEvidence] = Field(default_factory=list)
     checks: list[InvestigationCheck]
     stages: list[InvestigationStage]
     summary: str

@@ -1,7 +1,7 @@
 # SOP retrieval experiment
 
 `sop/`의 SOP/WI/SPEC 7개를 조항별로 검색하는 독립 실험이다.
-기존 MCP 도구, Agent, `etch_documents`는 변경하지 않는다.
+이 문서의 적재·검색·평가 CLI는 독립 실행이다. 기존 RAG MCP의 `search_sop`도 같은 청킹·벡터·재순위화 모듈을 사용하되, 별도 `sop-postgres` 저장소를 운용한다.
 답변 생성이나 장비 조치는 수행하지 않는다.
 
 현재 기본 방법은 **small 임베딩 후보 20개 → LLM 재순위화 → 조항 3개 반환**이다.

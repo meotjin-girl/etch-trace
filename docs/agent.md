@@ -32,21 +32,21 @@ flowchart TD
 
 ## 전문 조사 노드
 
-하나의 체크포인트 그래프 안에 다섯 조사 노드를 순서대로 연결한다. 별도 서비스나 독립 그래프를 여러 개 띄우는 구조가 아니다.
+하나의 체크포인트 Supervisor가 다섯 독립 조사 에이전트 그래프를 순서대로 실행한다.
 
 | 노드 | 책임 | 현재 근거와 한계 |
 |---|---|---|
-| 범위 조사 | 질문에서 추출한 장비·Chamber·Recipe와 Business MCP 유사 사례 확인 | 사례는 데모 데이터다. MES Lot/Wafer, 알람 시각, 실제 Run 목록은 미연결 |
+| 범위 조사 | 질문에서 추출한 범위와 Business MCP 데모 사례 및 권한 필터된 승인 조사 이력 확인 | 승인 이력 조회는 원 요청자의 저장 신원을 전달하고 MCP/Backend가 worker 소유권을 강제한다. MES Lot/Wafer와 Run 목록은 미연결 |
 | 과거 Run 비교 | 입력 계측값을 유사 사례 기준 통계와 결정론적으로 비교 | 동일 Recipe·Step의 실측 Run 시계열은 미연결 |
 | 센서 교차 확인 | 사용자 입력 계측값과 추가 센서 필요 항목을 구분 | Gas Flow·펌프·밸브 등 원본 센서 시계열·태그는 미연결 |
-| 정비 이력 확인 | 정비 이력 조회 여부와 미확인 범위를 보고 | 정비 API/MCP가 아직 없어 데이터를 조회하지 않음 |
-| 후보·점검 순서 | 데모 사례의 가설과 임시 SOP 가이드를 별도 제시 | 원인 확정이 아니며 승인 문서·현장 데이터 검증 필요 |
+| 정비 이력 확인 | 정비 이력 조회 여부와 미확인 범위를 보고 | 현재 MCP 서버에 정비 이력 도구가 없어 데이터를 조회하지 않음 |
+| 후보·점검 순서 | 사례 가설과 RAG MCP가 반환한 SOP 조항을 연결해 제시 | 문서 검색 결과는 실제 장비 데이터가 아니며 원인 확정·정비 조치가 아님 |
 
 각 역할은 `agent/agents/` 아래의 **서로 다른 컴파일된 LangGraph 하위 그래프 5개**다. 상위 `agent/graph.py`는 이 하위 그래프들을 Supervisor처럼 순서대로 실행하고 기존 작업 체크포인트·재질문·승인 흐름을 소유한다. 결과는 보고서 `stages`에 한 에이전트당 한 건씩 기록되며, 화면도 다섯 에이전트를 각각 표시한다.
 
-각 에이전트 그래프는 `common.py`의 근거 수집 단계와 역할별 추론 단계를 가진다. 루트 `.env`에 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있으면 에이전트마다 OpenAI 구조화 응답 호출을 한 번 시도한다. 키가 없거나 호출에 실패하면 같은 하위 그래프가 규칙 기반 결과를 내며, 화면에 `규칙 기반 실행`으로 표시한다. 키가 없는 실행에서는 다섯 그래프 에이전트가 모두 실행되지만 LLM 추론은 실행되지 않으며, 외부 AI API 비용도 발생하지 않는다.
+각 에이전트 그래프는 `common.py`의 근거 수집 단계와 역할별 추론 단계를 가진다. 루트 `.env`에 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있으면 에이전트마다 OpenAI 구조화 응답 호출을 한 번 시도한다. 키가 없거나 호출에 실패하면 같은 하위 그래프가 규칙 기반 결과를 내며, 화면에 `규칙 기반 실행`으로 표시한다. 별도로 SOP 자연어 검색 MCP는 `OPENAI_API_KEY`를 사용해 질문 임베딩과 재순위화를 실행하므로 키가 없으면 해당 MCP 실패를 미확인으로 보고하며 가짜 체크리스트로 대체하지 않는다.
 
-RAG MCP 호출은 추천 에이전트가 담당한다. 센서와 정비 에이전트에는 아직 전용 MCP/API가 없어 빈 자료를 입력하고 확인 불가로 기록한다. 실제 MES·센서·정비 연결 시 해당 에이전트의 `collect_evidence` 단계에 전용 MCP 호출을 붙인다. `agent/provisional_sop.py`는 추천 에이전트가 참고용 점검 목록을 만들 때 사용하는 정적 임시 체크리스트다. 여섯 번째 에이전트가 아니며, 검색된 승인 SOP도 아니다.
+추천 에이전트는 기존 RAG MCP의 `search_documents(document_ids)`와 새 `search_sop(query)`를 모두 호출한다. 첫 번째는 기존 `etch_documents`에서 사례가 연결한 ID를 정확 조회하고, 두 번째는 기존 `sop_chunks.py`·`sop_vectors.py`·`sop_rerank.py` 구현으로 SOP/WI/SPEC 문서를 청크화·임베딩·20개 후보 회수·3개 조항 재순위화한다. `search_sop`은 별도 `sop-postgres` 볼륨에 문서 색인을 idempotent하게 적재하고, query embedding 및 `gpt-4.1-mini` 재순위화를 실행한다. 센서와 정비 에이전트에는 아직 전용 MCP/API가 없어 확인 불가로 기록한다. 점검 순서는 하드코딩하지 않으며, MCP가 실제 반환한 조항 원문과 ID만 보고서에 넣는다.
 
 ## 근거와 숫자
 
@@ -56,15 +56,28 @@ RAG MCP 호출은 추천 에이전트가 담당한다. 센서와 정비 에이�
 |---|---|---|
 | business MCP | `search_cases(context)` | backend 내부 API의 샘플 사례를 점수화·검색 |
 | business MCP | `analyze_metrics(cases,metrics)` | 결정론적 평균·표준편차·편차율·z-score 및 근거 ID |
+| business MCP | `list_investigations(user_name,user_role)` | Backend가 권한 필터한 승인 이력 목록; 에이전트가 같은 장비·Chamber·Recipe/증상 이력 최대 3건을 선택 |
+| business MCP | `save_investigation(task_id,command_id,event_id,payload)` | 승인된 최종 보고서를 Backend 검증 후 저장; LangGraph DONE callback에서 호출 |
 | rag MCP | `search_documents(document_ids)` | PostgreSQL 샘플 문서의 정확한 조항 ID 조회 |
+| rag MCP | `search_sop(query)` | SOP/WI/SPEC 색인에서 임베딩 후보 20개 검색 후 기존 reranker로 3개 조항 반환 |
 
-agent는 업무 테이블을 직접 읽지 않는다. PostgreSQL 연결은 자신의 체크포인트에 사용한다. 문서 검색은 임베딩·벡터 검색이 아니다. 근거 데이터는 `db/`의 시연용 사례·문서이며 PHM 실측 데이터나 승인된 조사 기록 검색 결과가 아니다.
+agent는 업무 테이블을 직접 읽지 않는다. PostgreSQL 연결은 자신의 체크포인트에 사용한다. RAG MCP만 전용 SOP pgvector 저장소를 사용한다. 최초 `search_sop` 호출은 문서 색인을 적재하므로 처음에는 임베딩 비용이 발생하고, 이후 문서가 바뀌지 않으면 재임베딩하지 않는다. 이후 조사마다 query embedding과 재순위화 모델 호출이 발생한다. 기존 ID 조회와 SOP 자연어 검색은 서로 다른 출처이며 같은 ID면 의미 검색으로 반환된 SOP 조항을 표시한다. 이력은 최초 요청자의 DB 저장 신원으로 조회하고 MCP/Backend의 기존 worker 소유권·engineer/admin 전체 조회 규칙을 따른다. 과거 승인 이력은 참고 자료일 뿐 현재 원인 확정이 아니다. 센서/정비 MCP는 아직 없다.
 
-보고서는 `context`, `scored`, `metrics`, `causeCases`, `docIds`, `documents`, `stages`, `checks`, `summary`, `unknowns`, `feedback`, `demo:true`를 갖는다. 상위 비정상 원인 사례 최대 3개의 문서 ID를 연결한다. 문서를 찾지 못하면 누락을 명시한다. 수치에는 원래 단위와 근거 사례 ID를 보존한다. `checks`는 승인된 SOP 근거가 아닌 임시 체크리스트이며 검색된 문서와 섞지 않는다.
+보고서는 `context`, `scored`, `metrics`, `causeCases`, `docIds`, `documents`, `history`, `stages`, `checks`, `summary`, `unknowns`, `feedback`, `demo:true`를 갖는다. `checks`는 RAG MCP가 실제 반환한 세 조항의 제목·원문·ID이며 UI에서 관련도 순서로 제시한다. 상위 비정상 원인 사례 최대 3개의 문서 ID를 연결한다. 사례·문서 MCP가 반환한 `is_demo`, `source`, 단위, 개정, 검색 거리와 근거 ID 메타데이터를 보존한다. 이력 근거는 최대 3건만 보고서에 포함한다. 과거 보고서에서 저장된 `provisional_sop` 체크는 읽기 호환성만 유지하며 신규 조사에는 생성하지 않는다.
+
+## 실행
+
+프로젝트 루트에서 `.env`의 `OPENAI_API_KEY`를 설정한 뒤 다음 명령으로 서비스를 다시 빌드·실행한다.
+
+```sh
+docker compose -f compose.yaml up -d --build
+```
+
+Compose가 기본 서비스 DB와 분리된 `sop-postgres` DB를 띄우며, SOP 문서 폴더를 RAG MCP에 읽기 전용으로 연결한다. 첫 `search_sop` 호출 때 문서 청크를 별도 pgvector 볼륨에 색인한다. 첫 색인에는 문서 임베딩 토큰이 사용되고, 문서 내용이 바뀌지 않으면 재임베딩은 생략한다. 이후 조사마다 질문 임베딩과 재순위화 API를 호출한다. 키가 없거나 검색 서비스·DB 호출이 실패하면 보고서의 미확인 사유에 실패를 적고, 하드코딩된 점검 목록을 대신 만들지 않는다. Agent의 역할별 자연어 분석은 별도 `OPENAI_MODEL`을 설정했을 때만 호출한다.
 
 ## 보고서와 수정
 
-기본은 키 없이 실행 가능한 템플릿이다. `agent/prose.py`는 agent 프로세스에 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있을 때만 제한된 불확실성 문구 선택을 시도한다. 수치 계산·근거·원인을 모델이 생성하지 않는다. 설정이 없거나 선택이 실패하면 템플릿을 사용한다. 루트 `.env`만으로 agent 컨테이너에 선택 설정이 전달되는 것은 아니므로 실제 `compose.yaml` 환경을 확인한다.
+Agent의 역할별 문구 분석은 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있을 때만 호출한다. 수치 계산·근거 검색 결과·원인 사실을 모델이 생성하지 않는다. 두 설정이 없어도 사례/통계/정확-ID MCP는 사용할 수 있지만, 자연어 SOP RAG에는 `OPENAI_API_KEY`가 필수다. 루트 `.env`의 키는 Compose가 Agent와 RAG MCP 양쪽으로 전달한다.
 
 `revise`는 검토 의견을 feedback에 누적하고 기존 사례·수치·문서를 유지한 채 보고서를 다시 만든다. 템플릿은 수정 요청을 기록하며 자유 문장 편집을 자동 수행했다고 주장하지 않는다. 다시 APPROVAL_REQUIRED를 발행하고 검토를 기다린다. `approve`면 DONE을 발행한다. 승인 스냅샷 저장은 backend의 책임이다.
 
