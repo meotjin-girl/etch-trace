@@ -42,8 +42,9 @@
 | 5 | `POST /api/ai/tasks/{id}/approval` | 채팅의 [승인] [미승인], 판별 대기 중 입력한 수정 요청 | 구현됨 (+agent 동작 변경 제안) |
 | 6 | `GET /api/ai/tasks/{id}/events?after=` | 다시 연결 | 구현됨 |
 | 7 | `GET /api/ai/tasks/{id}/stream` (SSE) | 진행 표시, 토큰 스트리밍 | 구현됨 (+제안 이벤트) |
-| 8 | `GET /api/sops` | SOP 목록 | **신규 요청** |
-| 9 | `GET /api/sops/{id}` | SOP 상세 | **신규 요청** |
+| 8 | `GET /api/sops` | SOP 목록 | backend 구현(`feature/backend-integration`, `sop-ocap/` 문서) |
+| 9 | `GET /api/sops/{id}` | SOP 상세 | backend 구현(`feature/backend-integration`) |
+| — | `GET /api/ai/investigations`, `/{id}` | (화면 미사용) 승인된 조사 이력 | backend가 직접 응답(`docs/structure-review.md` 2.2). nginx → business-mcp 직통은 제거 |
 | — | `GET /api/me` | 사이드바 사용자 | 후속(로그인). 지금은 `identity` 스토어 기본값 |
 
 공통 헤더는 `X-User-Name: %EC%9D%B4%EC%97%94%EC%A7%80%EB%8B%88%EC%96%B4`(URL 인코딩한 이름)와 `X-User-Role: engineer`다. SSE만 같은 값을 `user_name`, `user_role` 쿼리로 보낸다. 오류는 `{"detail":"..."}`이며 401(신원 없음), 403(역할 위반), 404(볼 수 없는 작업), 409(상태 불일치), 422(본문·커서 검증 실패)다.
