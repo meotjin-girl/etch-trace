@@ -14,6 +14,7 @@ v1 공개 API와 작업·검토·이벤트 영속화 경계다. LangGraph 실행
 | 명령과 상태 전이 | `v1_commands.py` | 작업 행 잠금과 명령 ID 검사 |
 | Agent HTTP 호출 | `v1_dispatch.py` | 전달 실패는 FAILED로 기록 |
 | 목업 신원·권한 | `v1_auth.py` | 이름과 역할; Keycloak 후속 |
+| 승인 이력·SOP 화면 API | `main.py`, `v1_store.py`, `v1_sop.py` | `/api/ai/investigations`는 `Store.investigations` 재사용, `/api/sops`는 `SOP_DOCUMENTS_DIR`(compose `sop-ocap/`) |
 | 회귀 테스트 | `tests/` | 실제 PostgreSQL 격리 스키마 |
 | 실제 서비스 흐름 | `../tests/check_stack.py` | 실행 중인 전체 스택 필요 |
 

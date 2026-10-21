@@ -46,7 +46,7 @@ flowchart TD
 
 각 에이전트 그래프는 `common.py`의 근거 수집 단계와 역할별 추론 단계를 가진다. 루트 `.env`에 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있으면 에이전트마다 OpenAI 구조화 응답 호출을 한 번 시도한다. 키가 없거나 호출에 실패하면 같은 하위 그래프가 규칙 기반 결과를 내며, 화면에 `규칙 기반 실행`으로 표시한다. 별도로 SOP 자연어 검색 MCP는 `OPENAI_API_KEY`를 사용해 질문 임베딩과 재순위화를 실행하므로 키가 없으면 해당 MCP 실패를 미확인으로 보고하며 가짜 체크리스트로 대체하지 않는다.
 
-추천 에이전트는 기존 RAG MCP의 `search_documents(document_ids)`와 새 `search_sop(query)`를 모두 호출한다. 첫 번째는 기존 `etch_documents`에서 사례가 연결한 ID를 정확 조회하고, 두 번째는 기존 `sop_chunks.py`·`sop_vectors.py`·`sop_rerank.py` 구현으로 SOP/WI/SPEC 문서를 청크화·임베딩·20개 후보 회수·3개 조항 재순위화한다. `search_sop`은 별도 `sop-postgres` 볼륨에 문서 색인을 idempotent하게 적재하고, query embedding 및 `gpt-4.1-mini` 재순위화를 실행한다. 센서와 정비 에이전트에는 아직 전용 MCP/API가 없어 확인 불가로 기록한다. 점검 순서는 하드코딩하지 않으며, MCP가 실제 반환한 조항 원문과 ID만 보고서에 넣는다.
+추천 에이전트는 기존 RAG MCP의 `search_documents(document_ids)`와 새 `search_sop(query)`를 모두 호출한다. 첫 번째는 기존 `etch_documents`에서 사례가 연결한 ID를 정확 조회하고, 두 번째는 기존 `sop_chunks.py`·`sop_vectors.py`·`sop_rerank.py` 구현으로 `sop-ocap/` SOP·OCAP 문서를 청크화·임베딩·20개 후보 회수·3개 조항 재순위화한다. `search_sop`은 별도 `sop-postgres` 볼륨에 문서 색인을 idempotent하게 적재하고, query embedding 및 `gpt-4.1-mini` 재순위화를 실행한다. 센서와 정비 에이전트에는 아직 전용 MCP/API가 없어 확인 불가로 기록한다. 점검 순서는 하드코딩하지 않으며, MCP가 실제 반환한 조항 원문과 ID만 보고서에 넣는다.
 
 ## 근거와 숫자
 
@@ -59,7 +59,7 @@ flowchart TD
 | business MCP | `list_investigations(user_name,user_role)` | Backend가 권한 필터한 승인 이력 목록; 에이전트가 같은 장비·Chamber·Recipe/증상 이력 최대 3건을 선택 |
 | business MCP | `save_investigation(task_id,command_id,event_id,payload)` | 승인된 최종 보고서를 Backend 검증 후 저장; LangGraph DONE callback에서 호출 |
 | rag MCP | `search_documents(document_ids)` | PostgreSQL 샘플 문서의 정확한 조항 ID 조회 |
-| rag MCP | `search_sop(query)` | SOP/WI/SPEC 색인에서 임베딩 후보 20개 검색 후 기존 reranker로 3개 조항 반환 |
+| rag MCP | `search_sop(query)` | SOP·OCAP 색인에서 임베딩 후보 20개 검색 후 기존 reranker로 3개 조항 반환 |
 
 agent는 업무 테이블을 직접 읽지 않는다. PostgreSQL 연결은 자신의 체크포인트에 사용한다. RAG MCP만 전용 SOP pgvector 저장소를 사용한다. 최초 `search_sop` 호출은 문서 색인을 적재하므로 처음에는 임베딩 비용이 발생하고, 이후 문서가 바뀌지 않으면 재임베딩하지 않는다. 이후 조사마다 query embedding과 재순위화 모델 호출이 발생한다. 기존 ID 조회와 SOP 자연어 검색은 서로 다른 출처이며 같은 ID면 의미 검색으로 반환된 SOP 조항을 표시한다. 이력은 최초 요청자의 DB 저장 신원으로 조회하고 MCP/Backend의 기존 worker 소유권·engineer/admin 전체 조회 규칙을 따른다. 과거 승인 이력은 참고 자료일 뿐 현재 원인 확정이 아니다. 센서/정비 MCP는 아직 없다.
 

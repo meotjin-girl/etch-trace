@@ -15,24 +15,24 @@ docker compose -f compose.yaml ps
 
 `.env.example`의 `WEB_PORT=18080`을 사용하면 화면은 `http://localhost:18080`입니다. 기존 POC의 공개 포트와 겹치지 않도록 별도 포트를 사용합니다. `.env`를 생략하면 실제 기본 포트는 `compose.yaml`의 값을 따릅니다. backend, agent, MCP, PostgreSQL은 내부 네트워크에만 둡니다. nginx가 정적 화면과 `/api` 프록시를 제공합니다.
 
-`seed`가 `db/cases.json`, `db/documents.json`을 PostgreSQL에 적재합니다. 이 데이터는 시연용 샘플이며 PHM 실측 데이터가 아닙니다. PHM 압축 해제, CSV 적재, 임베딩 색인, OpenAI 키는 v1 기본 실행의 필수 조건이 아닙니다. 현재 RAG MCP는 문서 ID를 정확히 조회하며 벡터 유사도 검색을 하지 않습니다.
+`seed`가 `db/cases.json`, `db/documents.json`을 PostgreSQL에 적재합니다. 이 데이터는 시연용 샘플이며 PHM 실측 데이터가 아닙니다. PHM 압축 해제, CSV 적재, 임베딩 색인, OpenAI 키는 v1 기본 실행의 필수 조건이 아닙니다. RAG MCP는 문서 ID 정확 조회(`search_documents`)와 `sop-ocap/` SOP·OCAP 문서의 의미 검색(`search_sop`, sop-postgres pgvector)을 제공합니다. 의미 검색에는 `OPENAI_API_KEY`가 필요하며 키가 없으면 보고서에 조회 실패로 표시됩니다.
 
 ## 단일 v1 구조
 
 ```text
-브라우저 -> nginx -> business-mcp HTTP API -> backend 내부 이력 API -> DB (이력 조회)
-              -> backend (REST / SSE, 작업·검토)
-                         -> agent (유일한 LangGraph, PostgreSQL 체크포인트)
-                              -> business-mcp -> backend 내부 사례 API
-                              -> rag-mcp -> PostgreSQL 샘플 문서
+브라우저(Vue 3) -> nginx(dist 서빙) -> backend (REST / SSE, 작업·판별·승인 이력·SOP)
+                                          -> agent (유일한 LangGraph, 조사 에이전트 5개, PostgreSQL 체크포인트)
+                                               -> business-mcp -> backend 내부 사례·이력·승인 저장 API
+                                               -> rag-mcp -> PostgreSQL 샘플 문서 / sop-postgres SOP·OCAP 색인
 ```
 
 | 경로 | 책임 |
 |---|---|
-| `frontend/` | backend API 연동 화면, 요청·재질문·검토·서버 이력 표시 |
+| `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/frontend.md](docs/frontend.md) |
 | `backend/main.py`, `backend/v1_*.py` | 공개 API, 목업 신원, 권한, 상태·메시지·검토·이벤트·승인 스냅샷 |
 | `agent/` | 질문 추출, 재질문, MCP 조사, 보고서, 검토 중단·재개 |
-| `mcp/` | 사례 조회·결정론적 통계 계산, 문서 조항 조회 |
+| `mcp/` | 사례 조회·결정론적 통계·승인 이력 도구, 문서 조항 조회·SOP 의미 검색 |
+| `sop-ocap/` | SOP 3종·OCAP 19종 원문. SOP 화면과 SOP 의미 검색의 출처 |
 | `db/` | 샘플 사례·문서와 적재 스크립트 |
 | `compose.yaml`, `deploy/` | 서비스 구성, nginx 프록시 |
 
@@ -62,7 +62,8 @@ uv sync --group dev
 (cd agent && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
-node --test frontend/frontend.test.mjs
+(cd frontend && npm ci && npm run type-check && npm test)   # npm run dev:mock 으로 backend 없이 화면 확인
+uv run --project mcp --group rag-experiment python -m unittest discover -s tests -p 'test_sop_*.py' -v
 ```
 
 위 명령은 실행 안내이며 통과 결과가 아닙니다. backend 테스트는 `TEST_DATABASE_URL`(기본 `postgresql:///postgres`)에 접속하여 격리 스키마를 만듭니다. agent의 실제 재시작 검증에는 `AGENT_TEST_DATABASE_URL`, evidence DB 검증에는 `EVIDENCE_TEST_DATABASE_URL`이 필요합니다. 테스트용 DB 계정에는 필요한 생성·정리 권한을 부여하고 운영 DB를 사용하지 마세요. 루트 개발 도구만 설치해도 서비스 의존성이 함께 설치되는 것은 아닙니다.

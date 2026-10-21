@@ -1,6 +1,6 @@
 # 구조 점검: 경로 지도와 수정 제안
 
-기준: develop `d2be127`(PR #31 머지 시점). 이 문서는 `feature/backend-integration` 작업용이다. `docs/api.md`, `docs/architecture.md` 등 공용 문서는 다른 작업과 합칠 때 갱신한다.
+기준: develop `d2be127`(PR #31 머지 시점). 2장의 세 가지 수정은 `feature/backend-integration`에서 반영했고, 공용 문서(`architecture.md`, `api.md`, `v1-contract.md`, `README.md`, `AGENTS.md`)도 같은 브랜치에서 갱신했다. 1장의 ⚠️·➕·➖는 수정 전 상태 기준 표기다.
 
 backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 프레임워크 요구가 없고, 레퍼런스 아키텍처는 구성 요소별 역할과 금지 사항을 본다(52쪽 표 5-4: "평가에서는 금지 사항을 어긴 코드가 없는지 본다"). 현재 backend는 업무 서버 역할(업무 API, 작업 상태 저장, SSE 중계, 내부 API)을 하고 LLM을 호출하지 않는다.
 

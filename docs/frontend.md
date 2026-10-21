@@ -2,7 +2,7 @@
 
 `frontend/`의 정적 화면(index.html, app.js, api.js, sop.js, markdown.js, sop-data.js)을 Vite + Vue 3 SFC + TypeScript, Pinia, Vue Router로 옮긴다. 화면·동작·`/api` 계약은 그대로이고 구조만 바뀐다. 시각 계약은 `frontend/DESIGN.md`를 따른다.
 
-> 이 문서는 `feature/frontend` 작업용이다. `docs/architecture.md`, `AGENTS.md`, `README.md`는 다른 작업과 합칠 때 함께 갱신한다.
+> 서비스 전체 구조는 [architecture.md](architecture.md), 경로 지도는 [structure-review.md](structure-review.md)를 따른다.
 
 ## 구조
 
@@ -167,7 +167,7 @@ npm test             # Vitest
 npm run build        # dist/
 ```
 
-web 서비스는 `frontend/Dockerfile` 멀티스테이지(node 빌드 → nginx)로 만들 예정이며(미구현) `deploy/nginx.conf`로 `dist`를 서빙한다. 기존 `try_files ... /index.html`이 SPA 새로고침을 처리한다.
+web 서비스는 `frontend/Dockerfile` 멀티스테이지(node 빌드 → nginx)로 만들고 `deploy/nginx.conf`로 `dist`를 서빙한다. 기존 `try_files ... /index.html`이 SPA 새로고침을 처리한다.
 
 ## 테스트
 
