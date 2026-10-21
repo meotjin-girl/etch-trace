@@ -1,6 +1,6 @@
-# sop/ — 식각 SOP·OCAP 문서
+# sop-ocap/ — 식각 SOP·OCAP 문서
 
-TRACE 조사 Agent가 근거로 인용하고 SOP 화면에 표시하는 문서입니다.
+이 폴더에는 식각 SOP 3종, OCAP 19종과 작성 근거 조사 메모가 있습니다. 현재 TRACE 화면과 문서 MCP에는 이 폴더의 원문이 자동으로 연결되어 있지 않습니다.
 
 ## 문서 목록
 
@@ -31,36 +31,35 @@ TRACE 조사 Agent가 근거로 인용하고 SOP 화면에 표시하는 문서�
 
 [00_식각공정_조사.md](00_식각공정_조사.md)는 작성 근거를 모은 조사 메모입니다.
 
-## 권장 구현 우선순위
+## TRACE 연동 상태
 
-아래 우선순위는 문서 작성 순서가 아니라 TRACE 데이터 연결·검증 구현의 권장 순서입니다. 기존 5종은 현재 흐름에 이미 연결된 대상으로 봅니다.
-
-| 우선순위 | 추가 OCAP |
+| 위치 | 현재 내용 |
 | --- | --- |
-| 매우 높음 | OCAP-ETCH-BEAM |
-| 높음 | OCAP-ETCH-RATE, OCAP-ETCH-UNI, OCAP-ETCH-DEF, OCAP-ETCH-PM, OCAP-ETCH-GRID, OCAP-ETCH-VAC, OCAP-ETCH-MOTION, OCAP-ETCH-CD, OCAP-ETCH-ARC |
-| 중간 | OCAP-ETCH-ESC, OCAP-ETCH-OES |
-| 첨부 기준 미지정 | OCAP-ETCH-SHT, OCAP-ETCH-STEP |
+| `sop-ocap/` | 위 SOP 3종, OCAP 19종 및 조사 메모 |
+| `frontend/sop-data.js` | SOP 화면용 시연 문서 3종을 코드에 포함. 이 폴더의 원문은 표시하지 않음 |
+| `db/documents.json` → 문서 MCP | 시연용 조항 5건을 DB에 적재하고 ID로 조회. 이 폴더의 원문은 적재하지 않음 |
+
+아래 조항 ID 대응표는 연동 시 참고용입니다. 현재 시연 데이터와 이 폴더의 문서를 같은 원문으로 취급하지 않습니다.
 
 ## 문서 머리
 
-메타데이터(frontmatter)는 쓰지 않습니다. 모든 문서는 제목과 아래 표 하나로 시작합니다. SOP 화면에 표시되는 항목이 이 세 가지입니다.
+메타데이터(frontmatter)는 쓰지 않습니다. 모든 SOP·OCAP 문서는 제목과 아래 표 하나로 시작합니다.
 
 ```markdown
 # OCAP-ETCH-EPD Endpoint 지연·미검출 대응
 
 | 담당 팀 | 버전 | 최근 개정 |
 | --- | --- | --- |
-| Etch공정기술팀 | 1.0 | 2026-10-20 |
+| Etch공정기술팀 | 1.1 | 2026-10-20 |
 ```
 
-| 화면 항목 | 문서 위치 |
+| 항목 | 문서 위치 |
 | --- | --- |
 | 담당 팀 | 머리 표 `담당 팀` |
 | 버전 | 머리 표 `버전` |
 | 최근 개정 | 머리 표 `최근 개정` (YYYY-MM-DD) |
 
-개정하면 머리 표의 버전·날짜를 바꾸고, 본문 끝 **8. 개정 이력** 표에 한 줄을 더합니다.
+개정하면 머리 표의 버전·날짜를 바꾸고, 본문 끝 **8. 개정 이력** 표에 한 줄을 더합니다. 개정 이력 표는 `버전·날짜·내용(또는 변경 내용)`을 쓰며, 문서에 따라 `검토·승인` 열이 추가됩니다.
 
 ## 본문 구조
 
@@ -85,7 +84,7 @@ Terminator는 아래 세 결정을 분리합니다.
 ## 조항 ID 규칙
 
 - 번호로 시작하는 제목(`## 4.` / `### 4.2`)이 조항입니다. 조항 ID는 `{문서 ID}#{번호}`입니다. 예: `SOP-ETCH-12#4.2`, `OCAP-ETCH-RF#4.3`
-- 문서 MCP(`mcp/rag.py`)는 이 ID로 정확히 조회합니다. 개정할 때 기존 조항 번호를 바꾸지 않습니다.
+- 문서 MCP(`mcp/rag.py`)는 DB에 등록된 ID를 정확히 조회합니다. 이 폴더의 Markdown을 자동으로 읽지는 않습니다. 연동 후에는 기존 조항 번호를 유지합니다.
 - `db/documents.json`의 기존 조항 문장은 새 조항의 첫 문장으로 그대로 옮겼습니다.
 
 | 기존 조항 (documents.json) | 새 조항 |
@@ -96,7 +95,7 @@ Terminator는 아래 세 결정을 분리합니다.
 | WI-MFC-02#5.3 | OCAP-ETCH-PRS#4.3 |
 | SPEC-EPD-01#6.2 | OCAP-ETCH-EPD#4.2 |
 
-`db/documents.json`과 `db/cases.json`은 아직 기존 ID를 씁니다. seed를 이 폴더 기준으로 바꿀 때 위 표대로 옮깁니다.
+`db/documents.json`과 `db/cases.json`은 아직 기존 ID를 씁니다. 이 폴더의 문서를 연동할 때 위 표에 따라 조항 참조도 함께 갱신해야 합니다.
 
 ## 작성 규칙
 
