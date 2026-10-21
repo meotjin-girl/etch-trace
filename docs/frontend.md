@@ -11,8 +11,8 @@
 | `src/api/client.ts` | `/api/ai/tasks` REST·SSE 호출, 목업 신원(`X-User-Name`, `X-User-Role`, SSE 쿼리), `mergeEvents` | `api.js` |
 | `src/api/types.ts` | `Task`, `TaskEvent`, `Report`, `Metric`, `CauseCase`, `Document`, `Review`, `Role` | — |
 | `src/api/sop.ts` | SOP 샘플 `listSops()`, `getSop(id)`. 백엔드 SOP API로 교체할 경계 | `sop-data.js` |
-| `src/lib/markdown.ts` | 표시 전용 마크다운 렌더러(원시 HTML 이스케이프, 링크 http/https/mailto 제한). SOP 본문과 보고서 본문에 공통 사용, 보고서의 `[SOP-ID §절]` 인용을 인용 버튼으로 변환 | `markdown.js` |
-| `src/lib/format.ts` | 상태 라벨, 날짜 포맷, 진행 단계 계산 | `app.js` 상단 |
+| `src/lib/markdown.ts` | 표시 전용 마크다운 렌더러(원시 HTML 이스케이프, 링크 http/https/mailto 제한). SOP 본문 표시 | `markdown.js` |
+| `src/lib/format.ts` | 상태·단계 라벨, 날짜 포맷, 사이드바 에이전트 흐름 계산(`agentFlow`) | `app.js` 상단 |
 | `src/stores/identity.ts` | 이름·역할, 역할별 `api` 인스턴스. 변경 시 조사·기록 초기화 | `changeIdentity` |
 | `src/stores/investigation.ts` | 현재 조사, 이벤트·`after` 커서, SSE 연결, `epoch`/`syncVersion` 가드, 질문·추가 정보·검토 제출 | `app.js` state |
 | `src/stores/records.ts` | 서버 기록 목록·상세, 로컬 읽기 전용 기록(`etch-investigation-records-v1`) | `refreshRecords`, `selectRecord` |
@@ -65,13 +65,20 @@
  "reviews":[{"action":"revise","comment":"RF 근거 보강","by":"이엔지니어","role":"engineer","created_at":"…"}],
  "investigation":null}
 ```
-report (RAG 마크다운 보고서, 아래 "보고서 형식" 참고):
+report (develop 계약 `docs/v1-contract.md`, 아래 "보고서 형식" 참고):
 ```json
-{"markdown":"## 요약\nETCH-07 CH-B OX-120에서 endpoint 지연이 관찰되었습니다. [SOP-ETCH-12 §3] 순서에 따라 측정 조건부터 확인합니다.\n\n## 점검 순서\n1. 측정 시점·조건 확인 [SOP-ETCH-12 §3]\n2. 반사전력 변화와 공정 변화 비교 [SOP-RF-03 §3]",
- "sources":[{"id":"SOP-ETCH-12","section":"3","heading":"3. 조사 순서","title":"식각 공정 이상 대응 절차","excerpt":"현재 관찰된 사실과 측정 조건을 확인합니다. …"},
-            {"id":"SOP-RF-03","section":"3","heading":"3. 확인할 근거","title":"RF 반사전력 이상 조사 가이드","excerpt":"계측 이력: 반사전력 변화와 동시 발생한 공정 변화 …"}],
- "context":{"equipment":"ETCH-07","chamber":"CH-B","recipe":"OX-120"},
- "feedback":[],"demo":true}
+{"context":{"equipment":"ETCH-07","chamber":"CH-B","recipe":"OX-120"},
+ "summary":"관련 과거 사례 3건을 비교했습니다. …",
+ "metrics":[{"key":"endpoint_sec","value":118,"severity":"high","mean":92.4,"deltaPct":27.7,"z":3.1}],
+ "stages":[{"key":"scope","title":"범위 조사 에이전트","status":"sample_based","agent_mode":"rule_based",
+            "findings":["…"],"unknowns":["MES Lot/Wafer 미연결"],"caseIds":["CASE-014"],"docIds":[],"historyIds":["…"]}],
+ "history":[{"id":"…","question":"…","summary":"…","causes":["RF matching 열화"],"docIds":["DOC-RF-03"],
+             "approvedBy":"이엔지니어","approvedAt":"…","eventTime":null,"lotId":"LOT-1"}],
+ "causeCases":[{"id":"CASE-014","cause":"RF matching 열화","action":"매칭 네트워크 점검","docs":["DOC-RF-03"]}],
+ "checks":[{"title":"SOP-ETCH-12 식각 장비 이상 대응 · 4 절차 / 4.2 Endpoint 지연 시 동시 비교","rationale":"…","source":"rag_mcp","docId":"SOP-ETCH-12#4.2"}],
+ "docIds":["DOC-RF-03"],
+ "documents":[{"id":"SOP-ETCH-12#4.2","title":"…","text":"…","is_demo":true,"source":"sop/…","revision":"…","notice":"…","distance":0.21}],
+ "unknowns":["…"],"feedback":[],"demo":true}
 ```
 화면은 `events`의 순서로 채팅을 그린다: `QUEUED`(첫 질문), `MESSAGE`(사용자 답변), `QUESTION`(재질문), `APPROVAL_REQUIRED`(보고서), `REVIEWED`(승인/미승인), `DONE`·`FAILED`·`INCOMPLETE`.
 
@@ -94,7 +101,7 @@ event: SEARCH_STARTED
 data: {"seq":4,"type":"SEARCH_STARTED","payload":{},"created_at":"…"}
 
 event: TOKEN
-data: {"delta":"## 요약\nETCH-07 CH-B","target":"report"}
+data: {"delta":"관련 과거 사례","target":"summary"}
 
 id: 7
 event: APPROVAL_REQUIRED
@@ -126,20 +133,10 @@ data: {"seq":7,"type":"APPROVAL_REQUIRED","payload":{"report":{…},"text":"보�
    - `revise` + 빈 comment → `QUESTION {"text":"어떤 부분을 수정할까요?"}` → 답변 → 재작성 → `APPROVAL_REQUIRED`
    - `revise` + comment → 바로 재작성 → `APPROVAL_REQUIRED`(현재 동작)
    - `approve` → `QUESTION {"text":"기록할 발생 시각과 Lot ID를 알려주세요","options":["건너뛰기"]}` → 답변 → `DONE {"report":…,"approved":true,"by":"이엔지니어"}`. 답에서 얻은 `event_time`·`lot_id`를 승인 스냅샷에 반영한다(파싱 주체는 팀 결정). 승인 뒤 잠시 `WAITING_INPUT`이 되며 DONE 시점이 늦어진다.
-4. **`TOKEN {delta, target}`**: 저장하지 않는 SSE 전용 이벤트다. `id` 없이 보내고 replay 대상이 아니다. `target`은 `"message"`(재질문 문장) 또는 `"report"`(보고서 마크다운 본문). 화면은 흘러온 마크다운을 그때그때 렌더링한다. 뒤따르는 저장 이벤트가 최종본이므로 TOKEN이 유실돼도 데이터는 잃지 않는다.
-5. **보고서 형식 (RAG 마크다운, 수치 카드 폐지)**: 보고서는 SOP 같은 .md 문서를 RAG로 검색해 만든 마크다운 본문과 출처 목록이다. 기존 `metrics`, `causeCases`, `docIds`, `documents`, `summary`, `scored`, `unknowns`는 쓰지 않는다.
+4. **`TOKEN {delta, target}`**: 저장하지 않는 SSE 전용 이벤트다. `id` 없이 보내고 replay 대상이 아니다. `target`은 `"message"`(재질문 문장) 또는 `"summary"`(보고서 요약). 뒤따르는 저장 이벤트가 최종본이므로 TOKEN이 유실돼도 데이터는 잃지 않는다.
+5. **보고서 형식**: develop 계약(`docs/v1-contract.md`)을 그대로 따른다. 화면은 develop의 순서로 그린다: 요약 → 수치 카드(`metrics`) → 조사 단계별 결과(`stages`, 상태·LLM 사용 여부·미확인 항목) → 유사 승인 조사 이력(`history`) → 우선 확인할 항목(`causeCases`) → SOP RAG 검색 결과(`checks`, `docId` 인용) → 문서 근거(`docIds`). 인용 버튼은 같은 `id`의 `documents` 항목을 근거 패널에서 강조한다(SOP 조항 ID는 `SOP-ETCH-12#4.2` 형식).
 
-   | 필드 | 타입 | 설명 |
-   |---|---|---|
-   | `markdown` | string, 필수 | 보고서 본문. 제목(`##`), 문단, 순서·비순서 목록, 표, 인용(`>`), 굵게·기울임, 코드, 링크만 사용한다. 원시 HTML·이미지·중첩 목록은 표시되지 않는다 |
-   | `sources` | `{id, section, heading, title, excerpt}[]` | RAG가 근거로 쓴 SOP 조각. `id`는 SOP 문서 ID(`/api/sops/{id}`와 같음), `section`은 절 번호(`"3"`, `"3.2"`), `heading`은 그 절의 제목, `excerpt`는 인용한 원문 일부 |
-   | `context` | `{equipment?, chamber?, recipe?}` | 선택. 채팅·기록 제목에 쓴다 |
-   | `feedback` | string[] | 반영한 미승인 수정 요청 |
-   | `demo` | boolean | 샘플 근거 여부. `true`면 "데모 데이터"로 표시한다 |
-
-   **인용 형식 `[SOP-ID §절]`**: 본문에서 근거를 댈 때 `[SOP-ETCH-12 §3]`처럼 쓴다. SOP-ID는 `SOP-`로 시작하는 문서 ID, 절은 숫자와 점(`3`, `3.2`)이다. 한 문장에 여러 개면 `[SOP-ETCH-12 §3] [SOP-RF-03 §3]`처럼 나란히 쓴다. 화면은 이 표기를 인용 버튼으로 바꾸고, 누르면 오른쪽 근거 패널에서 같은 `id`·`section`의 출처를 강조한다. 출처 카드는 해당 SOP 화면(`/sop/{id}`)으로 연결된다. `sources`에 없는 인용은 버튼이 아닌 일반 글자로 남는다. 본문의 모든 인용은 `sources`에 대응 항목이 있어야 한다(agent 책임).
-
-   **SOP 문서 규칙**: 절 번호로 인용하므로 SOP 마크다운의 절 제목은 `## 3. 조사 순서`처럼 번호로 시작해야 한다. 하위 절은 `### 3.2 …`. 현재 샘플 중 `SOP-RF-03`은 제목에 번호가 없어 구현 시 번호를 붙인다.
+   **사이드바 에이전트 흐름**: develop 그래프(`docs/agent.md`) 순서로 8단계를 표시한다 — 질문 접수, 범위 조사, 과거 Run 비교, 센서 교차 확인, 정비 이력 확인, 원인 후보·점검 추천, 보고서 구성, 엔지니어 판별. 진행은 저장 이벤트로만 판단한다(`SEARCH_STARTED` → 범위 조사, `ANALYSIS_STARTED` → 전문 에이전트 4단계 함께 진행 중, `REPORT_STARTED` → 보고서 구성, `APPROVAL_REQUIRED` → 판별). 센서·정비·추천 에이전트는 개별 이벤트가 없어 함께 표시하며, 보고서가 오면 `stages`의 상태로 단계별 결과를 보여 준다. 정확한 개별 진행을 원하면 agent가 `{key}`를 담은 단계 시작 이벤트를 추가하는 것을 제안한다.
 6. **역할**: 화면은 engineer만 쓴다. worker·admin 규칙은 backend에 남지만 화면에서 사용하지 않는다.
 
 ## 목업 서버
@@ -150,7 +147,7 @@ data: {"seq":7,"type":"APPROVAL_REQUIRED","payload":{"report":{…},"text":"보�
 |---|---|
 | 질문에 `ETCH-숫자`가 없음 | 장비·챔버 재질문(options) |
 | 현상 키워드(endpoint, rf, 지연 등)가 없음 | 현상 재질문(options) |
-| 정보 충분 | 진행 이벤트 → TOKEN(보고서 마크다운) → 판별 대기. 보고서는 SOP 샘플 문단을 인용한 마크다운 |
+| 정보 충분 | 진행 이벤트 → TOKEN(보고서 요약) → 판별 대기. 보고서는 develop 형식(stages 5개, RAG checks, 유사 승인 history 포함) |
 | [미승인] / 수정 요청 입력 | 수정 내용 재질문 / 바로 재작성 |
 | [승인] | 발생 시각·Lot ID 재질문(건너뛰기) → DONE |
 | 질문에 `실패` / `근거 없음` | FAILED / INCOMPLETE |

@@ -31,7 +31,7 @@ button { cursor: pointer; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 238px minmax(440px, 1fr) 330px; }
 .sidebar { background: var(--nav); color: #f8f8f8; padding: 26px 18px 20px; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 26px; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 20px; }
 .brand strong, .brand small { display: block; }
 .brand strong { font-size: 16px; letter-spacing: .02em; }
 .brand small { color: var(--nav-muted); font-size: 13px; margin-top: 3px; }
@@ -43,7 +43,7 @@ button { cursor: pointer; }
 .new-investigation { width: 100%; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.07); color: white; border-radius: 10px; padding: 11px 13px; text-align: left; font-weight: 650; }
 .new-investigation:hover { background: rgba(255,255,255,.12); }
 .new-investigation span { margin-right: 8px; color: var(--mint); }
-.nav-section { margin-top: 28px; }
+.nav-section { margin-top: 22px; }
 .nav-label, .eyebrow { margin: 0 0 10px; font-size: 13px; font-weight: 750; letter-spacing: .14em; color: var(--nav-muted); }
 .nav-item { width: 100%; border: 0; color: #bfbfbf; background: transparent; padding: 10px 11px; border-radius: 8px; display: flex; align-items: center; gap: 10px; text-align: left; }
 .nav-item.active { background: rgba(222,222,222,.12); color: #ffffff; }
@@ -57,17 +57,27 @@ button { cursor: pointer; }
 .send-button i { font-size: 16px; }
 .close-panel i { font-size: 20px; }
 .empty-symbol i { font-size: 18px; }
-.process-card { margin-top: 28px; padding: 0 9px; }
+.process-card { margin-top: 20px; padding: 0 9px 16px; }
 .steps { list-style: none; padding: 0; margin: 0; }
-.steps li { position: relative; display: flex; gap: 10px; min-height: 55px; color: #7b7b7b; }
-.steps li:not(:last-child)::after { content: ""; position: absolute; left: 11px; top: 27px; bottom: 4px; width: 1px; background: rgba(255,255,255,.12); }
-.steps li > span { width: 23px; height: 23px; flex: 0 0 23px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); display: grid; place-items: center; font-size: 13px; }
+.steps li { position: relative; display: flex; gap: 10px; min-height: 40px; color: #7b7b7b; }
+.steps li:not(:last-child)::after { content: ""; position: absolute; left: 10px; top: 26px; bottom: 4px; width: 1px; background: rgba(255,255,255,.12); }
+.steps li > span { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); display: grid; place-items: center; font-size: 13px; }
+.steps li > div { min-width: 0; }
 .steps li strong, .steps li small { display: block; }
-.steps li strong { font-size: 14px; margin-top: 2px; }
-.steps li small { font-size: 13px; margin-top: 3px; }
+.steps li small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.steps li strong { font-size: 13px; margin-top: 3px; }
+.steps li small { font-size: 12px; margin-top: 2px; }
 .steps li.active { color: #ffffff; }
 .steps li.active > span, .steps li.done > span { background: var(--mint); color: var(--nav); border-color: var(--mint); }
 .steps li.done { color: #aaaaaa; }
+.steps li.active > span { box-shadow: 0 0 0 4px rgba(255,255,255,.14); }
+.steps li.stopped { color: #ffffff; }
+.steps li.stopped > span { border-color: #ffffff; border-style: dashed; }
+/* Short windows: keep the flow on one screen by showing the detail line only where work is. */
+@media (max-height: 860px) {
+  .steps li { min-height: 30px; }
+  .steps li:not(.active):not(.stopped) small { display: none; }
+}
 .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 12px; }
 .user-card { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.06); }
 .user-card strong { font-size: 14px; }
@@ -179,6 +189,15 @@ button { cursor: pointer; }
 .delta { margin-top: 6px; font-size: 13px; color: var(--red); }
 .answer-section { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
 .answer-section h3 { font-size: 14px; margin: 0 0 11px; }
+/* Specialist stages, approved history and RAG clauses share one list style. */
+.section-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.stage-list { margin: 0; padding-left: 20px; display: grid; gap: 12px; }
+.stage-list li { padding-left: 2px; }
+.stage-list li header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 4px; }
+.stage-list li header strong { font-size: 14px; color: var(--ink); }
+.stage-list .severity { font-size: 12px; padding: 3px 8px; border-radius: 99px; background: var(--green-soft); color: var(--green); font-weight: 600; white-space: nowrap; }
+.stage-list li p { margin: 2px 0 0; font-size: 14px; line-height: 1.6; }
+.stage-list .stage-unknown { font-size: 13px; color: #8a8a8a; }
 .cause-list { display: grid; gap: 8px; }
 .cause-item { display: grid; grid-template-columns: 24px 1fr auto; gap: 9px; align-items: start; background: #f8f8f8; border-radius: 9px; padding: 10px; }
 .cause-item > span:first-child { width: 22px; height: 22px; border-radius: 6px; background: var(--green-soft); color: var(--green); display: grid; place-items: center; font-size: 13px; font-weight: 800; }
@@ -199,8 +218,10 @@ button { cursor: pointer; }
 .record-button, .primary-button { border: 0; border-radius: 8px; background: var(--nav); color: #ffffff; padding: 9px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 .composer { border-top: 1px solid var(--line); padding: 16px max(28px, 6vw) 17px; position: relative; background: rgba(255,255,255,.96); }
-.composer textarea { width: 100%; resize: none; min-height: 49px; max-height: 140px; border: 1px solid #d0d0d0; border-radius: 12px; padding: 14px 52px 14px 15px; outline: none; color: var(--ink); background: #fcfcfc; }
+.composer textarea { display: block; width: 100%; resize: none; min-height: 49px; max-height: 140px; line-height: 1.5; overflow-y: auto; border: 1px solid #d0d0d0; border-radius: 12px; padding: 14px 52px 14px 15px; outline: none; color: var(--ink); background: #fcfcfc; }
 .composer textarea:focus { border-color: #8a8a8a; box-shadow: 0 0 0 3px rgba(87,87,87,.1); background: white; }
+/* The border + shadow above is the focus indicator; skip the global outline ring. */
+.composer textarea:focus-visible { outline: none; }
 .send-button { position: absolute; right: calc(max(28px, 6vw) + 8px); top: 23px; width: 34px; height: 34px; border: 0; border-radius: 9px; background: var(--nav); color: white; font-size: 18px; }
 .composer > p { margin: 6px 3px 0; color: #989898; font-size: 12px; }
 

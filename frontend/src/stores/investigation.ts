@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { mergeEvents } from '@/api/client'
 import type { Report, Task, TaskEvent } from '@/api/types'
-import { progressStep, statuses, terminal, text } from '@/lib/format'
+import { agentFlow, statuses, terminal, text } from '@/lib/format'
 import { useIdentityStore } from './identity'
 import { useRecordsStore } from './records'
 import { useUiStore } from './ui'
@@ -55,7 +55,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
     if (current.status === 'WAITING_INPUT') return isOwner(current) ? '추가 정보를 입력해 주세요…' : '조사 소유자만 추가 정보를 보낼 수 있습니다'
     return terminal.has(current.status) ? '새 질문은 새 조사를 시작해 주세요' : '에이전트가 작업 중입니다…'
   })
-  const step = computed(() => progressStep(events.value, Boolean(task.value?.report)))
+  const flow = computed(() => agentFlow(events.value, task.value?.report))
   const chat = computed<ChatItem[]>(() => {
     const current = task.value
     if (!current) return []
@@ -260,7 +260,7 @@ export const useInvestigationStore = defineStore('investigation', () => {
 
   return {
     task, events, after, busy, draft, streaming,
-    isOwner, canReview, inputBlocked, statusText, placeholder, step, chat, pending,
+    isOwner, canReview, inputBlocked, statusText, placeholder, flow, chat, pending,
     stopTask, reset, applyEvents, connectStream, syncTask, activateTask, submitQuestion, retry,
     decide, choose
   }

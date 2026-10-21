@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ReportView from '@/components/ReportView.vue'
 import { useInvestigationStore, type ChatItem } from '@/stores/investigation'
@@ -28,11 +28,15 @@ function onKeydown(event: KeyboardEvent) {
     investigation.submitQuestion()
   }
 }
+// Grow with the text however it changes (typing, suggestion buttons, clearing after send).
+// scrollHeight excludes the 1px borders under border-box sizing, so add them back.
 function resize() {
-  const element = input.value!
+  const element = input.value
+  if (!element) return
   element.style.height = 'auto'
-  element.style.height = `${Math.min(element.scrollHeight, 140)}px`
+  element.style.height = `${Math.min(element.scrollHeight + 2, 140)}px`
 }
+watch(() => investigation.draft, () => nextTick(resize), {immediate:true})
 </script>
 
 <template>
@@ -78,7 +82,7 @@ function resize() {
     <label for="questionInput" class="sr-only">이상 조사 질문</label>
     <textarea id="questionInput" ref="input" v-model="investigation.draft" rows="1" required
       :placeholder="investigation.placeholder" :disabled="investigation.inputBlocked"
-      @keydown="onKeydown" @input="resize"></textarea>
+      @keydown="onKeydown"></textarea>
     <button class="send-button" type="submit" aria-label="질문 보내기" :disabled="investigation.inputBlocked"><i class="fi-rr-paper-plane" aria-hidden="true"></i></button>
     <p>Enter로 전송 · Shift + Enter로 줄바꿈</p>
   </form>

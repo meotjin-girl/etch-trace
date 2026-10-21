@@ -42,6 +42,48 @@ export interface EvidenceDocument {
   id: string
   title: string
   text: string
+  // SOP RAG clauses (id like `SOP-ETCH-12#4.2`) carry source metadata.
+  is_demo?: boolean | null
+  source?: string | null
+  revision?: string | null
+  notice?: string | null
+  distance?: number | null
+}
+
+export type StageKey = 'scope' | 'run_comparison' | 'sensor' | 'maintenance' | 'recommendation'
+
+// One specialist agent's result (docs/v1-contract.md `stages`).
+export interface InvestigationStage {
+  key: StageKey
+  title: string
+  status: 'sample_based' | 'partial' | 'unavailable' | 'provisional' | string
+  agent_mode?: 'llm' | 'rule_based'
+  findings?: string[]
+  unknowns?: string[]
+  caseIds?: string[]
+  docIds?: string[]
+  historyIds?: string[]
+}
+
+// Ordered SOP clause returned by RAG MCP.
+export interface InvestigationCheck {
+  title: string
+  rationale: string
+  source?: 'rag_mcp' | 'provisional_sop'
+  docId?: string | null
+}
+
+// Similar approved record visible to the requester (reference, not proof).
+export interface HistoryEvidence {
+  id: string
+  question: string
+  summary: string
+  causes?: string[]
+  docIds?: string[]
+  approvedBy: string
+  approvedAt: string
+  eventTime?: string | null
+  lotId?: string | null
 }
 
 export interface Report {
@@ -50,6 +92,10 @@ export interface Report {
   causeCases?: CauseCase[]
   docIds?: string[]
   documents?: EvidenceDocument[]
+  stages?: InvestigationStage[]
+  checks?: InvestigationCheck[]
+  history?: HistoryEvidence[]
+  unknowns?: string[]
   summary?: unknown
   demo?: boolean
   [key: string]: unknown

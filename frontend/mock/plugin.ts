@@ -41,7 +41,8 @@ function stream(req: IncomingMessage, res: ServerResponse, store: MockStore, ide
   const replay = store.events(identity, id, Math.max(after, last))
   res.writeHead(200, {'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive'})
   const write = (event: Pushed) => {
-    const data = 'seq' in event ? {seq:event.seq, type:event.type, payload:event.payload, created_at:event.created_at} : event.payload
+    // Same shape as backend/main.py: saved events send `{...payload, at}` with the seq in `id:`.
+    const data = 'seq' in event ? {...event.payload, at:event.created_at} : event.payload
     res.write(`${'seq' in event ? `id: ${event.seq}\n` : ''}event: ${event.type}\ndata: ${JSON.stringify(data)}\n\n`)
   }
   replay.forEach(write)

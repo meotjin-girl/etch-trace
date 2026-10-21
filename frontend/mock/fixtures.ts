@@ -101,6 +101,16 @@ const documents = {
   'DOC-PR-02': {id:'DOC-PR-02', title:'챔버 압력 안정화 확인', text:'압력 변동이 관찰되면 스로틀 밸브 응답과 가스 유량 로그를 함께 확인한다. (샘플 문서)'},
 }
 
+// SOP RAG clauses as `search_sop` returns them: id `<문서ID>#<절>`, title `<문서> · <절 제목>`.
+const sopClauses = [
+  {id:'SOP-ETCH-12#4.2', title:'SOP-ETCH-12 식각 장비 이상 대응 · 4 절차 / 4.2 Endpoint 지연 시 동시 비교',
+    text:'Endpoint 지연이 관찰되면 같은 Recipe·Step의 직전 정상 run과 OES 신호, 반사전력, 챔버 압력을 동시에 비교한다. (목업 조항)'},
+  {id:'SPEC-RF-03#2.1', title:'SPEC-RF-03 RF 계통 판정 기준 · 2 판정 기준 / 2.1 반사전력',
+    text:'반사전력이 기준 대비 지속 상승하면 매칭 네트워크 위치와 RF 케이블 체결 상태를 우선 확인한다. (목업 조항)'},
+  {id:'SOP-ETCH-12#4.4', title:'SOP-ETCH-12 식각 장비 이상 대응 · 4 절차 / 4.4 계통별 1차 점검 분기',
+    text:'RF, 가스, 배기, 챔버 상태 순으로 1차 점검 분기를 정하고 확인 결과를 기록한다. (목업 조항)'},
+].map(item => ({...item, is_demo:true, source:'sop/mock.md', revision:'Rev.3', notice:'목업 문서 조항입니다.', distance:0.21}))
+
 // Builds a report for the mock agent. `feedback` holds the engineer's revision requests.
 export function buildReport(question: string, feedback: string[]): Report {
   const equipment = question.match(/ETCH-\d+/)?.[0] ?? 'ETCH-07'
@@ -120,7 +130,29 @@ export function buildReport(question: string, feedback: string[]): Report {
       ...(rfFocus ? [{id:'CASE-042', cause:'RF 케이블 체결 불량', action:'케이블 토크와 커넥터 손상 여부 확인', docs:['DOC-RF-03']}] : []),
     ],
     docIds:['DOC-RF-03', 'DOC-EP-07', 'DOC-PR-02'],
-    documents:Object.values(documents),
+    documents:[...Object.values(documents), ...sopClauses],
+    // Five specialist-agent results in graph order (develop `stages`).
+    stages:[
+      {key:'scope', title:'범위 조사 에이전트', status:'sample_based', agent_mode:'rule_based',
+        findings:[`${equipment} ${chamber} ${recipe} 범위에서 유사 데모 사례 3건과 승인 이력 1건을 찾았습니다.`],
+        unknowns:['MES Lot/Wafer와 실제 Run 목록 미연결'], caseIds:['CASE-014', 'CASE-031'], historyIds:['HIST-1020'], docIds:[]},
+      {key:'run_comparison', title:'동일 조건 Run 비교 에이전트', status:'sample_based', agent_mode:'rule_based',
+        findings:['endpoint가 비교군 평균 대비 27.7% 지연, RF 반사전력 59.3% 상승'],
+        unknowns:['동일 Recipe·Step 실측 Run 시계열 미연결'], caseIds:['CASE-014'], docIds:[]},
+      {key:'sensor', title:'센서 교차 확인 에이전트', status:'partial', agent_mode:'rule_based',
+        findings:['사용자 입력 계측값(endpoint, RF reflected)만 확인했습니다.'],
+        unknowns:['Gas Flow·펌프·밸브 원본 센서 시계열 미연결'], caseIds:[], docIds:[]},
+      {key:'maintenance', title:'정비 이력 확인 에이전트', status:'unavailable', agent_mode:'rule_based',
+        findings:[], unknowns:['정비 API/MCP 미연결로 정비 이력을 조회하지 않았습니다.'], caseIds:[], docIds:[]},
+      {key:'recommendation', title:'원인 후보·점검 순서 추천 에이전트', status:'provisional', agent_mode:'rule_based',
+        findings:['RF 매칭 계통을 먼저 확인하고 챔버 컨디셔닝 이력을 이어서 확인할 것을 권고합니다.'],
+        unknowns:['원인 확정이 아니며 현장 데이터 검증이 필요합니다.'], caseIds:['CASE-014', 'CASE-031'], docIds:sopClauses.map(item => item.id)},
+    ],
+    // RAG MCP clauses, in reranked order (develop `checks`).
+    checks:sopClauses.map(item => ({title:item.title, rationale:item.text, source:'rag_mcp' as const, docId:item.id})),
+    // Similar approved records visible to the requester (develop `history`).
+    history:[{id:'HIST-1020', question:'ETCH-07 CH-B endpoint 112초 지연', summary:'RF 매칭 네트워크 커패시터 위치 이상으로 확인 가설 승인',
+      causes:['RF matching 열화'], docIds:['DOC-RF-03'], approvedBy:'이엔지니어', approvedAt:'2026-10-12 14:20', eventTime:'2026-10-12 13:05', lotId:'LOT-261012-07'}],
     summary:`${equipment} ${chamber} ${recipe}에서 endpoint가 비교군 평균 대비 27.7% 지연되고 RF 반사전력이 59.3% 높습니다. ` +
       `유사 사례 ${rfFocus ? 3 : 2}건 기준으로 RF 매칭 계통을 먼저 확인할 가설을 제시합니다.` +
       (feedback.length ? ` 수정 요청 반영: ${feedback.join(' / ')}` : ''),
