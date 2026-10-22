@@ -28,7 +28,7 @@
 
 - 장비 3대(ETCH-01~03) × 챔버 2개(CH-A, CH-B) = 공정 모듈 6개, 레시피 1종 `RCP-OX-ETCH-EDU-01`.
 - 1 run = 1 Lot. 120초 동안 5초 간격 25샘플을 내며, 관측 웨이퍼는 `<lot>-W01`이다(데이터와 동일).
-- run은 쉬지 않고 이어서 24시간 반복한다. ID는 장비 단위로 증가한다: `SIMLOT-YYYYMMDD-NNNN`, run_no.
+- run은 쉬지 않고 이어서 24시간 반복한다. Lot ID는 `SIMLOT-<KST 날짜>-<장비 번호><챔버 문자><run 시작 시각>`이다(예: `SIMLOT-20261022-2A151416`). 재시작해도 겹치지 않게 시각을 넣었다. run_no는 장비 단위 카운터라 재시작하면 1101부터 다시 센다.
   - 대기(idle) 상태는 모델링하지 않았다.
 - run마다 `FAULT_RATE`(기본 0.1) 확률로 그 챔버의 데이터상 고장 중 하나를 주입한다:
 
@@ -53,7 +53,7 @@ SVID 번호는 `챔버 대역 + 순번`이다(CH-A 1100번대, CH-B 2100번대).
 - `alert_state`, `ocap_ref`는 판정 결과라서 SVID로 두지 않는다. ALARM은 장비 S5F1으로, WATCH는 Prometheus 규칙으로 판정한다.
 - 수집기는 secsgem 내장 SV 1005(AlarmsSet)도 함께 조회해 현재 걸린 알람 목록을 얻는다.
 - 수집기에서 끊김이 생겨도 알람 상태를 다시 맞출 수 있다.
-- CEID: 챔버 대역 + 900 = RUN_START, + 901 = RUN_END. 리포트에는 컨텍스트 SVID 0~6을 담는다.
+- CEID: SVID 대역 + 900 = RUN_START, + 901 = RUN_END (CH-A 2000/2001, CH-B 3000/3001). 리포트에는 컨텍스트 SVID 0~6을 담는다.
 
 ## 정상 범위 (NORMAL Lot 3개, 75행)
 
@@ -158,8 +158,8 @@ Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 
 받은 신호는 아래 통합 이벤트로 바꿔 LangChain 에이전트를 실행한다:
 
 ```json
-{"source": "equipment|fdc", "tool_id": "ETCH-01", "chamber_id": "CH-B", "lot_id": "SIMLOT-20261022-0042",
- "wafer_id": "SIMLOT-20261022-0042-W01", "rule": "PRESSURE_HIGH", "value": 30.1, "threshold_or_baseline": 30,
+{"source": "equipment|fdc", "tool_id": "ETCH-01", "chamber_id": "CH-B", "lot_id": "SIMLOT-20261022-1B100000",
+ "wafer_id": "SIMLOT-20261022-1B100000-W01", "rule": "PRESSURE_HIGH", "value": 30.1, "threshold_or_baseline": 30,
  "unit": "mTorr", "ocap_ref": "OCAP-VAC-01", "state": "set|clear", "event_time": "2026-10-22T10:00:00+09:00"}
 ```
 
@@ -167,19 +167,47 @@ Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 
 
 ## 실행
 
+### 다른 컴퓨터에서 Prometheus로 보기
+
+AWS 수집기는 공개 HTTP라 인증·키 없이 수집할 수 있다. 대상 주소(`backend/prometheus/targets.json`)와 규칙이 저장소에 들어 있으므로, Docker가 있는 컴퓨터라면 아래만 하면 된다.
+
 ```bash
-# 로컬 단위·HSMS 테스트
+git clone https://github.com/meotjin-girl/etch-trace.git && cd etch-trace
+git checkout feature/mock-fab        # develop에 머지되기 전까지
+docker compose -f backend/prometheus/compose.yaml up -d
+```
+
+| 확인 | 위치 | 정상 |
+|---|---|---|
+| 장비 화면 (브라우저만 있으면 됨) | http://32.236.188.208/ | 카드 6장이 5초마다 갱신 |
+| 수집 대상 | http://127.0.0.1:9090/targets | `mock-fab` 대상이 `UP` |
+| 센서 추이 | http://127.0.0.1:9090/graph, 식 `etch_sensor_value{sensor="pressure_pv_mtorr"}` | 6개 선이 25 근처 |
+| 경보 | http://127.0.0.1:9090/alerts | 고장 run 중 `EQUIPMENT_ALARM`·`FDC_*` 발생 |
+
+- Prometheus는 컴퓨터마다 따로 돈다. **기록은 각자 켠 시점부터 쌓이며**, 다른 컴퓨터나 켜기 전 데이터는 받을 수 없다. 장비 쪽에는 이력이 남지 않는다. 보존 기간은 15일이며 docker 볼륨 `prometheus_prometheus-data`에 저장된다.
+- 9090 포트는 `127.0.0.1`에만 열린다. 같은 네트워크의 다른 사람이 내 Prometheus를 볼 수는 없다.
+- 규칙이나 대상 파일을 고친 뒤에는 `docker compose -f backend/prometheus/compose.yaml restart`를 실행한다.
+- 끄기: `docker compose -f backend/prometheus/compose.yaml down` (기록까지 지우려면 `down -v`).
+- 대상이 `DOWN`이면 다음 순서로 확인한다.
+  1. 브라우저로 http://32.236.188.208/metrics 가 열리는지 본다. 안 열리면 EC2·보안그룹(80) 문제다.
+  2. 열리는데도 DOWN이면, 사내망 등에서 외부 80 포트가 막혔는지 확인한다.
+  3. EC2 공인 IP가 바뀌면 `targets.json` 한 줄만 고친다. Elastic IP를 쓰면 바뀌지 않는다.
+
+### 개발·배포
+
+```bash
+# 단위·HSMS 테스트
 (cd fab && uv sync --group dev && uv run pytest)
+# FDC 규칙 테스트
+(cd backend/prometheus && docker run --rm -v "$PWD":/w -w /w --entrypoint promtool prom/prometheus:v2.53.0 test rules rules_test.yml)
 
 # 로컬에서 장비+수집기 실행 → http://localhost:8080
 docker compose -f fab/compose.yaml up -d --build
 
 # AWS 배포 (ubuntu@32.236.188.208, 키는 저장소 루트 skala-key.pem, gitignore 대상)
-rsync -az --delete --exclude .venv -e "ssh -i skala-key.pem" fab/ ubuntu@32.236.188.208:~/fab/
-ssh -i skala-key.pem ubuntu@32.236.188.208 'cd fab && sudo FAB_PORT=80 docker compose up -d --build'
-
-# 로컬 Prometheus → http://127.0.0.1:9090 (Alerts 탭에서 FDC 규칙 확인)
-docker compose -f backend/prometheus/compose.yaml up -d
+rsync -az --delete --exclude .venv --exclude __pycache__ --exclude .env -e "ssh -i skala-key.pem" fab/ ubuntu@32.236.188.208:~/fab/
+ssh -i skala-key.pem ubuntu@32.236.188.208 'cd fab && sudo docker compose up -d --build'
 ```
 
-- 대상 주소는 `backend/prometheus/targets.json`에 있다. EC2 공인 IP가 바뀌면 이 한 줄만 고친다. Elastic IP를 쓰면 바뀌지 않는다.
+- 서버 설정은 EC2의 `~/fab/.env`에 있으며 git에는 없다. 현재 값은 `FAB_PORT=80`, `FAULT_RATE=0.2`이다. 값을 바꾸면 `sudo docker compose up -d`로 반영한다.
+- 위 rsync는 `--exclude .env`로 서버 설정을 보존한다. 이 옵션이 없으면 `--delete`가 서버의 `.env`를 지운다.
