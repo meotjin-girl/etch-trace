@@ -60,6 +60,15 @@ CREATE TABLE IF NOT EXISTS v1_investigations (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- One system-requested task per (tool, chamber, lot) alert bundle; bundle keeps the evidence sent.
+-- task_id is deferred so the key claim and the task row share one transaction.
+CREATE TABLE IF NOT EXISTS v1_alert_tasks (
+    alert_key text PRIMARY KEY,
+    task_id uuid UNIQUE NOT NULL REFERENCES v1_tasks(id) DEFERRABLE INITIALLY DEFERRED,
+    bundle jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Historical mock identities are not linked to accounts by display name.
 ALTER TABLE v1_tasks ADD COLUMN IF NOT EXISTS user_id text;
 ALTER TABLE v1_messages ADD COLUMN IF NOT EXISTS user_id text;

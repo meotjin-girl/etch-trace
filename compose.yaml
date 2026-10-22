@@ -74,6 +74,10 @@ services:
       KEYCLOAK_CLIENT_ID: trace-web
       KEYCLOAK_AUDIENCE: trace-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/auth/realms/trace/protocol/openid-connect/certs
+      # Local Prometheus from backend/prometheus/compose.yaml; empty disables alert intake (docs/agent-request.md)
+      PROMETHEUS_URL: ${PROMETHEUS_URL-http://host.docker.internal:9090}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./sop-ocap:/sop:ro
     depends_on:

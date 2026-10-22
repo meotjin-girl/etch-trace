@@ -15,6 +15,7 @@ from v1_models import Actor, CaseData, Detail, Event, InvestigationRecord, Reque
 
 type Row = dict[str, JsonValue]
 type DatabaseRow = dict[str, JsonValue | UUID]
+SYSTEM_REQUESTER = "FAB-ALERT"  # requester of alert-started tasks (docs/agent-request.md)
 
 
 class Store:
@@ -121,6 +122,35 @@ class Store:
             )
             self.message(conn, tid, question, actor, "user")
             self.emit(conn, tid, "QUEUED", {"by": actor.name, "user_id": actor.subject})
+        return tid
+
+    def alert_known(self, key: str) -> bool:
+        with self.pool.connection() as conn:
+            row = conn.execute("SELECT 1 FROM v1_alert_tasks WHERE alert_key=%s", (key,)).fetchone()
+        return row is not None
+
+    def create_alert_task(self, question: str, bundle: Row, content: str) -> UUID | None:
+        """Create a system-requested task once per alert bundle key; None when the key already exists."""
+        tid = uuid4()
+        with self.pool.connection() as conn:
+            claimed = conn.execute(
+                """INSERT INTO v1_alert_tasks(alert_key,task_id,bundle) VALUES (%s,%s,%s)
+                   ON CONFLICT (alert_key) DO NOTHING RETURNING alert_key""",
+                (bundle["key"], tid, Jsonb(bundle)),
+            ).fetchone()
+            if claimed is None:
+                return None
+            _ = conn.execute(
+                """INSERT INTO v1_tasks(id,user_name,user_role,user_id,question,status,command_id)
+                   VALUES (%s,%s,'user',NULL,%s,'QUEUED',%s)""",
+                (tid, SYSTEM_REQUESTER, question, uuid4()),
+            )
+            _ = conn.execute(
+                """INSERT INTO v1_messages(task_id,role,text,user_name,user_role,user_id)
+                   VALUES (%s,'user',%s,%s,'user',NULL)""",
+                (tid, content, SYSTEM_REQUESTER),
+            )
+            self.emit(conn, tid, "QUEUED", {"by": SYSTEM_REQUESTER, "user_id": None})
         return tid
 
     def listing(self) -> list[Task]:
