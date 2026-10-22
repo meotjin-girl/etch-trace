@@ -14,6 +14,7 @@
 | [frontend.md](frontend.md) | Vue 화면 구조, 필요 API와 예시, 대화형 계약 제안, 목업 서버 |
 | [structure-review.md](structure-review.md) | 전체 경로 지도, 구조 점검 결과와 근거 |
 | [v1-validation.md](v1-validation.md) | 통합 검증 기록; 실제 실행 여부·범위 확인 |
+| [mock-fab.md](mock-fab.md) | 합성 SECS/GEM 모의 장비, 수집기, 로컬 Prometheus FDC 규칙 |
 | [idea_brief.html](idea_brief.html) | 과거 초기 기획 참고 자료; 현재 API 계약 아님 |
 
 ```text
@@ -30,6 +31,8 @@ tests/test_evidence.py       샘플·계산·MCP 경계
 tests/test_sop_*.py          SOP 파서·색인·검색 실험
 frontend/tests/              API 계약·스토어·렌더·목업
 deploy/nginx.conf           빌드된 화면과 /api(backend) 프록시
+fab/                        합성 SECS/GEM 모의 장비·수집기(AWS 배포, 별도 compose)
+backend/prometheus/         로컬 Prometheus 설정·FDC 규칙·규칙 테스트
 ```
 
 구형 `docker-compose*.yml`은 `compose.yaml` include wrapper이며 별도 DB/agent 구성을 시작하지 않는다. 이전 CLI·JSON 요청 예제·CLI 테스트는 서비스 커버리지 확인 후 제거했다. 이전 localStorage 기록은 **로컬 읽기 전용**이며 서버 승인 이력으로 자동 전환하지 않는다.

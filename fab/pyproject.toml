@@ -1,0 +1,19 @@
+[project]
+name = "etch-mock-fab"
+version = "1.0.0"
+description = "Synthetic SECS/GEM etch equipment and collector for TRACE demos"
+requires-python = ">=3.12"
+dependencies = [
+    "prometheus-client>=0.21,<1",
+    "secsgem==0.3.0",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["pytest>=8,<9"]
+
+[tool.pytest.ini_options]
+# secsgem 0.3.0 server thread raises ENOTCONN on disable(); harmless at teardown
+filterwarnings = ["ignore::pytest.PytestUnhandledThreadExceptionWarning"]

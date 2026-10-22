@@ -1,0 +1,12 @@
+# Local Prometheus for the mock fab (docs/mock-fab.md). Synthetic data only.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - rules.yml
+
+scrape_configs:
+  - job_name: mock-fab
+    file_sd_configs:
+      - files: [targets.json]

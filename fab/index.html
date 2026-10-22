@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock Etch Fab</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #6a737d; --line: #e3e6ea;
+    --warn-bg: #fff4d6; --warn: #8a5a00; --alarm-bg: #fde2e1; --alarm: #b42318; --ok: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --text: #e6e8eb; --muted: #9aa3ad; --line: #2a3038;
+      --warn-bg: #3a2e10; --warn: #f2c14e; --alarm-bg: #3d1716; --alarm: #ff8a80; --ok: #4ac26b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { padding: 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+  h1 { font-size: 18px; margin: 0; }
+  .muted { color: var(--muted); font-size: 12px; }
+  main { padding: 0 16px 24px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .card.has-alarm { border-color: var(--alarm); }
+  .title { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; background: var(--muted); }
+  .dot.up { background: var(--ok); }
+  .ctx { margin: 6px 0 8px; font-size: 12px; color: var(--muted); word-break: break-all; }
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; min-height: 0; }
+  .badge { background: var(--alarm-bg); color: var(--alarm); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td { padding: 2px 4px; border-top: 1px solid var(--line); }
+  td.v { text-align: right; font-weight: 600; }
+  td.r { text-align: right; color: var(--muted); font-size: 12px; }
+  tr.out td { background: var(--warn-bg); color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>모의 식각 장비 현재값</h1>
+  <span class="muted">100% 합성 데이터 · 실제 장비·공정 값 아님 · 5초마다 갱신</span>
+  <span class="muted" id="stamp"></span>
+</header>
+<main id="grid"></main>
+<script>
+  const fmt = (v) => (typeof v === "number" ? (Math.abs(v) >= 1000 ? v.toFixed(1) : v.toFixed(3)) : v ?? "–");
+  const esc = (s) => String(s ?? "–").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  function card(m, meta) {
+    const rows = Object.entries(m.values).map(([name, v]) => {
+      const s = meta[name];
+      const out = s && typeof v === "number" && (v < s.low || v > s.high);
+      const range = s ? `${fmt(s.low)}~${fmt(s.high)} ${s.unit}` : "";
+      return `<tr class="${out ? "out" : ""}"><td>${esc(name)}</td><td class="v">${esc(fmt(v))}</td><td class="r">${esc(range)}</td></tr>`;
+    });
+    const badges = m.alarms.map((a) => `<span class="badge">${esc(a.alarm)} · ${esc(a.ocap)}</span>`).join("");
+    const c = m.context;
+    return `<section class="card ${m.alarms.length ? "has-alarm" : ""}">
+      <div class="title"><span><span class="dot ${m.up ? "up" : ""}"></span>${esc(m.tool)} / ${esc(m.chamber)}</span>
+        <span class="muted">${esc(c.sample_offset_s)}s / 120s</span></div>
+      <div class="ctx">${esc(c.lot_id)} · ${esc(c.wafer_id?.split("-").pop())} · run ${esc(c.run_no)} · ${esc(c.recipe_id)} · ${esc(c.process_state)}</div>
+      <div class="badges">${badges}</div>
+      <table>${rows.join("")}</table></section>`;
+  }
+
+  async function refresh() {
+    try {
+      const data = await (await fetch("api/current", { cache: "no-store" })).json();
+      document.getElementById("grid").innerHTML = data.modules.map((m) => card(m, data.sensors)).join("");
+      document.getElementById("stamp").textContent = "갱신 " + new Date(data.generated_at).toLocaleTimeString();
+    } catch (e) {
+      document.getElementById("stamp").textContent = "연결 끊김 — 재시도 중";
+    }
+  }
+  refresh();
+  setInterval(refresh, 5000);
+</script>
+</body>
+</html>

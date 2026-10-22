@@ -22,6 +22,7 @@
 | SOP 화면 API | `backend/v1_sop.py` | `sop-ocap/` 머리 표·원문 파싱, `/api/sops` |
 | 경로 지도 | `docs/structure-review.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |
+| 모의 장비·FDC | `fab/`, `backend/prometheus/`, `docs/mock-fab.md` | 합성 SECS/GEM 장비 3대(AWS), 수집기 HTTP, 로컬 Prometheus 규칙 기반 FDC. TRACE 연동은 미구현 |
 
 ## CONVENTIONS
 
@@ -47,6 +48,8 @@ uv sync --group dev
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
 (cd frontend && npm ci && npm run type-check && npm test)
+(cd fab && uv sync --group dev && uv run pytest)
+(cd backend/prometheus && docker run --rm -v "$PWD":/w -w /w --entrypoint promtool prom/prometheus:v2.53.0 test rules rules_test.yml)
 ```
 
 - `agent/tests/`: 질문 추출·보완, 재질문, 수정·승인, 근거 보존, 콜백 replay, PostgreSQL 프로세스 재시작(`AGENT_TEST_DATABASE_URL` 필요).

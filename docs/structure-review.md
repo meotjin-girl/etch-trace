@@ -76,6 +76,7 @@ backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 �
 | postgres `trace` `v1_*` | backend 전용 | 정상 |
 | postgres `trace` LangGraph 체크포인트 | agent 전용 | 정상 |
 | sop-postgres `trace_sop` | rag-mcp 전용 | 정상 |
+| `fab/` 수집기 `/`, `/api/current`, `/metrics` (AWS :80, 공개 GET) | 로컬 Prometheus(`backend/prometheus/`), 브라우저 | ➕ 합성 모의 장비, TRACE 미연동 ([mock-fab.md](mock-fab.md)) |
 
 ## 2. 문제와 변경안
 
