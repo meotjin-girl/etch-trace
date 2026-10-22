@@ -1,0 +1,29 @@
+# Mock etch fab: 3 SECS/GEM tools + 1 collector. HSMS stays on the compose network; only HTTP is published.
+x-tool: &tool
+  image: mock-fab:local  # built once by collector; parallel builds of one tag race on Linux Docker
+  pull_policy: never
+  command: ["uv", "run", "--no-sync", "python", "equipment.py"]
+  restart: unless-stopped
+  environment: &tool-env
+    FAULT_RATE: ${FAULT_RATE:-0.1}
+    NOISE_SCALE: ${NOISE_SCALE:-1.0}
+
+services:
+  etch-01:
+    <<: *tool
+    environment: { <<: *tool-env, TOOL_ID: ETCH-01 }
+  etch-02:
+    <<: *tool
+    environment: { <<: *tool-env, TOOL_ID: ETCH-02 }
+  etch-03:
+    <<: *tool
+    environment: { <<: *tool-env, TOOL_ID: ETCH-03 }
+  collector:
+    build: .
+    image: mock-fab:local
+    restart: unless-stopped
+    environment:
+      EQUIPMENT: ETCH-01=etch-01:5000,ETCH-02=etch-02:5000,ETCH-03=etch-03:5000
+    ports:
+      - "${FAB_PORT:-8080}:8080"
+    depends_on: [etch-01, etch-02, etch-03]

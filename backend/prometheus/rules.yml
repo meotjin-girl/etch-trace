@@ -1,0 +1,58 @@
+# Rule-based FDC stand-in (no ML). Equipment hard limits arrive as EQUIPMENT_ALARM; the rest is what a tool cannot see.
+# Normal mean/sd come from the collector (etch_sensor_normal_*), so fab/sensors.py stays the single source of numbers.
+groups:
+  - name: etch-fdc
+    interval: 5s
+    rules:
+      - record: etch:sensor_zscore
+        expr: |
+          (etch_sensor_value - on(sensor) group_left(subsystem, unit, ocap) etch_sensor_normal_mean)
+          / on(sensor) group_left etch_sensor_normal_sd
+
+      - alert: EQUIPMENT_ALARM
+        expr: etch_alarm_active == 1
+        labels: {source: equipment}
+        annotations:
+          summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $labels.alarm }} ({{ $labels.ocap }})"
+
+      - alert: FDC_WATCH
+        expr: etch:sensor_zscore > 3 or etch:sensor_zscore < -3
+        for: 15s
+        labels: {source: fdc}
+        annotations:
+          summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $labels.sensor }} outside normal ±3σ (z={{ $value | printf \"%.1f\" }}, {{ $labels.ocap }})"
+
+      - alert: PRESSURE_TREND
+        expr: |
+          predict_linear(etch_sensor_value{sensor="pressure_pv_mtorr"}[60s], 60) >= 30
+          and etch_sensor_value{sensor="pressure_pv_mtorr"} < 30
+        for: 10s
+        labels: {source: fdc, ocap: OCAP-VAC-01}
+        annotations:
+          summary: "{{ $labels.tool }}/{{ $labels.chamber }} pressure projected to reach 30 mTorr within 60 s"
+
+      - alert: PRESSURE_OSC
+        expr: |
+          stddev_over_time(etch_sensor_value{sensor="pressure_pv_mtorr"}[40s]) > 1
+          and abs(deriv(etch_sensor_value{sensor="pressure_pv_mtorr"}[40s])) < 0.05
+        for: 10s
+        labels: {source: fdc, ocap: OCAP-VAC-01}
+        annotations:
+          summary: "{{ $labels.tool }}/{{ $labels.chamber }} pressure oscillating without trend (σ40s={{ $value | printf \"%.2f\" }})"
+
+      - alert: SENSOR_STALE
+        expr: changes(etch_sensor_value{sensor!="plasma_detected"}[20s]) == 0
+        labels: {source: fdc, ocap: OCAP-DATA-01}
+        annotations:
+          summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $labels.sensor }} unchanged for 20 s"
+
+      - alert: MULTIVARIATE_FDC
+        # OES reacts to most faults, so it does not count as a separate subsystem
+        expr: |
+          count by (tool, chamber) (
+            count by (tool, chamber, subsystem) (abs(etch:sensor_zscore{subsystem!="plasma"}) > 3)
+          ) >= 2
+        for: 15s
+        labels: {source: fdc, ocap: OCAP-MULTI-01}
+        annotations:
+          summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $value }} subsystems outside normal at once"

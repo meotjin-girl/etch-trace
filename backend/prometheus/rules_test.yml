@@ -1,0 +1,84 @@
+# docker run --rm -v "$PWD":/w -w /w --entrypoint promtool prom/prometheus:v2.53.0 test rules rules_test.yml
+rule_files: [rules.yml]
+evaluation_interval: 5s
+
+tests:
+  - name: stale pressure
+    interval: 5s
+    input_series:
+      - series: 'etch_sensor_value{tool="ETCH-01",chamber="CH-B",sensor="pressure_pv_mtorr"}'
+        values: '25 25.2 25 25.2 25.11x8'
+    alert_rule_test:
+      - {eval_time: 10s, alertname: SENSOR_STALE, exp_alerts: []}
+      - eval_time: 45s
+        alertname: SENSOR_STALE
+        exp_alerts:
+          - exp_labels: {tool: ETCH-01, chamber: CH-B, sensor: pressure_pv_mtorr, source: fdc, ocap: OCAP-DATA-01}
+            exp_annotations: {summary: "ETCH-01/CH-B pressure_pv_mtorr unchanged for 20 s"}
+
+  - name: oscillation is not a trend
+    interval: 5s
+    input_series:
+      - series: 'etch_sensor_value{tool="ETCH-02",chamber="CH-B",sensor="pressure_pv_mtorr"}'
+        values: '25 28.7 25 21.3 25 28.7 25 21.3 25 28.7 25 21.3 25 28.7 25 21.3 25'
+    alert_rule_test:
+      - {eval_time: 75s, alertname: PRESSURE_TREND, exp_alerts: []}
+      - eval_time: 75s
+        alertname: PRESSURE_OSC
+        exp_alerts:
+          - exp_labels: {tool: ETCH-02, chamber: CH-B, sensor: pressure_pv_mtorr, source: fdc, ocap: OCAP-VAC-01}
+            exp_annotations: {summary: "ETCH-02/CH-B pressure oscillating without trend (σ40s=2.73)"}
+
+  - name: ramp warns before the 30 mTorr interlock
+    interval: 5s
+    input_series:
+      - series: 'etch_sensor_value{tool="ETCH-01",chamber="CH-B",sensor="pressure_pv_mtorr"}'
+        values: '25+0.857x20'
+    alert_rule_test:
+      - {eval_time: 60s, alertname: PRESSURE_OSC, exp_alerts: []}
+      - eval_time: 20s
+        alertname: PRESSURE_TREND
+        exp_alerts:
+          - exp_labels: {tool: ETCH-01, chamber: CH-B, sensor: pressure_pv_mtorr, source: fdc, ocap: OCAP-VAC-01}
+            exp_annotations: {summary: "ETCH-01/CH-B pressure projected to reach 30 mTorr within 60 s"}
+
+  - name: watch and multivariate
+    interval: 5s
+    input_series:
+      - series: 'etch_sensor_normal_mean{sensor="pressure_pv_mtorr",subsystem="vac",unit="mTorr",ocap="OCAP-VAC-01"}'
+        values: '25x10'
+      - series: 'etch_sensor_normal_sd{sensor="pressure_pv_mtorr",subsystem="vac",unit="mTorr",ocap="OCAP-VAC-01"}'
+        values: '0.5x10'
+      - series: 'etch_sensor_normal_mean{sensor="gas_sf6_pv_sccm",subsystem="gas",unit="sccm",ocap="OCAP-GAS-01"}'
+        values: '100x10'
+      - series: 'etch_sensor_normal_sd{sensor="gas_sf6_pv_sccm",subsystem="gas",unit="sccm",ocap="OCAP-GAS-01"}'
+        values: '1x10'
+      - series: 'etch_sensor_value{tool="ETCH-01",chamber="CH-A",sensor="pressure_pv_mtorr"}'
+        values: '27x10'
+      - series: 'etch_sensor_value{tool="ETCH-01",chamber="CH-A",sensor="gas_sf6_pv_sccm"}'
+        values: '90x10'
+    alert_rule_test:
+      - eval_time: 20s
+        alertname: FDC_WATCH
+        exp_alerts:
+          - exp_labels: {tool: ETCH-01, chamber: CH-A, sensor: pressure_pv_mtorr, subsystem: vac, unit: mTorr, ocap: OCAP-VAC-01, source: fdc}
+            exp_annotations: {summary: "ETCH-01/CH-A pressure_pv_mtorr outside normal ±3σ (z=4.0, OCAP-VAC-01)"}
+          - exp_labels: {tool: ETCH-01, chamber: CH-A, sensor: gas_sf6_pv_sccm, subsystem: gas, unit: sccm, ocap: OCAP-GAS-01, source: fdc}
+            exp_annotations: {summary: "ETCH-01/CH-A gas_sf6_pv_sccm outside normal ±3σ (z=-10.0, OCAP-GAS-01)"}
+      - eval_time: 20s
+        alertname: MULTIVARIATE_FDC
+        exp_alerts:
+          - exp_labels: {tool: ETCH-01, chamber: CH-A, source: fdc, ocap: OCAP-MULTI-01}
+            exp_annotations: {summary: "ETCH-01/CH-A 2 subsystems outside normal at once"}
+
+  - name: equipment alarm passthrough
+    interval: 5s
+    input_series:
+      - series: 'etch_alarm_active{tool="ETCH-03",chamber="CH-A",alarm="ESC_TEMP_HIGH",ocap="OCAP-ESC-01"}'
+        values: '0 1 1'
+    alert_rule_test:
+      - eval_time: 5s
+        alertname: EQUIPMENT_ALARM
+        exp_alerts:
+          - exp_labels: {tool: ETCH-03, chamber: CH-A, alarm: ESC_TEMP_HIGH, ocap: OCAP-ESC-01, source: equipment}
+            exp_annotations: {summary: "ETCH-03/CH-A ESC_TEMP_HIGH (OCAP-ESC-01)"}
