@@ -14,6 +14,7 @@ import anyio
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from v1_alerts import watch as watch_alerts
 from v1_auth import Authenticator, internal
 from v1_commands import accept_message, accept_review, callback
 from v1_dispatch import dispatch
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             keycloak_client_id=os.getenv("KEYCLOAK_CLIENT_ID", "trace-web"),
             keycloak_audience=os.getenv("KEYCLOAK_AUDIENCE", "trace-api"),
             keycloak_jwks_url=os.getenv("KEYCLOAK_JWKS_URL", ""),
+            prometheus_url=os.getenv("PROMETHEUS_URL", ""),
         )
         if not config.internal_api_key:
             raise RuntimeError("INTERNAL_API_KEY must not be empty")
@@ -73,7 +75,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         application.state.store = store
         try:
             await anyio.to_thread.run_sync(store.initialize)
-            yield
+            async with anyio.create_task_group() as background:
+                if config.prometheus_url:
+                    _ = background.start_soon(watch_alerts, store, config)
+                yield
+                background.cancel_scope.cancel()
         finally:
             await anyio.to_thread.run_sync(store.pool.close)
             runtime = None
@@ -131,7 +137,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> dict[str, str]:
         store = current().store
         tid = store.create(body.question, who)
-        bg.add_task(dispatch, store, current().settings, tid, {"question": body.question})
+        bg.add_task(dispatch, store, current().settings, tid, {"role": "user", "content": body.question})
         return {"taskId": str(tid)}
 
     @app.get("/api/ai/tasks", dependencies=[Depends(actor)])

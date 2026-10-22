@@ -68,8 +68,9 @@ Approval records a reviewed hypothesis, not a confirmed physical root cause.
 
 All backend/agent internal requests require `X-Internal-Key`.
 
-- Backend -> agent: `POST /internal/tasks/{id}/run`, initial `{question}`
-  or `{resume:{text}}` or `{resume:{action,comment,by}}`. The backend also sends
+- Backend -> agent: `POST /internal/tasks/{id}/run`, initial `{role,content}`
+  (`user`: the typed question; `system`: Prometheus alert bundle text, see
+  `docs/agent-request.md`) or `{resume:{text}}` or `{resume:{action,comment,by}}`. The backend also sends
   `X-Requester-Name` (URL-encoded) and `X-Requester-Role`, derived from the
   stored task owner, for history attribution. Stored `Requester` values are not
   live login sessions and carry no access token or reconstructed token expiry.

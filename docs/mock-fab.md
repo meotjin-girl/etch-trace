@@ -156,28 +156,18 @@ Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 
 | `etch_data_quality_good` | tool, chamber | 1 = GOOD |
 | `etch_run_info` | tool, chamber, lot_id, wafer_id, recipe_id, run_no | 현재 run 컨텍스트, 값 1 |
 | `etch_sample_offset_seconds` | tool, chamber | run 경과 초 |
-| `etch_alarm_active` | tool, chamber, alarm, ocap | 장비 알람 0/1 |
+| `etch_alarm_active` | tool, chamber, alarm, ocap, sensor, limit | 장비 알람 0/1 |
 | `etch_equipment_up` | tool | HSMS 통신 여부 |
 
 - lot_id는 `etch_run_info`에만 둔다. 센서 시계열에 붙이면 label 조합이 run마다 늘어나기 때문이다.
 - Lot과 센서값은 이렇게 결합한다: `etch_sensor_value * on(tool,chamber) group_left(lot_id, wafer_id) etch_run_info`.
 - 주입한 고장 시나리오(정답 라벨)는 노출하지 않는다. 데이터 README의 "에이전트 입력에 넣지 않음" 원칙과 같다.
 
-## 후속: TRACE로 신호 전달 (미구현)
+## TRACE로 신호 전달 (backend 구현, agent 대기)
 
-장비 알람과 FDC 경고는 모두 Prometheus `GET /api/v1/alerts`에 같은 형태로 모인다. 후속 Python 소비자는 다음 둘 중 하나를 하면 된다:
-- 이 API를 폴링한다.
-- Alertmanager webhook을 받는다.
+backend가 Prometheus `GET /api/v1/alerts`를 폴링해 장비 알람과 FDC 경보를 (장비, 챔버, Lot) 단위로 묶는다. 묶음은 `{"role":"system","content":<고정 형식 텍스트>}`로 agent에 보낸다. 형식·묶음 규칙과 agent 쪽 할 일은 [agent-request.md](agent-request.md)에 있다.
 
-받은 신호는 아래 통합 이벤트로 바꿔 LangChain 에이전트를 실행한다:
-
-```json
-{"source": "equipment|fdc", "tool_id": "ETCH-01", "chamber_id": "CH-B", "lot_id": "SIMLOT-20261022-1B100000",
- "wafer_id": "SIMLOT-20261022-1B100000-W01", "rule": "PRESSURE_HIGH", "value": 30.1, "threshold_or_baseline": 30,
- "unit": "mTorr", "ocap_ref": "OCAP-ETCH-PRS", "state": "set|clear", "event_time": "2026-10-22T10:00:00+09:00"}
-```
-
-근거 시계열은 Prometheus `query_range`로 알람 전후 구간을 조회한다.
+장비 알람 메트릭 `etch_alarm_active`에는 `sensor`·`limit` label이 있다. backend는 이 label로 알람 시각의 센서값과 한계를 적는다.
 
 ## 실행
 
