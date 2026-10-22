@@ -102,7 +102,7 @@ def test_hsms_roundtrip_and_http():
         assert link.up
         assert link.chambers["CH-B"]["pressure_pv_mtorr"] == 31.0
         assert link.chambers["CH-B"]["lot_id"] == "L1"
-        assert link.active_alarms("CH-B") == [{"alarm": "PRESSURE_HIGH", "ocap": "OCAP-VAC-01"}]
+        assert link.active_alarms("CH-B") == [{"alarm": "PRESSURE_HIGH", "ocap": "OCAP-ETCH-PRS"}]
         assert link.active_alarms("CH-A") == []
         assert set(tool._get_events_enabled()) == link.ceids  # first poll saw no reports and subscribed
 
@@ -113,7 +113,7 @@ def test_hsms_roundtrip_and_http():
         assert {(m["tool"], m["chamber"]) for m in current["modules"]} == {("ETCH-01", "CH-A"), ("ETCH-01", "CH-B")}
         metrics = urllib.request.urlopen(f"{base}/metrics").read().decode()
         assert 'etch_sensor_value{chamber="CH-B",sensor="pressure_pv_mtorr",tool="ETCH-01"} 31.0' in metrics
-        assert 'etch_alarm_active{alarm="PRESSURE_HIGH",chamber="CH-B",ocap="OCAP-VAC-01",tool="ETCH-01"} 1.0' in metrics
+        assert 'etch_alarm_active{alarm="PRESSURE_HIGH",chamber="CH-B",ocap="OCAP-ETCH-PRS",tool="ETCH-01"} 1.0' in metrics
         assert "etch_run_info{" in metrics and 'lot_id="L1"' in metrics
         assert b"<title>" in urllib.request.urlopen(f"{base}/").read()
     finally:

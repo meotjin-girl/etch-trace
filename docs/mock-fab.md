@@ -103,20 +103,34 @@ SVID 번호는 `챔버 대역 + 순번`이다(CH-A 1100번대, CH-B 2100번대).
 
 | ALID 순번 | 알람 | 조건 | OCAP |
 |---|---|---|---|
-| 0 | PRESSURE_HIGH | 압력 ≥ 30 mTorr | OCAP-VAC-01 |
-| 1 | THROTTLE_SATURATION | throttle ≥ 86 % | OCAP-VAC-01 |
-| 2 | RF_REFLECT_HIGH | source 반사파 ≥ 37 W | OCAP-RF-01 |
-| 3 | RF_SOURCE_LOW | source RF ≤ 790 W | OCAP-RF-01 |
-| 4 | MFC_FLOW_LOW | SF6 ≤ 87 sccm | OCAP-GAS-01 |
-| 5 | MFC_FLOW_HIGH | O2 ≥ 15 sccm | OCAP-GAS-01 |
-| 6 | HE_BACKSIDE_LOW | He ≤ 6.1 Torr | OCAP-ESC-01 |
-| 7 | ESC_TEMP_HIGH | ESC ≥ 25 °C | OCAP-ESC-01 |
-| 8 | OES_INTENSITY_DROP | OES ≤ 3750 au | OCAP-PLASMA-01 |
-| 9 | PLASMA_IGNITION_DELAY | 공정 중 plasma 0 | OCAP-PLASMA-01 |
+| 0 | PRESSURE_HIGH | 압력 ≥ 30 mTorr | OCAP-ETCH-PRS |
+| 1 | THROTTLE_SATURATION | throttle ≥ 86 % | OCAP-ETCH-PRS |
+| 2 | RF_REFLECT_HIGH | source 반사파 ≥ 37 W | OCAP-ETCH-RF |
+| 3 | RF_SOURCE_LOW | source RF ≤ 790 W | OCAP-ETCH-RF |
+| 4 | MFC_FLOW_LOW | SF6 ≤ 87 sccm | OCAP-ETCH-GAS |
+| 5 | MFC_FLOW_HIGH | O2 ≥ 15 sccm | OCAP-ETCH-GAS |
+| 6 | HE_BACKSIDE_LOW | He ≤ 6.1 Torr | OCAP-ETCH-TMP |
+| 7 | ESC_TEMP_HIGH | ESC ≥ 25 °C | OCAP-ETCH-TMP |
+| 8 | OES_INTENSITY_DROP | OES ≤ 3750 au | OCAP-ETCH-OES |
+| 9 | PLASMA_IGNITION_DELAY | 공정 중 plasma 0 | OCAP-ETCH-ARC |
 
 임계값은 데이터에서 같은 센서의 "WATCH 최대값 / ALARM 최소값" 경계를 역산한 값이다.
 - 반사파는 34.8~39.4 사이가 비어 있어 37로 정했다.
 - OES는 3712~3805 사이가 비어 있어 3750으로 정했다.
+
+`ocap` label에는 저장소 `sop-ocap/` 문서 ID를 쓴다. 데이터셋의 가상 키(`OCAP-VAC-01` 등 8개)는 실제 문서와 연결되지 않으므로 쓰지 않는다. 대응은 각 문서의 "언제 여는가"를 기준으로 했다:
+
+| 경보 | 문서 |
+|---|---|
+| PRESSURE_HIGH, THROTTLE_SATURATION, PRESSURE_TREND, PRESSURE_OSC | OCAP-ETCH-PRS (공정 압력·throttle). OCAP-ETCH-VAC는 기저 압력·누설용이라 쓰지 않음 |
+| RF_REFLECT_HIGH, RF_SOURCE_LOW | OCAP-ETCH-RF |
+| MFC_FLOW_LOW, MFC_FLOW_HIGH | OCAP-ETCH-GAS |
+| HE_BACKSIDE_LOW, ESC_TEMP_HIGH | OCAP-ETCH-TMP (He 후면 냉각·온도). OCAP-ETCH-ESC는 흡착·dechuck용 |
+| OES_INTENSITY_DROP | OCAP-ETCH-OES |
+| PLASMA_IGNITION_DELAY | OCAP-ETCH-ARC |
+| SENSOR_STALE, MULTIVARIATE_FDC | SOP-ETCH-12 (해당 OCAP 없음, 공통 이상 대응 절차) |
+
+FDC_WATCH는 센서 계통에 따라 위 문서를 쓴다: vac → PRS, rf → RF, gas → GAS, esc → TMP, plasma → OES.
 
 Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 것을 잡는다:
 
@@ -160,7 +174,7 @@ Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 
 ```json
 {"source": "equipment|fdc", "tool_id": "ETCH-01", "chamber_id": "CH-B", "lot_id": "SIMLOT-20261022-1B100000",
  "wafer_id": "SIMLOT-20261022-1B100000-W01", "rule": "PRESSURE_HIGH", "value": 30.1, "threshold_or_baseline": 30,
- "unit": "mTorr", "ocap_ref": "OCAP-VAC-01", "state": "set|clear", "event_time": "2026-10-22T10:00:00+09:00"}
+ "unit": "mTorr", "ocap_ref": "OCAP-ETCH-PRS", "state": "set|clear", "event_time": "2026-10-22T10:00:00+09:00"}
 ```
 
 근거 시계열은 Prometheus `query_range`로 알람 전후 구간을 조회한다.
@@ -211,3 +225,6 @@ ssh -i skala-key.pem ubuntu@32.236.188.208 'cd fab && sudo docker compose up -d 
 
 - 서버 설정은 EC2의 `~/fab/.env`에 있으며 git에는 없다. 현재 값은 `FAB_PORT=80`, `FAULT_RATE=0.2`이다. 값을 바꾸면 `sudo docker compose up -d`로 반영한다.
 - 위 rsync는 `--exclude .env`로 서버 설정을 보존한다. 이 옵션이 없으면 `--delete`가 서버의 `.env`를 지운다.
+- 메트릭 label(예: `ocap`)과 규칙을 함께 바꿀 때는 **Prometheus를 먼저 재시작하고, 그다음 장비를 재배포**한다.
+  - 순서가 반대면 재시작 전에 수집된 옛 label 시계열이 만료 표시 없이 최대 5분 남는다.
+  - 그동안 `etch:sensor_zscore`가 duplicate series 에러를 내고 FDC_WATCH·MULTIVARIATE_FDC가 멈춘다. 5분이 지나면 저절로 풀린다.

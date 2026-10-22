@@ -27,7 +27,7 @@ groups:
           predict_linear(etch_sensor_value{sensor="pressure_pv_mtorr"}[60s], 60) >= 30
           and etch_sensor_value{sensor="pressure_pv_mtorr"} < 30
         for: 10s
-        labels: {source: fdc, ocap: OCAP-VAC-01}
+        labels: {source: fdc, ocap: OCAP-ETCH-PRS}
         annotations:
           summary: "{{ $labels.tool }}/{{ $labels.chamber }} pressure projected to reach 30 mTorr within 60 s"
 
@@ -36,13 +36,13 @@ groups:
           stddev_over_time(etch_sensor_value{sensor="pressure_pv_mtorr"}[40s]) > 1
           and abs(deriv(etch_sensor_value{sensor="pressure_pv_mtorr"}[40s])) < 0.05
         for: 10s
-        labels: {source: fdc, ocap: OCAP-VAC-01}
+        labels: {source: fdc, ocap: OCAP-ETCH-PRS}
         annotations:
           summary: "{{ $labels.tool }}/{{ $labels.chamber }} pressure oscillating without trend (σ40s={{ $value | printf \"%.2f\" }})"
 
       - alert: SENSOR_STALE
         expr: changes(etch_sensor_value{sensor!="plasma_detected"}[20s]) == 0
-        labels: {source: fdc, ocap: OCAP-DATA-01}
+        labels: {source: fdc, ocap: SOP-ETCH-12}
         annotations:
           summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $labels.sensor }} unchanged for 20 s"
 
@@ -53,6 +53,6 @@ groups:
             count by (tool, chamber, subsystem) (abs(etch:sensor_zscore{subsystem!="plasma"}) > 3)
           ) >= 2
         for: 15s
-        labels: {source: fdc, ocap: OCAP-MULTI-01}
+        labels: {source: fdc, ocap: SOP-ETCH-12}
         annotations:
           summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $value }} subsystems outside normal at once"

@@ -21,18 +21,18 @@ SETPOINTS = {
 
 # name: (mean, sd, floor, subsystem, unit, ocap) from the 3 NORMAL lots (75 rows)
 SENSORS = {
-    "pressure_pv_mtorr": (25.013, 0.163, None, "vac", "mTorr", "OCAP-VAC-01"),
-    "throttle_valve_pct": (44.003, 0.655, None, "vac", "%", "OCAP-VAC-01"),
-    "source_rf_pv_w": (900.375, 4.837, None, "rf", "W", "OCAP-RF-01"),
-    "source_rf_reflected_w": (5.364, 0.590, 4.5, "rf", "W", "OCAP-RF-01"),
-    "bias_rf_pv_w": (120.134, 1.448, None, "rf", "W", "OCAP-RF-01"),
-    "bias_rf_reflected_w": (2.491, 0.343, 2.0, "rf", "W", "OCAP-RF-01"),
-    "gas_sf6_pv_sccm": (99.975, 0.429, None, "gas", "sccm", "OCAP-GAS-01"),
-    "gas_o2_pv_sccm": (11.986, 0.103, None, "gas", "sccm", "OCAP-GAS-01"),
-    "esc_temp_pv_c": (19.978, 0.144, None, "esc", "degC", "OCAP-ESC-01"),
-    "backside_he_pv_torr": (7.997, 0.076, None, "esc", "Torr", "OCAP-ESC-01"),
-    "chiller_temp_pv_c": (18.003, 0.102, None, "esc", "degC", "OCAP-ESC-01"),
-    "oes_intensity_au": (5102.127, 44.067, None, "plasma", "au", "OCAP-PLASMA-01"),
+    "pressure_pv_mtorr": (25.013, 0.163, None, "vac", "mTorr", "OCAP-ETCH-PRS"),
+    "throttle_valve_pct": (44.003, 0.655, None, "vac", "%", "OCAP-ETCH-PRS"),
+    "source_rf_pv_w": (900.375, 4.837, None, "rf", "W", "OCAP-ETCH-RF"),
+    "source_rf_reflected_w": (5.364, 0.590, 4.5, "rf", "W", "OCAP-ETCH-RF"),
+    "bias_rf_pv_w": (120.134, 1.448, None, "rf", "W", "OCAP-ETCH-RF"),
+    "bias_rf_reflected_w": (2.491, 0.343, 2.0, "rf", "W", "OCAP-ETCH-RF"),
+    "gas_sf6_pv_sccm": (99.975, 0.429, None, "gas", "sccm", "OCAP-ETCH-GAS"),
+    "gas_o2_pv_sccm": (11.986, 0.103, None, "gas", "sccm", "OCAP-ETCH-GAS"),
+    "esc_temp_pv_c": (19.978, 0.144, None, "esc", "degC", "OCAP-ETCH-TMP"),
+    "backside_he_pv_torr": (7.997, 0.076, None, "esc", "Torr", "OCAP-ETCH-TMP"),
+    "chiller_temp_pv_c": (18.003, 0.102, None, "esc", "degC", "OCAP-ETCH-TMP"),
+    "oes_intensity_au": (5102.127, 44.067, None, "plasma", "au", "OCAP-ETCH-OES"),
 }
 
 CONTEXT = ("lot_id", "wafer_id", "recipe_id", "recipe_step", "process_state", "run_no", "sample_offset_s")
@@ -51,16 +51,16 @@ CEID_RUN_START, CEID_RUN_END = 900, 901
 
 # name: (sensor, comparison, limit, ocap); hard interlock limits the equipment itself reports via S5F1
 ALARMS = {
-    "PRESSURE_HIGH": ("pressure_pv_mtorr", ">=", 30.0, "OCAP-VAC-01"),
-    "THROTTLE_SATURATION": ("throttle_valve_pct", ">=", 86.0, "OCAP-VAC-01"),
-    "RF_REFLECT_HIGH": ("source_rf_reflected_w", ">=", 37.0, "OCAP-RF-01"),
-    "RF_SOURCE_LOW": ("source_rf_pv_w", "<=", 790.0, "OCAP-RF-01"),
-    "MFC_FLOW_LOW": ("gas_sf6_pv_sccm", "<=", 87.0, "OCAP-GAS-01"),
-    "MFC_FLOW_HIGH": ("gas_o2_pv_sccm", ">=", 15.0, "OCAP-GAS-01"),
-    "HE_BACKSIDE_LOW": ("backside_he_pv_torr", "<=", 6.1, "OCAP-ESC-01"),
-    "ESC_TEMP_HIGH": ("esc_temp_pv_c", ">=", 25.0, "OCAP-ESC-01"),
-    "OES_INTENSITY_DROP": ("oes_intensity_au", "<=", 3750.0, "OCAP-PLASMA-01"),
-    "PLASMA_IGNITION_DELAY": ("plasma_detected", "<=", 0, "OCAP-PLASMA-01"),
+    "PRESSURE_HIGH": ("pressure_pv_mtorr", ">=", 30.0, "OCAP-ETCH-PRS"),
+    "THROTTLE_SATURATION": ("throttle_valve_pct", ">=", 86.0, "OCAP-ETCH-PRS"),
+    "RF_REFLECT_HIGH": ("source_rf_reflected_w", ">=", 37.0, "OCAP-ETCH-RF"),
+    "RF_SOURCE_LOW": ("source_rf_pv_w", "<=", 790.0, "OCAP-ETCH-RF"),
+    "MFC_FLOW_LOW": ("gas_sf6_pv_sccm", "<=", 87.0, "OCAP-ETCH-GAS"),
+    "MFC_FLOW_HIGH": ("gas_o2_pv_sccm", ">=", 15.0, "OCAP-ETCH-GAS"),
+    "HE_BACKSIDE_LOW": ("backside_he_pv_torr", "<=", 6.1, "OCAP-ETCH-TMP"),
+    "ESC_TEMP_HIGH": ("esc_temp_pv_c", ">=", 25.0, "OCAP-ETCH-TMP"),
+    "OES_INTENSITY_DROP": ("oes_intensity_au", "<=", 3750.0, "OCAP-ETCH-OES"),
+    "PLASMA_IGNITION_DELAY": ("plasma_detected", "<=", 0, "OCAP-ETCH-ARC"),
 }
 
 # scenario: sensor delta reached at RUN_S, ramped linearly from FAULT_START_S
