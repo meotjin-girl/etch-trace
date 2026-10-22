@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from statistics import mean, pstdev
 
-from agent.models import Case, Context, Document, Event, Metric
+from agent.models import Case, Context, Document, Event, Metric, PhysicsResult
 
 
 def sample_cases() -> list[Case]:
@@ -61,6 +61,26 @@ class Evidence:
             Document(id=doc, title="샘플 점검 절차", text="현장 확인 후 판단")
             for doc in document_ids
         ]
+
+    def evaluate_etch_physics(self, context: Context) -> list[PhysicsResult]:
+        rate, seconds = context.physics.etch_rate_nm_min, context.physics.etch_time_sec
+        missing = [
+            key for key, value in (("etch_rate_nm_min", rate), ("etch_time_sec", seconds))
+            if value is None
+        ]
+        result = None
+        if not missing:
+            assert rate is not None and seconds is not None
+            result = {
+                "key": "expected_etch_depth_nm", "value": rate * seconds / 60,
+                "unit": "nm", "source": "calculated",
+            }
+        return [PhysicsResult.model_validate({
+            "model": "etch_depth_constant_rate", "status": (
+                "needs_more_data" if missing else "calculated"
+            ),
+            "formula": "D = R * t", "result": result, "missing_fields": missing,
+        })]
 
 
 @dataclass

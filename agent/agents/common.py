@@ -1,10 +1,10 @@
-"""Shared runtime for five separately compiled specialist-agent subgraphs."""
+"""Shared runtime for separately compiled specialist-agent subgraphs."""
 
 import json
 import logging
 import os
 from collections.abc import Callable
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -19,23 +19,25 @@ from ..models import (
     InvestigationCheck,
     InvestigationStage,
     Metric,
+    PhysicsResult,
     Requester,
 )
 
 
-class AgentState(TypedDict, total=False):
-    requester: Requester | None
+class AgentState(TypedDict):
     context: Context
-    cases: list[Case]
-    metrics: list[Metric]
-    documents: list[Document]
-    history: list[HistoryEvidence]
-    checks: list[InvestigationCheck]
-    sop_search_error: str | None
-    sensor_data: list[dict[str, object]]
-    maintenance_records: list[dict[str, object]]
-    stages: list[InvestigationStage]
-    result: InvestigationStage
+    requester: NotRequired[Requester | None]
+    cases: NotRequired[list[Case]]
+    metrics: NotRequired[list[Metric]]
+    physics_results: NotRequired[list[PhysicsResult]]
+    documents: NotRequired[list[Document]]
+    history: NotRequired[list[HistoryEvidence]]
+    checks: NotRequired[list[InvestigationCheck]]
+    sop_search_error: NotRequired[str | None]
+    sensor_data: NotRequired[list[dict[str, object]]]
+    maintenance_records: NotRequired[list[dict[str, object]]]
+    stages: NotRequired[list[InvestigationStage]]
+    result: NotRequired[InvestigationStage]
 
 
 class AgentDraft(BaseModel):

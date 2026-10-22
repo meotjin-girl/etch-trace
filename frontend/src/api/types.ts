@@ -31,6 +31,25 @@ export interface Metric {
   z?: number
 }
 
+export interface PhysicalValue {
+  key: string
+  value: number
+  unit: string
+  source: string
+}
+
+export interface PhysicsResult {
+  model: 'etch_depth_constant_rate' | 'average_etch_rate' | 'selectivity'
+  version: '1.0'
+  status: 'calculated' | 'needs_more_data' | 'invalid_input'
+  formula: string
+  inputs: PhysicalValue[]
+  result?: PhysicalValue | null
+  assumptions: string[]
+  missing_fields: string[]
+  warnings: string[]
+}
+
 export interface CauseCase {
   id: string
   cause: string
@@ -50,7 +69,7 @@ export interface EvidenceDocument {
   distance?: number | null
 }
 
-export type StageKey = 'scope' | 'run_comparison' | 'sensor' | 'maintenance' | 'recommendation'
+export type StageKey = 'scope' | 'run_comparison' | 'physics' | 'sensor' | 'maintenance' | 'recommendation'
 
 // One specialist agent's result (docs/v1-contract.md `stages`).
 export interface InvestigationStage {
@@ -89,6 +108,7 @@ export interface HistoryEvidence {
 export interface Report {
   context?: { equipment?: string; chamber?: string; recipe?: string; [key: string]: unknown }
   metrics?: Metric[]
+  physicsResults?: PhysicsResult[]
   causeCases?: CauseCase[]
   docIds?: string[]
   documents?: EvidenceDocument[]

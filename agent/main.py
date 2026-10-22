@@ -80,7 +80,11 @@ def create_app() -> FastAPI:
             app.state.internal_key = key
             app.state.graph = build_graph(
                 saver,
-                MCPEvidenceProvider(os.environ["BUSINESS_MCP_URL"], os.environ["RAG_MCP_URL"]),
+                MCPEvidenceProvider(
+                    os.environ["BUSINESS_MCP_URL"],
+                    os.environ["RAG_MCP_URL"],
+                    os.environ["PHYSICS_MCP_URL"],
+                ),
                 Callback(os.environ["BACKEND_URL"], key, os.environ["BUSINESS_MCP_URL"]),
             )
             yield

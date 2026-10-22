@@ -39,11 +39,12 @@ export const agentMode = (mode?: string) => mode === 'llm' ? 'LLM 사용' : '규
 // Compact labels for the narrow sidebar; the report keeps the full wording.
 const stageShort: Record<string, string> = {sample_based:'데모 사례', partial:'일부 확인', unavailable:'데이터 미연결', provisional:'임시 권고'}
 
-// develop agent graph (docs/agent.md): intake, five specialist agents, report, review.
+// Agent graph: intake, six specialist agents, report, review.
 export const AGENT_FLOW = [
   {key:'intake', title:'질문 접수', hint:'범위·이상 현상 확인'},
   {key:'scope', title:'범위 조사', hint:'유사 사례·승인 이력'},
   {key:'run_comparison', title:'과거 Run 비교', hint:'계측값 통계 비교'},
+  {key:'physics', title:'물리 관계식 검증', hint:'계산값·부족 데이터'},
   {key:'sensor', title:'센서 교차 확인', hint:'연관 센서 구분'},
   {key:'maintenance', title:'정비 이력 확인', hint:'정비·변경 이력'},
   {key:'recommendation', title:'원인 후보·점검 추천', hint:'SOP RAG 검색'},
@@ -65,11 +66,11 @@ export function agentFlow(events: {type: string, payload?: Record<string, any>}[
   let reviewed = false
   for (const event of events) {
     if (event.type === 'SEARCH_STARTED') active = [1]
-    else if (event.type === 'ANALYSIS_STARTED') active = [2, 3, 4, 5]
-    else if (event.type === 'REPORT_STARTED') active = [6]
-    else if (event.type === 'APPROVAL_REQUIRED') { active = [7]; reviewed = true }
-    else if (event.type === 'REVIEWED') active = event.payload?.action === 'approve' ? [7] : [6]
-    else if (event.type === 'QUESTION') active = reviewed ? [7] : [0]
+    else if (event.type === 'ANALYSIS_STARTED') active = [2, 3, 4, 5, 6]
+    else if (event.type === 'REPORT_STARTED') active = [7]
+    else if (event.type === 'APPROVAL_REQUIRED') { active = [8]; reviewed = true }
+    else if (event.type === 'REVIEWED') active = event.payload?.action === 'approve' ? [8] : [7]
+    else if (event.type === 'QUESTION') active = reviewed ? [8] : [0]
     else if (event.type === 'DONE') finished = true
     else if (event.type === 'FAILED' || event.type === 'INCOMPLETE') stopped = true
   }

@@ -240,12 +240,12 @@ test('agent flow follows develop graph events and shows each agent result from s
   const {investigation} = stores()
   const states = () => investigation.flow.map(step => step.state)
   investigation.task = {id:'a', status:'RUNNING'}
-  expect(states()).toEqual(['active', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending'])
+  expect(states()).toEqual(['active', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending'])
   investigation.applyEvents([{seq:1, type:'SEARCH_STARTED', payload:{}}])
   expect(states().slice(0, 3)).toEqual(['done', 'active', 'pending'])
-  // Sensor, maintenance and recommendation have no events: the specialist run is active together.
+  // Physics, sensor, maintenance and recommendation have no events: the specialist run is active together.
   investigation.applyEvents([{seq:2, type:'ANALYSIS_STARTED', payload:{}}])
-  expect(states()).toEqual(['done', 'done', 'active', 'active', 'active', 'active', 'pending', 'pending'])
+  expect(states()).toEqual(['done', 'done', 'active', 'active', 'active', 'active', 'active', 'pending', 'pending'])
   investigation.applyEvents([{seq:3, type:'REPORT_STARTED', payload:{}},
     {seq:4, type:'APPROVAL_REQUIRED', payload:{report:{stages:[
       {key:'scope', title:'범위 조사 에이전트', status:'sample_based', agent_mode:'llm'},
@@ -253,10 +253,10 @@ test('agent flow follows develop graph events and shows each agent result from s
   expect(investigation.task!.status).toBe('WAITING_APPROVAL')
   expect(states().at(-1)).toBe('active')
   expect(investigation.flow[1]!.result).toBe('데모 사례 · LLM')
-  expect(investigation.flow[4]!.result).toBe('데이터 미연결 · 규칙')
+  expect(investigation.flow[5]!.result).toBe('데이터 미연결 · 규칙')
   // Rejection sends the agent back to report writing; approval finishes the flow.
   investigation.applyEvents([{seq:5, type:'REVIEWED', payload:{action:'revise'}}])
-  expect(investigation.flow[6]!.state).toBe('active')
+  expect(investigation.flow[7]!.state).toBe('active')
   investigation.applyEvents([{seq:6, type:'APPROVAL_REQUIRED', payload:{}}, {seq:7, type:'DONE', payload:{}}])
   expect(states().every(state => state === 'done')).toBe(true)
 })

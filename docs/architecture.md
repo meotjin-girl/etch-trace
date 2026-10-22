@@ -8,10 +8,11 @@ flowchart LR
   W -- "/api/** 전부 (REST·SSE)" --> B[backend / 작업·판별·이력·SOP]
   W -- "/auth/**" --> KC[Keycloak / PKCE 로그인]
   B -- 내부 JWKS / JWT 검증 --> KC
-  B -- "/internal/tasks/{id}/run" --> A[agent / LangGraph + 조사 에이전트 5개]
+  B -- "/internal/tasks/{id}/run" --> A[agent / LangGraph + 조사 에이전트 6개]
   A -- 진행 이벤트 콜백 --> B
   A -- MCP 도구 --> BM[business MCP]
   A -- MCP 도구 --> RM[rag MCP]
+  A -- MCP 도구 --> PM[physics MCP]
   BM -- "/internal/** (사례·이력·승인 저장)" --> B
   B --> PG[(PostgreSQL)]
   A -- 체크포인트만 --> PG
@@ -30,7 +31,8 @@ flowchart LR
 | nginx | 빌드 결과(`dist`) 서빙, `/api`·SSE는 backend, `/auth/`는 Keycloak으로 프록시 | 유일한 호스트 공개 포트 |
 | Keycloak | Authorization Code + PKCE, 계정·로그인·갱신·로그아웃 | 개발용 `keycloak_data` 볼륨; 가입 없음 |
 | backend | 신원·권한, 작업·메시지·검토·이벤트·승인 스냅샷, 승인 이력·SOP 문서 조회 API | 그래프를 직접 실행하지 않고 agent HTTP 호출, LLM 호출 없음 |
-| agent | 접수·재질문, 조사 에이전트 5개(범위·Run 비교·센서·정비·추천), 보고서, 검토 interrupt/resume | 업무 DB 직접 조회 없이 MCP 사용 |
+| agent | 접수·재질문, 조사 에이전트 6개(범위·Run 비교·물리·센서·정비·추천), 보고서, 검토 interrupt/resume | 업무 DB 직접 조회 없이 MCP 사용 |
+| physics MCP | 식각 깊이·평균 식각 속도·선택비의 결정론적 계산과 입력 검증 | 외부 DB·LLM 없음, 누락값을 추정하지 않음 |
 | business MCP | 사례 조회·결정론적 통계·승인 이력 조회·승인 저장 도구(에이전트 전용) | backend `/internal/**`만 호출, DB 직접 접속·공개 HTTP 경로 없음 |
 | rag MCP | 문서 ID 조회(`search_documents`), SOP·OCAP 의미 검색(`search_sop`) | `etch_documents` 조회, `sop-ocap/` 색인을 sop-postgres에 저장 |
 | PostgreSQL | 샘플 근거·backend 이력·agent 체크포인트 | 각 서비스가 소유한 영역 구분 |

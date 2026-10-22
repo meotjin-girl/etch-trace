@@ -26,15 +26,17 @@ cd mcp
 uv sync
 BACKEND_URL=http://backend:8000 INTERNAL_API_KEY=secret uv run python business.py
 DATABASE_URL=postgresql://user:password@postgres/etch MCP_PORT=8001 uv run python rag.py
+MCP_PORT=8002 uv run python physics.py
 ```
 
-Both servers use Streamable HTTP at `/mcp`, default port 8000. Run them in
+All three servers use Streamable HTTP at `/mcp`, default port 8000. Run them in
 separate containers or set `MCP_PORT` to avoid port conflicts.
 
 ```sh
 docker build -t etch-mcp -f mcp/Dockerfile mcp
 docker run --rm -p 8000:8000 -e BACKEND_URL -e INTERNAL_API_KEY etch-mcp
 docker run --rm -p 8001:8000 -e DATABASE_URL etch-mcp uv run python rag.py
+docker run --rm -p 8002:8000 etch-mcp uv run python physics.py
 ```
 
 Business has no database adapter. Its only case read is:

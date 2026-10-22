@@ -149,7 +149,7 @@ data: {"seq":7,"type":"APPROVAL_REQUIRED","payload":{"report":{…},"text":"보�
 |---|---|
 | 질문에 `ETCH-숫자`가 없음 | 장비·챔버 재질문(options) |
 | 현상 키워드(endpoint, rf, 지연 등)가 없음 | 현상 재질문(options) |
-| 정보 충분 | 진행 이벤트 → TOKEN(보고서 요약) → 판별 대기. 보고서는 develop 형식(stages 5개, RAG checks, 유사 승인 history 포함) |
+| 정보 충분 | 진행 이벤트 → TOKEN(보고서 요약) → 판별 대기. 보고서는 Physics 결과, stages 6개, RAG checks, 유사 승인 history 포함 |
 | [미승인] / 수정 요청 입력 | 수정 내용 재질문 / 바로 재작성 |
 | [승인] | 발생 시각·Lot ID 재질문(건너뛰기) → DONE |
 | 질문에 `실패` / `근거 없음` | FAILED / INCOMPLETE |

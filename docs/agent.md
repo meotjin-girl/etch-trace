@@ -32,17 +32,18 @@ flowchart TD
 
 ## 전문 조사 노드
 
-하나의 체크포인트 Supervisor가 다섯 독립 조사 에이전트 그래프를 순서대로 실행한다.
+하나의 체크포인트 Supervisor가 여섯 독립 조사 에이전트 그래프를 순서대로 실행한다.
 
 | 노드 | 책임 | 현재 근거와 한계 |
 |---|---|---|
 | 범위 조사 | 질문에서 추출한 범위와 Business MCP 데모 사례 및 권한 필터된 승인 조사 이력 확인 | 승인 이력 조회는 원 요청자의 저장 신원을 전달하고 MCP/Backend가 worker 소유권을 강제한다. MES Lot/Wafer와 Run 목록은 미연결 |
 | 과거 Run 비교 | 입력 계측값을 유사 사례 기준 통계와 결정론적으로 비교 | 동일 Recipe·Step의 실측 Run 시계열은 미연결 |
+| 물리 관계식 검증 | Physics MCP로 식각 깊이·평균 속도·선택비를 결정론적으로 계산 | 명시적 입력만 사용하며 부족 데이터는 계산하지 않음. TCAD나 인과 모델이 아님 |
 | 센서 교차 확인 | 사용자 입력 계측값과 추가 센서 필요 항목을 구분 | Gas Flow·펌프·밸브 등 원본 센서 시계열·태그는 미연결 |
 | 정비 이력 확인 | 정비 이력 조회 여부와 미확인 범위를 보고 | 현재 MCP 서버에 정비 이력 도구가 없어 데이터를 조회하지 않음 |
 | 후보·점검 순서 | 사례 가설과 RAG MCP가 반환한 SOP 조항을 연결해 제시 | 문서 검색 결과는 실제 장비 데이터가 아니며 원인 확정·정비 조치가 아님 |
 
-각 역할은 `agent/agents/` 아래의 **서로 다른 컴파일된 LangGraph 하위 그래프 5개**다. 상위 `agent/graph.py`는 이 하위 그래프들을 Supervisor처럼 순서대로 실행하고 기존 작업 체크포인트·재질문·승인 흐름을 소유한다. 결과는 보고서 `stages`에 한 에이전트당 한 건씩 기록되며, 화면도 다섯 에이전트를 각각 표시한다.
+각 역할은 `agent/agents/` 아래의 **서로 다른 컴파일된 LangGraph 하위 그래프 6개**다. 상위 `agent/graph.py`는 이 하위 그래프들을 Supervisor처럼 순서대로 실행하고 기존 작업 체크포인트·재질문·승인 흐름을 소유한다. 결과는 보고서 `stages`에 한 에이전트당 한 건씩 기록되며, 화면도 여섯 에이전트를 각각 표시한다.
 
 각 에이전트 그래프는 `common.py`의 근거 수집 단계와 역할별 추론 단계를 가진다. 루트 `.env`에 `OPENAI_API_KEY`와 `OPENAI_MODEL`이 모두 있으면 에이전트마다 OpenAI 구조화 응답 호출을 한 번 시도한다. 키가 없거나 호출에 실패하면 같은 하위 그래프가 규칙 기반 결과를 내며, 화면에 `규칙 기반 실행`으로 표시한다. 별도로 SOP 자연어 검색 MCP는 `OPENAI_API_KEY`를 사용해 질문 임베딩과 재순위화를 실행하므로 키가 없으면 해당 MCP 실패를 미확인으로 보고하며 가짜 체크리스트로 대체하지 않는다.
 
@@ -58,6 +59,7 @@ flowchart TD
 | business MCP | `analyze_metrics(cases,metrics)` | 결정론적 평균·표준편차·편차율·z-score 및 근거 ID |
 | business MCP | `list_investigations(user_name,user_role)` | Backend가 권한 필터한 승인 이력 목록; 에이전트가 같은 장비·Chamber·Recipe/증상 이력 최대 3건을 선택 |
 | business MCP | `save_investigation(task_id,command_id,event_id,payload)` | 승인된 최종 보고서를 Backend 검증 후 저장; LangGraph DONE callback에서 호출 |
+| physics MCP | `evaluate_etch_physics(inputs)` | 세 관계식을 계산하고 계산값·가정·부족/오류 입력을 반환 |
 | rag MCP | `search_documents(document_ids)` | PostgreSQL 샘플 문서의 정확한 조항 ID 조회 |
 | rag MCP | `search_sop(query)` | SOP·OCAP 색인에서 임베딩 후보 20개 검색 후 기존 reranker로 3개 조항 반환 |
 
