@@ -20,12 +20,23 @@ class Model(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class PhysicsInputs(Model):
+    etch_rate_nm_min: float | None = None
+    etch_time_sec: float | None = None
+    pre_thickness_nm: float | None = None
+    post_thickness_nm: float | None = None
+    target_etch_rate_nm_min: float | None = None
+    mask_etch_rate_nm_min: float | None = None
+    sources: dict[str, str] = Field(default_factory=dict)
+
+
 class Context(Model):
     equipment: str | None = None
     chamber: str | None = None
     recipe: str | None = None
     symptom: str | None = None
     metrics: dict[str, float] = Field(default_factory=dict)
+    physics: PhysicsInputs = Field(default_factory=PhysicsInputs)
 
 
 class Requester(Model):
@@ -73,6 +84,25 @@ class Metric(Model):
     severity: str
 
 
+class PhysicalValue(Model):
+    key: str
+    value: float
+    unit: str
+    source: str
+
+
+class PhysicsResult(Model):
+    model: Literal["etch_depth_constant_rate", "average_etch_rate", "selectivity"]
+    version: Literal["1.0"] = "1.0"
+    status: Literal["calculated", "needs_more_data", "invalid_input"]
+    formula: str
+    inputs: list[PhysicalValue] = Field(default_factory=list)
+    result: PhysicalValue | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class Document(Model):
     model_config = ConfigDict(frozen=True, extra="allow")
     id: str
@@ -92,7 +122,9 @@ class InvestigationCheck(Model):
 class InvestigationStage(Model):
     """One specialist node's traceable result and its evidence boundary."""
 
-    key: Literal["scope", "run_comparison", "sensor", "maintenance", "recommendation"]
+    key: Literal[
+        "scope", "run_comparison", "physics", "sensor", "maintenance", "recommendation",
+    ]
     title: str
     status: Literal["sample_based", "partial", "unavailable", "provisional"]
     agent_mode: Literal["llm", "rule_based"] = "rule_based"
@@ -107,6 +139,7 @@ class Report(Model):
     context: Context
     scored: list[Case]
     metrics: list[Metric]
+    physicsResults: list[PhysicsResult] = Field(default_factory=list)
     causeCases: list[Case]
     docIds: list[str]
     documents: list[Document]

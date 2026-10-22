@@ -13,9 +13,10 @@
 | 로그인·공동 작업 인가 | `backend/v1_auth.py`, `v1_commands.py` | Keycloak JWT 검증, 로그인 사용자 전체 조회·답변·검토 |
 | 상태·메시지·검토·이벤트·스냅샷 | `backend/v1_store.py`, `v1_schema.sql` | DB 연결은 lifespan에서 열림 |
 | 내부 명령 | `backend/v1_dispatch.py` | agent HTTP 실행·재개, command ID |
-| 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·문서·보고서·검토 |
-| MCP 어댑터 | `agent/evidence.py` | business/rag MCP만 사용, 업무 DB 직접 조회 금지 |
+| 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·물리 계산·문서·보고서·검토 |
+| MCP 어댑터 | `agent/evidence.py` | business/rag/physics MCP만 사용, 업무 DB 직접 조회 금지 |
 | 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
+| 물리 계산 | `mcp/physics.py`, `mcp/physics_models.py` | 식각 깊이·평균 속도·선택비, 부족/오류 입력 명시 |
 | 문서 | `mcp/rag.py` | `search_documents` exact-ID 조회와 `search_sop` SOP·OCAP 벡터 검색(`sop-ocap/` 마운트). SOP 색인은 별도 `sop-postgres`에 저장하며 `OPENAI_API_KEY` 필요 |
 | 샘플 적재 | `db/seed.py`, `cases.json`, `documents.json` | PHM 아님, demo/source 표시 보존 |
 | 화면 | `frontend/src/` (Vue 3 + TS, Pinia, Router), `docs/frontend.md` | 공개 backend 연동, seq 기반 이벤트 복원, 채팅 판별. `npm run dev:mock`으로 backend 없이 실행 |
@@ -47,6 +48,7 @@ uv sync --group dev
 (cd agent && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
+uv run --project mcp --with pytest python -m pytest tests/test_physics.py -q
 (cd frontend && npm ci && npm run type-check && npm test)
 (cd fab && uv sync --group dev && uv run pytest)
 (cd backend/prometheus && docker run --rm -v "$PWD":/w -w /w --entrypoint promtool prom/prometheus:v2.53.0 test rules rules_test.yml)
@@ -55,6 +57,7 @@ uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' 
 - `agent/tests/`: 질문 추출·보완, 재질문, 수정·승인, 근거 보존, 콜백 replay, PostgreSQL 프로세스 재시작(`AGENT_TEST_DATABASE_URL` 필요).
 - `backend/tests/`: 실제 PostgreSQL과 HTTP 경계로 권한, 대기 상태, 검토 경쟁, 승인 스냅샷, 이벤트·SSE replay, 실패·재시작 검증. `TEST_DATABASE_URL` 필요(기본 `postgresql:///postgres`).
 - `tests/test_evidence.py`: 샘플·유사도·통계·MCP 경계 검증. DB 검증에는 `EVIDENCE_TEST_DATABASE_URL` 필요.
+- `tests/test_physics.py`: 식각 관계식, 단위 변환, 부족 데이터와 잘못된 입력 검증.
 - 이 목록은 커버리지 위치이며 테스트 통과 증거가 아니다. 문서 문구나 프롬프트 문장을 고정하는 자기 검증 테스트를 만들지 않는다.
 
 ## LEGACY AND SCOPE

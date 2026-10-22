@@ -124,6 +124,14 @@ export function buildReport(question: string, feedback: string[]): Report {
       {key:'rf_reflected_w', value:29, severity:rfFocus ? 'high' : 'medium', mean:18.2, deltaPct:59.3, z:2.4},
       {key:'pressure_mtorr', value:31.5, severity:'low', mean:30.1, deltaPct:4.7, z:0.8},
     ],
+    physicsResults:[
+      {model:'etch_depth_constant_rate', version:'1.0', status:'needs_more_data', formula:'D = R * t', inputs:[], result:null,
+        assumptions:['식각 시간 동안 평균 식각 속도가 일정합니다.'], missing_fields:['etch_rate_nm_min', 'etch_time_sec'], warnings:[]},
+      {model:'average_etch_rate', version:'1.0', status:'needs_more_data', formula:'R = (D0 - D1) / t', inputs:[], result:null,
+        assumptions:['전후 막 두께 차이가 제거 두께를 나타냅니다.'], missing_fields:['pre_thickness_nm', 'post_thickness_nm', 'etch_time_sec'], warnings:[]},
+      {model:'selectivity', version:'1.0', status:'needs_more_data', formula:'S = R_target / R_mask', inputs:[], result:null,
+        assumptions:['두 속도는 동일 조건에서 측정되었습니다.'], missing_fields:['target_etch_rate_nm_min', 'mask_etch_rate_nm_min'], warnings:[]},
+    ],
     causeCases:[
       {id:'CASE-014', cause:'RF matching 열화', action:'매칭 네트워크 커패시터 위치와 반사전력 추이 확인', docs:['DOC-RF-03']},
       {id:'CASE-031', cause:'챔버 컨디셔닝 부족', action:'최근 PM 이후 시즈닝 웨이퍼 수 확인', docs:['DOC-EP-07']},
@@ -131,7 +139,7 @@ export function buildReport(question: string, feedback: string[]): Report {
     ],
     docIds:['DOC-RF-03', 'DOC-EP-07', 'DOC-PR-02'],
     documents:[...Object.values(documents), ...sopClauses],
-    // Five specialist-agent results in graph order (develop `stages`).
+    // Six specialist-agent results in graph order.
     stages:[
       {key:'scope', title:'범위 조사 에이전트', status:'sample_based', agent_mode:'rule_based',
         findings:[`${equipment} ${chamber} ${recipe} 범위에서 유사 데모 사례 3건과 승인 이력 1건을 찾았습니다.`],
@@ -139,6 +147,8 @@ export function buildReport(question: string, feedback: string[]): Report {
       {key:'run_comparison', title:'동일 조건 Run 비교 에이전트', status:'sample_based', agent_mode:'rule_based',
         findings:['endpoint가 비교군 평균 대비 27.7% 지연, RF 반사전력 59.3% 상승'],
         unknowns:['동일 Recipe·Step 실측 Run 시계열 미연결'], caseIds:['CASE-014'], docIds:[]},
+      {key:'physics', title:'물리 관계식 검증 에이전트', status:'unavailable', agent_mode:'rule_based',
+        findings:[], unknowns:['식각 시간·막 두께·선택비 입력 데이터가 필요합니다.'], caseIds:[], docIds:[]},
       {key:'sensor', title:'센서 교차 확인 에이전트', status:'partial', agent_mode:'rule_based',
         findings:['사용자 입력 계측값(endpoint, RF reflected)만 확인했습니다.'],
         unknowns:['Gas Flow·펌프·밸브 원본 센서 시계열 미연결'], caseIds:[], docIds:[]},

@@ -10,6 +10,7 @@
 | [../deploy/keycloak/README.md](../deploy/keycloak/README.md) | Keycloak 계정 생성·URL·영속성 |
 | [keycloak-validation.md](keycloak-validation.md) | Vue·최신 backend 인증 이식 검증 |
 | [agent.md](agent.md) | 실제 그래프, 중단·재개, MCP, 보고서 |
+| [physics.md](physics.md) | Physics v1 계산 계약, 데이터 경계, 향후 확장 백로그 |
 | [architecture.md](architecture.md) | 단일 v1 구조, 저장 책임, 배포·데이터 |
 | [frontend.md](frontend.md) | Vue 화면 구조, 필요 API와 예시, 대화형 계약 제안, 목업 서버 |
 | [structure-review.md](structure-review.md) | 전체 경로 지도, 구조 점검 결과와 근거 |
@@ -23,11 +24,12 @@ frontend/                   Vue 3 + TS 화면(Vite), 목업 API(mock/)
 sop-ocap/                   SOP·OCAP 원문(SOP 화면·의미 검색 출처)
 backend/main.py, v1_*.py     작업·권한·메시지·검토·이력·SSE·SOP
 agent/                      유일한 LangGraph, 체크포인트, MCP 어댑터
-mcp/                        business/rag 서버와 결정론적 계산
+mcp/                        business/rag/physics 서버와 결정론적 계산
 db/                         샘플 사례·문서·적재
 agent/tests/                추출·재질문·보고서·검토·재시작
 backend/tests/              HTTP 권한·상태·스냅샷·이벤트·경쟁
 tests/test_evidence.py       샘플·계산·MCP 경계
+tests/test_physics.py        물리 관계식·부족 데이터·유효성 검증
 tests/test_sop_*.py          SOP 파서·색인·검색 실험
 frontend/tests/              API 계약·스토어·렌더·목업
 deploy/nginx.conf           빌드된 화면과 /api(backend) 프록시

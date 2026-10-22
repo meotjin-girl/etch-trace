@@ -2,7 +2,16 @@
 
 import re
 
-from .models import Context
+from .models import Context, PhysicsInputs
+
+
+def _measurement(text: str, labels: str, units: str) -> tuple[float, str] | None:
+    match = re.search(
+        rf"(?:{labels})[^\d]{{0,24}}(\d+(?:\.\d+)?)\s*({units})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return (float(match.group(1)), match.group(2).lower()) if match else None
 
 
 def parse_question(text: str, existing: Context | None = None) -> Context:
@@ -38,6 +47,47 @@ def parse_question(text: str, existing: Context | None = None) -> Context:
         if match:
             metrics[name] = float(match.group(1))
     data["metrics"] = metrics
+
+    physics = current.physics.model_dump()
+    sources = dict(current.physics.sources)
+    duration = _measurement(
+        text,
+        r"etch(?:ing)?\s*time|process\s*time|식각\s*(?:공정\s*)?시간",
+        r"초|sec|seconds?|s\b|분|min|minutes?",
+    )
+    if duration:
+        value, unit = duration
+        minute_units = {"분", "min", "minute", "minutes"}
+        physics["etch_time_sec"] = value * 60 if unit in minute_units else value
+        sources["etch_time_sec"] = "user_input"
+    thickness_patterns = {
+        "pre_thickness_nm": r"pre[-\s]?etch\s*(?:film\s*)?thickness|식각\s*전\s*(?:막\s*)?두께",
+        "post_thickness_nm": r"post[-\s]?etch\s*(?:film\s*)?thickness|식각\s*후\s*(?:막\s*)?두께",
+    }
+    for key, labels in thickness_patterns.items():
+        measured = _measurement(text, labels, r"nm|나노미터")
+        if measured:
+            physics[key] = measured[0]
+            sources[key] = "user_input"
+    rate_patterns = {
+        "target_etch_rate_nm_min": r"target\s*(?:film\s*)?etch\s*rate|목표막\s*식각\s*속도",
+        "mask_etch_rate_nm_min": r"mask\s*etch\s*rate|마스크\s*식각\s*속도|보호막\s*식각\s*속도",
+    }
+    for key, labels in rate_patterns.items():
+        measured = _measurement(text, labels, r"nm\s*/\s*min|nm/min")
+        if measured:
+            physics[key] = measured[0]
+            sources[key] = "user_input"
+    # A generic etch-rate observation is valid for the constant-rate model only
+    # when it is not explicitly labelled as a target or mask rate.
+    if "etch_rate_nm_min" in metrics and not any(
+        physics.get(key) is not None
+        for key in ("target_etch_rate_nm_min", "mask_etch_rate_nm_min")
+    ):
+        physics["etch_rate_nm_min"] = metrics["etch_rate_nm_min"]
+        sources["etch_rate_nm_min"] = "user_input"
+    physics["sources"] = sources
+    data["physics"] = PhysicsInputs.model_validate(physics)
 
     lower = text.lower()
     symptoms = list(filter(None, (current.symptom or "").split(" · ")))

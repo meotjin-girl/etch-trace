@@ -7,7 +7,7 @@ import anyio
 from fastmcp import Client
 from pydantic import BaseModel, JsonValue
 
-from .models import Case, Context, Document, Metric, Requester
+from .models import Case, Context, Document, Metric, PhysicsResult, Requester
 
 
 class ToolEnvelope[T](BaseModel):
@@ -20,6 +20,8 @@ class EvidenceProvider(Protocol):
     def analyze_metrics(self, cases: list[Case], context: Context) -> list[Metric]: ...
 
     def search_documents(self, document_ids: list[str]) -> list[Document]: ...
+
+    def evaluate_etch_physics(self, context: Context) -> list[PhysicsResult]: ...
 
 
 class HistoryEvidenceReader(Protocol):
@@ -40,11 +42,15 @@ def mcp_url(base: str) -> str:
 class MCPEvidenceProvider:
     business_url: str
     rag_url: str
+    physics_url: str = ""
 
     async def _search_cases(self, context: Context) -> list[Case]:
         async with Client(mcp_url(self.business_url)) as client:
             result = await client.call_tool(
-                "search_cases", {"context": context.model_dump(exclude_none=True)},
+                "search_cases", {"context": {
+                    key: value for key, value in context.model_dump(exclude_none=True).items()
+                    if key != "physics"
+                }},
             )
         return ToolEnvelope[Case].model_validate(result.structured_content).result
 
@@ -82,6 +88,13 @@ class MCPEvidenceProvider:
             result.structured_content,
         ).result
 
+    async def _evaluate_etch_physics(self, context: Context) -> list[PhysicsResult]:
+        async with Client(mcp_url(self.physics_url)) as client:
+            result = await client.call_tool(
+                "evaluate_etch_physics", {"inputs": context.physics.model_dump()},
+            )
+        return ToolEnvelope[PhysicsResult].model_validate(result.structured_content).result
+
     def search_cases(self, context: Context) -> list[Case]:
         return anyio.run(self._search_cases, context)
 
@@ -93,6 +106,9 @@ class MCPEvidenceProvider:
 
     def search_sop(self, query: str) -> list[Document]:
         return anyio.run(self._search_sop, query)
+
+    def evaluate_etch_physics(self, context: Context) -> list[PhysicsResult]:
+        return anyio.run(self._evaluate_etch_physics, context)
 
     def list_investigations(
         self, requester: Requester,

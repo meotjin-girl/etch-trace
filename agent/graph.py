@@ -17,6 +17,9 @@ from .agents import (
     maintenance_agent as maintenance_agent_module,
 )
 from .agents import (
+    physics_agent as physics_agent_module,
+)
+from .agents import (
     recommendation_agent as recommendation_agent_module,
 )
 from .agents import (
@@ -37,6 +40,7 @@ from .models import (
     InvestigationCheck,
     InvestigationStage,
     Metric,
+    PhysicsResult,
     Report,
     Requester,
     Review,
@@ -52,6 +56,7 @@ class State(TypedDict):
     clarifications: int
     scored: list[Case]
     metrics: list[Metric]
+    physics_results: list[PhysicsResult]
     documents: list[Document]
     history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
@@ -73,6 +78,7 @@ class Update(TypedDict, total=False):
     clarifications: int
     scored: list[Case]
     metrics: list[Metric]
+    physics_results: list[PhysicsResult]
     documents: list[Document]
     history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
@@ -124,6 +130,7 @@ def template_report(state: State) -> Report:
         context=state["context"],
         scored=state["scored"],
         metrics=state["metrics"],
+        physicsResults=state.get("physics_results", []),
         causeCases=cause_cases(state["scored"]),
         docIds=list(dict.fromkeys([
             *document_ids(state["scored"]),
@@ -146,6 +153,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     """Compile a graph whose interrupt nodes have no callback side effects."""
     scope_graph = scope_agent_module.build(evidence)
     comparison_graph = comparison_agent_module.build(evidence)
+    physics_graph = physics_agent_module.build(evidence)
     sensor_graph = sensor_agent_module.build()
     maintenance_graph = maintenance_agent_module.build()
     recommendation_graph = recommendation_agent_module.build(evidence)
@@ -227,6 +235,13 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         result = sensor_graph.invoke({"context": state["context"]})
         return {"stages": [*state.get("stages", []), result["result"]]}
 
+    def physics_agent(state: State) -> Update:
+        result = physics_graph.invoke({"context": state["context"]})
+        return {
+            "physics_results": result.get("physics_results", []),
+            "stages": [*state.get("stages", []), result["result"]],
+        }
+
     def maintenance_agent(state: State) -> Update:
         result = maintenance_graph.invoke({"context": state["context"]})
         return {"stages": [*state.get("stages", []), result["result"]]}
@@ -235,6 +250,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         result = recommendation_graph.invoke({
             "context": state["context"], "cases": state["scored"],
             "metrics": state["metrics"], "stages": state["stages"],
+            "physics_results": state.get("physics_results", []),
             "history": state.get("history", []),
         })
         return {
@@ -288,7 +304,8 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         "search_started": search_started,
         "scope_agent": scope_agent,
         "analysis_started": analysis_started, "analyze": analyze,
-        "sensor_agent": sensor_agent, "maintenance_agent": maintenance_agent,
+        "physics_agent": physics_agent, "sensor_agent": sensor_agent,
+        "maintenance_agent": maintenance_agent,
         "recommendation_agent": recommendation_agent,
         "report_started": report_started, "report": report,
         "approval_event": approval_event, "review": review,
@@ -303,7 +320,8 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     builder.add_edge("search_started", "scope_agent")
     builder.add_conditional_edges("scope_agent", after_scope)
     builder.add_edge("analysis_started", "analyze")
-    builder.add_edge("analyze", "sensor_agent")
+    builder.add_edge("analyze", "physics_agent")
+    builder.add_edge("physics_agent", "sensor_agent")
     builder.add_edge("sensor_agent", "maintenance_agent")
     builder.add_edge("maintenance_agent", "recommendation_agent")
     builder.add_edge("recommendation_agent", "report_started")

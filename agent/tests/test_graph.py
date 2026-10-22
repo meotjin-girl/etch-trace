@@ -38,6 +38,10 @@ def test_clarification_when_scope_missing_survives_graph_reconstruction():
     snapshot = graph.get_state(config)
     assert snapshot.interrupts[0].value["kind"] == "review"
     assert snapshot.values["context"].metrics == {"endpoint_sec": 94}
+    assert [stage.key for stage in snapshot.values["report"].stages] == [
+        "scope", "run_comparison", "physics", "sensor", "maintenance", "recommendation",
+    ]
+    assert snapshot.values["report"].physicsResults[0].status == "needs_more_data"
     assert [event.type for event in events.values] == [
         "QUESTION", "SEARCH_STARTED", "ANALYSIS_STARTED", "REPORT_STARTED", "APPROVAL_REQUIRED",
     ]

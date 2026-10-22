@@ -28,6 +28,24 @@ const heading = computed(() => {
     <p v-if="!report.metrics?.length">계측값 미제공</p>
   </div>
 
+  <section v-if="report.physicsResults?.length" class="answer-section">
+    <h3>물리 계산 검증</h3>
+    <p class="section-note">계산값은 입력 계측값과 표시된 가정으로 산출한 예상값이며 실제 계측 결과가 아닙니다.</p>
+    <ol class="stage-list">
+      <li v-for="item in report.physicsResults" :key="item.model">
+        <header>
+          <strong>{{ item.model }}</strong>
+          <span class="severity">{{ item.status }}</span>
+        </header>
+        <p v-if="item.result"><b>계산값:</b> {{ number(item.result.value) }} {{ item.result.unit }} · {{ item.formula }}</p>
+        <p v-if="item.inputs?.length"><b>입력:</b> {{ item.inputs.map(input => `${input.key}=${input.value} ${input.unit} (${input.source})`).join(' · ') }}</p>
+        <p v-for="assumption in item.assumptions" :key="assumption" class="stage-unknown">가정: {{ assumption }}</p>
+        <p v-if="item.missing_fields?.length" class="stage-unknown">추가 데이터 필요: {{ item.missing_fields.join(', ') }}</p>
+        <p v-for="warning in item.warnings" :key="warning" class="stage-unknown">주의: {{ warning }}</p>
+      </li>
+    </ol>
+  </section>
+
   <section v-if="report.stages?.length" class="answer-section">
     <h3>조사 단계별 결과</h3>
     <p class="section-note">데모 사례 분석, 사용자 입력값, 아직 연결되지 않은 실제 시스템 데이터를 구분했습니다.</p>

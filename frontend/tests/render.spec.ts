@@ -90,13 +90,18 @@ test('pending judgement renders 승인/미승인 under the report bubble', async
   expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined()
 })
 
-test('report renders develop sections: stages, approved history, RAG checks with citations', () => {
+test('report renders physics, stages, approved history, and RAG citations', () => {
   const wrapper = mount(ReportView, {props:{report:{summary:'요약', demo:true,
+    physicsResults:[{model:'etch_depth_constant_rate', version:'1.0', status:'calculated', formula:'D = R * t',
+      inputs:[{key:'etch_rate_nm_min', value:500, unit:'nm/min', source:'user_input'}],
+      result:{key:'expected_etch_depth_nm', value:1000, unit:'nm', source:'calculated'},
+      assumptions:['속도 일정'], missing_fields:[], warnings:['실측값 아님']}],
     stages:[{key:'scope', title:'범위 조사 에이전트', status:'sample_based', agent_mode:'llm', findings:['사례 3건'], unknowns:['MES 미연결']}],
     history:[{id:'HIST-1', question:'과거 질문', summary:'과거 요약', causes:['RF'], approvedBy:'이엔지니어', approvedAt:'2026-10-12', lotId:'LOT-1'}],
     checks:[{title:'SOP-ETCH-12 · 4.2', rationale:'동시 비교', source:'rag_mcp', docId:'SOP-ETCH-12#4.2'}]}}})
   const text = wrapper.text()
-  for (const expected of ['조사 단계별 결과', '데모 사례 기반 · LLM 사용', '미확인: MES 미연결',
+  for (const expected of ['물리 계산 검증', '계산값: 1000.00 nm', '가정: 속도 일정', '주의: 실측값 아님',
+    '조사 단계별 결과', '데모 사례 기반 · LLM 사용', '미확인: MES 미연결',
     '유사 승인 조사 이력', '과거 후보: RF', 'Lot LOT-1', 'SOP RAG 검색 결과 · 우선 확인 순서', '[SOP-ETCH-12#4.2]']) {
     expect(text).toContain(expected)
   }

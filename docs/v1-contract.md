@@ -58,7 +58,9 @@ The report contains `context`, `scored`, `metrics`, `causeCases`, `docIds`,
 `revision`, `notice`, and `distance`), `history` (up to three similar,
 approved records visible to the original requester), `checks` (up to three ordered
 SOP clauses actually returned by RAG MCP, each `{title,rationale,source:"rag_mcp",docId}`),
-`stages` (the five specialist-agent results, each with `key`, `title`, `status`,
+`physicsResults` (versioned deterministic calculations with inputs, sources,
+assumptions, missing fields and warnings), `stages` (the six specialist-agent
+results, each with `key`, `title`, `status`,
 `agent_mode`, `findings`, `unknowns`, `caseIds`, `docIds`, and `historyIds`), `summary`,
 `unknowns`, `feedback` and `demo:true`. `agent_mode` is `llm` or `rule_based`.
 Metrics retain their units and supporting case IDs.
@@ -91,6 +93,9 @@ All backend/agent internal requests require `X-Internal-Key`.
   search indexes the mounted SOP/OCAP source files (`sop-ocap/`) into the persistent
   `sop-postgres` volume. Failed or unavailable semantic search is reported as
   unavailable, not replaced with a locally generated checklist.
+- Physics MCP tool: `evaluate_etch_physics(inputs)` evaluates constant-rate etch
+  depth, average etch rate and selectivity. It returns calculated, needs-more-data
+  or invalid-input results and never invents missing measurements.
 - Scope agent -> Business MCP: `list_investigations(user_name,user_role)`;
   the backend authenticates the internal key and returns shared approved history.
   Similar approved reports are references, not proof of the current root cause.

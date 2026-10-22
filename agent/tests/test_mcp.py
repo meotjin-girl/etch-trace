@@ -2,13 +2,13 @@ from fastmcp import Client, FastMCP
 from pydantic import JsonValue
 
 from agent.evidence import MCPEvidenceProvider
-from agent.models import Case, Context
+from agent.models import Case, Context, PhysicsInputs
 from agent.tests.support import Evidence
 
 
 def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeypatch):
     # Given: real in-process FastMCP servers, clients, tool schemas, and dispatch.
-    business, rag = FastMCP("business"), FastMCP("rag")
+    business, rag, physics = FastMCP("business"), FastMCP("rag"), FastMCP("physics")
     evidence = Evidence()
     seen = []
 
@@ -34,21 +34,40 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
             for doc in evidence.search_documents(document_ids)
         ]
 
-    servers = {"http://business/mcp": business, "http://rag/mcp": rag}
+    @physics.tool
+    def evaluate_etch_physics(inputs: dict[str, JsonValue]) -> list[dict[str, JsonValue]]:
+        parsed = Context(physics=PhysicsInputs.model_validate(inputs))
+        seen.append(("evaluate_etch_physics", parsed.physics))
+        return [item.model_dump(mode="json") for item in evidence.evaluate_etch_physics(parsed)]
+
+    servers = {
+        "http://business/mcp": business,
+        "http://rag/mcp": rag,
+        "http://physics/mcp": physics,
+    }
     monkeypatch.setattr("agent.evidence.Client", lambda url: Client(servers[url]))
-    adapter = MCPEvidenceProvider("http://business", "http://rag/mcp")
-    context = Context(equipment="ETCH-07", metrics={"endpoint_sec": 94})
+    adapter = MCPEvidenceProvider("http://business", "http://rag/mcp", "http://physics")
+    context = Context(
+        equipment="ETCH-07",
+        metrics={"endpoint_sec": 94},
+        physics=PhysicsInputs(etch_rate_nm_min=500, etch_time_sec=120),
+    )
     # When
     cases = adapter.search_cases(context)
     metrics = adapter.analyze_metrics(cases, context)
     documents = adapter.search_documents(["DOC#1"])
+    physics_results = adapter.evaluate_etch_physics(context)
     # Then
     assert cases == evidence.cases
     assert metrics[0].value == 94
     assert metrics[0].model_dump()["caseIds"] == [case.id for case in cases]
     assert documents[0].id == "DOC#1"
+    assert physics_results[0].result is not None
+    assert physics_results[0].result.value == 1000
     assert seen == [
-        ("search_cases", context), ("analyze_metrics", 5), ("search_documents", ["DOC#1"]),
+        ("search_cases", Context(equipment="ETCH-07", metrics={"endpoint_sec": 94})),
+        ("analyze_metrics", 5), ("search_documents", ["DOC#1"]),
+        ("evaluate_etch_physics", context.physics),
     ]
 
 

@@ -72,7 +72,9 @@ class InvestigationCheck(Input):
 
 
 class InvestigationStage(Input):
-    key: Literal["scope", "run_comparison", "sensor", "maintenance", "recommendation"]
+    key: Literal[
+        "scope", "run_comparison", "physics", "sensor", "maintenance", "recommendation",
+    ]
     title: str
     status: Literal["sample_based", "partial", "unavailable", "provisional"]
     agent_mode: Literal["llm", "rule_based"] = "rule_based"
@@ -95,10 +97,30 @@ class HistoryEvidence(Input):
     lotId: str | None = None
 
 
+class PhysicalValue(Input):
+    key: str
+    value: float
+    unit: str
+    source: str
+
+
+class PhysicsResult(Input):
+    model: Literal["etch_depth_constant_rate", "average_etch_rate", "selectivity"]
+    version: Literal["1.0"] = "1.0"
+    status: Literal["calculated", "needs_more_data", "invalid_input"]
+    formula: str
+    inputs: list[PhysicalValue] = Field(default_factory=list)
+    result: PhysicalValue | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class Report(Input):
     context: dict[str, JsonValue] = Field(default_factory=dict)
     scored: list[dict[str, JsonValue]] = Field(default_factory=list)
     metrics: list[dict[str, JsonValue]] = Field(default_factory=list)
+    physicsResults: list[PhysicsResult] = Field(default_factory=list)
     causeCases: list[dict[str, JsonValue]] = Field(default_factory=list)
     docIds: list[str] = Field(default_factory=list)
     documents: list[Document] = Field(default_factory=list)

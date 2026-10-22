@@ -23,9 +23,10 @@ docker compose -f compose.yaml ps
 
 ```text
 브라우저(Vue 3) -> nginx(dist 서빙) -> backend (REST / SSE, 작업·판별·승인 이력·SOP)
-                                          -> agent (유일한 LangGraph, 조사 에이전트 5개, PostgreSQL 체크포인트)
+                                          -> agent (유일한 LangGraph, 조사 에이전트 6개, PostgreSQL 체크포인트)
                                                -> business-mcp -> backend 내부 사례·이력·승인 저장 API
                                                -> rag-mcp -> PostgreSQL 샘플 문서 / sop-postgres SOP·OCAP 색인
+                                               -> physics-mcp -> 결정론적 식각 관계식 계산
 ```
 
 | 경로 | 책임 |
@@ -34,6 +35,7 @@ docker compose -f compose.yaml ps
 | `backend/main.py`, `backend/v1_*.py` | 공개 API, JWT 검증·공동 작업 인가, 상태·메시지·검토·이벤트·승인 스냅샷 |
 | `agent/` | 질문 추출, 재질문, MCP 조사, 보고서, 검토 중단·재개 |
 | `mcp/` | 사례 조회·결정론적 통계·승인 이력 도구, 문서 조항 조회·SOP 의미 검색 |
+| `mcp/physics_models.py`, `mcp/physics.py` | 식각 깊이·평균 식각 속도·선택비 계산과 입력 검증. [Physics v1](docs/physics.md) |
 | `sop-ocap/` | SOP 3종·OCAP 19종 원문. SOP 화면과 SOP 의미 검색의 출처 |
 | `db/` | 샘플 사례·문서와 적재 스크립트 |
 | `compose.yaml`, `deploy/` | 서비스 구성, nginx 프록시 |

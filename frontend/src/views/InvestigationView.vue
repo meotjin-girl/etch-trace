@@ -10,6 +10,7 @@ const suggestions = [
   {label: 'Endpoint 지연 조사', prompt: 'ETCH-07 CH-B의 OX-120 공정에서 endpoint가 118초로 지연되고 RF reflected power가 29W로 상승했어. 과거 유사 사례와 먼저 점검할 항목을 알려줘.'},
   {label: 'Etch rate 저하', prompt: 'ETCH-09 CH-B의 OX-120 공정에서 etch rate가 430으로 저하되고 chamber pressure가 불안정해. 관련 사례를 찾아줘.'},
   {label: 'RF 반사전력 상승', prompt: 'ETCH-07에서 RF reflected power가 29W로 상승했어. 관련 기준 문서와 점검 순서를 알려줘.'},
+  {label: '물리 계산 검증', prompt: 'ETCH-07 CH-B OX-120에서 식각 속도 500 nm/min, 식각 시간 120초, 식각 전 막 두께 1000nm, 식각 후 막 두께 400nm야. 계산값과 문서 근거를 함께 검토해줘.'},
 ]
 
 // Quick replies attach to the prompt they answer, or to the last bubble if it has no event.
