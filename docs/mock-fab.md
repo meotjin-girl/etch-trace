@@ -5,9 +5,9 @@
 ## 구성
 
 ```text
-[AWS EC2]  fab/compose.yaml                                         [로컬]
- etch-01 ┐                                                       backend/prometheus/compose.yaml
- etch-02 ├─HSMS:5000 (docker 내부망만)─▶ collector :80 (HTTP) ◀── Prometheus :9090 (5초 수집)
+[AWS EC2 32.236.188.208]  fab/compose.yaml                      [루트 compose.yaml, CD 배포 서버·로컬]
+ etch-01 ┐                                                       prometheus (내부망, 호스트 포트 없음)
+ etch-02 ├─HSMS:5000 (docker 내부망만)─▶ collector :80 (HTTP) ◀── 5초 수집 → backend가 prometheus:9090 조회
  etch-03 ┘  S1F3 상태변수 · S5F1 알람 · S6F11 run 이벤트  ├ /             현재 센서값 화면
                                                           ├ /api/current  JSON
                                                           └ /metrics      Prometheus 형식
@@ -19,7 +19,7 @@
 | `fab/equipment.py` | SECS/GEM 장비(secsgem `GemEquipmentHandler`). 장비 1대 = 프로세스 1개, 챔버별 스레드로 run 무한 반복 |
 | `fab/collector.py` | SECS/GEM 호스트(`GemHostHandler`). 5초마다 S1F3 조회, HTTP 화면·JSON·메트릭 제공 |
 | `fab/index.html` | 의존성 없는 현재값 화면 |
-| `backend/prometheus/` | 로컬 Prometheus 설정·FDC 규칙·대상 주소 |
+| `backend/prometheus/` | Prometheus 설정·FDC 규칙·대상 주소. 루트 `compose.yaml`의 `prometheus` 서비스가 마운트한다 |
 
 - **HSMS에는 암호화·인증이 없고 secsgem은 TLS를 지원하지 않는다.** 그래서 HSMS는 docker 내부망에만 두고, 외부에는 collector HTTP 하나만 연다. 공개 GET 전용이며 쓰기 경로는 없다.
 - 실제 팹에는 상용 FDC가 이미 있다. 여기의 Prometheus 규칙은 그 **규칙 기반 대역**이며 ML FDC는 만들지 않는다. TRACE의 역할은 FDC 이후의 원인 조사다.
@@ -176,27 +176,19 @@ backend가 Prometheus `GET /api/v1/alerts`를 폴링해 장비 알람과 FDC 경
 
 ## 실행
 
-### 다른 컴퓨터에서 Prometheus로 보기
+### Prometheus 확인
 
-AWS 수집기는 공개 HTTP라 인증·키 없이 수집할 수 있다. 대상 주소(`backend/prometheus/targets.json`)와 규칙이 저장소에 들어 있으므로, Docker가 있는 컴퓨터라면 아래만 하면 된다.
+Prometheus는 루트 `compose.yaml`의 `prometheus` 서비스다. develop에 머지되면 Jenkins가 다른 서비스와 함께 배포한다(`docs/deploy.md`). 로컬에서도 같은 compose를 쓴다. 호스트 포트를 열지 않으므로, 서버 포트 구성을 몰라도 된다. 확인은 컨테이너 안에서 한다.
 
 ```bash
-git clone https://github.com/meotjin-girl/etch-trace.git && cd etch-trace
-git checkout feature/mock-fab        # develop에 머지되기 전까지
-docker compose -f backend/prometheus/compose.yaml up -d
+docker compose up -d prometheus
+docker compose exec prometheus wget -qO- localhost:9090/api/v1/targets   # 32.236.188.208:80 health=up
+docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts    # pending/firing 경보
 ```
 
-| 확인 | 위치 | 정상 |
-|---|---|---|
-| 장비 화면 (브라우저만 있으면 됨) | http://32.236.188.208/ | 카드 6장이 5초마다 갱신 |
-| 수집 대상 | http://127.0.0.1:9090/targets | `mock-fab` 대상이 `UP` |
-| 센서 추이 | http://127.0.0.1:9090/graph, 식 `etch_sensor_value{sensor="pressure_pv_mtorr"}` | 6개 선이 25 근처 |
-| 경보 | http://127.0.0.1:9090/alerts | 고장 run 중 `EQUIPMENT_ALARM`·`FDC_*` 발생 |
-
-- Prometheus는 컴퓨터마다 따로 돈다. **기록은 각자 켠 시점부터 쌓이며**, 다른 컴퓨터나 켜기 전 데이터는 받을 수 없다. 장비 쪽에는 이력이 남지 않는다. 보존 기간은 15일이며 docker 볼륨 `prometheus_prometheus-data`에 저장된다.
-- 9090 포트는 `127.0.0.1`에만 열린다. 같은 네트워크의 다른 사람이 내 Prometheus를 볼 수는 없다.
-- 규칙이나 대상 파일을 고친 뒤에는 `docker compose -f backend/prometheus/compose.yaml restart`를 실행한다.
-- 끄기: `docker compose -f backend/prometheus/compose.yaml down` (기록까지 지우려면 `down -v`).
+- 장비 화면은 브라우저로 http://32.236.188.208/ 에서 본다(카드 6장, 5초 갱신).
+- 기록은 그 compose가 뜬 시점부터 docker 볼륨 `prometheus_data`에 15일간 쌓인다. 환경(배포 서버, 각자 로컬)마다 Prometheus가 따로 있다.
+- 규칙이나 대상 파일을 고친 뒤에는 `docker compose restart prometheus`를 실행한다. 배포 서버는 머지 후 재배포로 반영된다.
 - 대상이 `DOWN`이면 다음 순서로 확인한다.
   1. 브라우저로 http://32.236.188.208/metrics 가 열리는지 본다. 안 열리면 EC2·보안그룹(80) 문제다.
   2. 열리는데도 DOWN이면, 사내망 등에서 외부 80 포트가 막혔는지 확인한다.

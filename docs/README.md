@@ -35,7 +35,7 @@ tests/test_sop_*.py          SOP 파서·색인·검색 실험
 frontend/tests/              API 계약·스토어·렌더·목업
 deploy/nginx.conf           빌드된 화면과 /api(backend) 프록시
 fab/                        합성 SECS/GEM 모의 장비·수집기(AWS 배포, 별도 compose)
-backend/prometheus/         로컬 Prometheus 설정·FDC 규칙·규칙 테스트
+backend/prometheus/         Prometheus 설정·FDC 규칙·규칙 테스트(루트 compose의 prometheus가 마운트)
 ```
 
 구형 `docker-compose*.yml`은 `compose.yaml` include wrapper이며 별도 DB/agent 구성을 시작하지 않는다. 이전 CLI·JSON 요청 예제·CLI 테스트는 서비스 커버리지 확인 후 제거했다. 이전 localStorage 기록은 **로컬 읽기 전용**이며 서버 승인 이력으로 자동 전환하지 않는다.
