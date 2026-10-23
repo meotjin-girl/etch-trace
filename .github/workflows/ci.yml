@@ -6,6 +6,14 @@ on:
   push:
     branches: [develop]
 
+# 같은 PR에 새 커밋이 올라오면 이전 실행은 취소
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   frontend:
     name: Frontend build
@@ -23,12 +31,41 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-  python:
-    name: Python syntax check
+  python-lint:
+    name: Python lint (ruff)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/ruff-action@v3
         with:
-          python-version: "3.12"
-      - run: python -m compileall -q backend agent mcp
+          # 처음엔 확실한 오류만 검사 (문법 오류, 정의 안 된 이름 등)
+          args: "check --select E9,F63,F7,F82 backend agent mcp"
+
+  docker-build:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all images
+        run: docker compose -f compose.yaml build
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
