@@ -39,8 +39,7 @@ def _parse_header(line: str) -> tuple[str, str, str, str, str]:
     parts = [part.strip() for part in line.split("/")]
     if len(parts) != 5 or not parts[0].startswith("[경보]"):
         raise ValueError(
-            "경보 헤더 형식이 올바르지 않습니다: "
-            "[경보] tool / chamber / Lot ... / Wafer ... / recipe"
+            "경보 헤더 형식이 올바르지 않습니다: [경보] tool / chamber / Lot ... / Wafer ... / recipe"
         )
     tool = parts[0][len("[경보]") :].strip()
     if not tool:
