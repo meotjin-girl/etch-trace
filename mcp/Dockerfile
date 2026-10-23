@@ -6,4 +6,5 @@ RUN uv sync --frozen --no-dev
 COPY evidence.py business.py rag.py physics.py physics_models.py sop_chunks.py sop_vectors.py sop_rerank.py ./
 
 EXPOSE 8000
+ENV UV_NO_SYNC=1
 CMD ["uv", "run", "python", "business.py"]

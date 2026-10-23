@@ -73,7 +73,12 @@ class InvestigationCheck(Input):
 
 class InvestigationStage(Input):
     key: Literal[
-        "scope", "run_comparison", "physics", "sensor", "maintenance", "recommendation",
+        "scope",
+        "run_comparison",
+        "physics",
+        "sensor",
+        "maintenance",
+        "recommendation",
     ]
     title: str
     status: Literal["sample_based", "partial", "unavailable", "provisional"]
@@ -268,6 +273,7 @@ class Settings:
     keycloak_audience: str = "trace-api"
     keycloak_jwks_url: str = ""
     prometheus_url: str = ""  # empty disables alert intake
+    agent_server_url: str = ""  # empty preserves legacy task dispatch
 
     @property
     def issuer(self) -> str:

@@ -5,8 +5,10 @@ import sys
 import tempfile
 import unittest
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Event
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -22,7 +24,16 @@ sys.path.insert(0, str(ROOT / "mcp"))
 
 from sop_chunks import Chunk, load_chunks, parse_document
 from sop_experiment import QUESTIONS, Question, app, score
-from sop_vectors import DIMENSIONS, Embedder, Embedding, EmbeddingModel, Hit, ingest, retrieve
+from sop_vectors import (
+    DIMENSIONS,
+    Embedder,
+    Embedding,
+    EmbeddingModel,
+    Hit,
+    IngestResult,
+    ingest,
+    retrieve,
+)
 
 
 def sample_chunk(section: str = "1") -> Chunk:
@@ -237,6 +248,58 @@ revision notes
 
 @unittest.skipUnless(os.getenv("SOP_TEST_DATABASE_URL"), "SOP_TEST_DATABASE_URL is required")
 class VectorTest(unittest.TestCase):
+    def test_parallel_ingest_waits_before_embedding(self) -> None:
+        # Given: a committed schema and the first refresh held inside embedding.
+        url = os.environ["SOP_TEST_DATABASE_URL"]
+        schema = sql.Identifier(f"sop_parallel_{uuid4().hex}")
+        entered, release = Event(), Event()
+        with psycopg.connect(url) as setup, OpenAI(api_key="test-unused") as client:
+            _ = setup.execute(sql.SQL("CREATE SCHEMA {}").format(schema))
+            _ = setup.execute(sql.SQL("SET search_path TO {}, public").format(schema))
+            _ = ingest(setup, Embedder(client), [])
+        calls: list[list[str]] = []
+
+        def embed(_self: Embedder, texts: list[str]) -> tuple[list[Embedding], int]:
+            calls.append(texts)
+            entered.set()
+            if len(calls) == 1 and not release.wait(timeout=5):
+                raise TimeoutError("first ingestion was not released")
+            return [Embedding([1.0] * DIMENSIONS)], 1
+
+        def first_refresh() -> IngestResult:
+            with psycopg.connect(url) as connection, OpenAI(api_key="test-unused") as client:
+                _ = connection.execute(sql.SQL("SET search_path TO {}, public").format(schema))
+                return ingest(connection, Embedder(client), [sample_chunk()])
+
+        try:
+            with (
+                patch("sop_vectors.Embedder.embed", autospec=True, side_effect=embed),
+                ThreadPoolExecutor(max_workers=1) as pool,
+            ):
+                first = pool.submit(first_refresh)
+                try:
+                    self.assertTrue(entered.wait(timeout=5))
+                    # When: another connection attempts refresh before commit.
+                    with (
+                        psycopg.connect(url) as second,
+                        OpenAI(api_key="test-unused") as client,
+                    ):
+                        _ = second.execute(sql.SQL("SET search_path TO {}, public").format(schema))
+                        _ = second.execute("SET lock_timeout = '100ms'")
+                        # The lock timeout itself is the behavior under test,
+                        # not a scheduling sleep or a poll for another thread.
+                        with self.assertRaises(psycopg.errors.LockNotAvailable):
+                            _ = ingest(second, Embedder(client), [sample_chunk()])
+                        second.rollback()
+                finally:
+                    release.set()
+                self.assertEqual(first.result(timeout=5).embedded, 1)
+            # Then: the competing refresh never reached embedding.
+            self.assertEqual(len(calls), 1)
+        finally:
+            with psycopg.connect(url) as cleanup:
+                _ = cleanup.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(schema))
+
     def test_ingest_reuses_unchanged_embeddings(self) -> None:
         # Given
         with vector_database() as connection, OpenAI(api_key="test-unused") as client:

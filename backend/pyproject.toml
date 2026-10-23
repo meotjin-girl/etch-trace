@@ -12,6 +12,7 @@ dependencies = [
   "psycopg[binary,pool]",
   "python-dotenv",
   "anyio",
+  "httpx2",
   "PyJWT[crypto]>=2.10,<3",
 ]
 
@@ -26,4 +27,5 @@ testpaths = ["tests"]
 pythonVersion = "3.12"
 venvPath = "."
 venv = ".venv"
-include = ["main.py", "v1_*.py"]
+include = ["*.py"]
+executionEnvironments = [{ root = "tests", extraPaths = ["."] }, { root = "." }]
