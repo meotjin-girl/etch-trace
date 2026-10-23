@@ -265,7 +265,7 @@ class Metrics:
         quality = gauge("etch_data_quality_good", "1 when sensor_data_quality is GOOD", ["tool", "chamber"])
         offset = gauge("etch_sample_offset_seconds", "Seconds into the current run", ["tool", "chamber"])
         info = gauge("etch_run_info", "Current run context", ["tool", "chamber", "lot_id", "wafer_id", "recipe_id", "run_no"])
-        alarm = gauge("etch_alarm_active", "Equipment S5F1 alarm state", ["tool", "chamber", "alarm", "ocap"])
+        alarm = gauge("etch_alarm_active", "Equipment S5F1 alarm state", ["tool", "chamber", "alarm", "ocap", "sensor", "limit"])
         up = gauge("etch_equipment_up", "HSMS link communicating", ["tool"])
         mean = gauge("etch_sensor_normal_mean", "Normal-lot mean", ["sensor", "subsystem", "unit", "ocap"])
         sd = gauge("etch_sensor_normal_sd", "Normal-lot standard deviation", ["sensor", "subsystem", "unit", "ocap"])
@@ -289,8 +289,8 @@ class Metrics:
                 offset.add_metric(ids, v["sample_offset_s"])
                 info.add_metric([*ids, v["lot_id"], v["wafer_id"], v["recipe_id"], str(v["run_no"])], 1)
                 active = {a["alarm"] for a in link.active_alarms(chamber)}
-                for name, (*_, ocap) in sensors.ALARMS.items():
-                    alarm.add_metric([*ids, name, ocap], int(name in active))
+                for name, (sensor, _, limit, ocap) in sensors.ALARMS.items():
+                    alarm.add_metric([*ids, name, ocap, sensor, f"{limit:g}"], int(name in active))
         yield from (value, setpoint, quality, offset, info, alarm, up, mean, sd)
 
 

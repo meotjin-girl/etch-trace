@@ -15,6 +15,7 @@
 | [frontend.md](frontend.md) | Vue 화면 구조, 필요 API와 예시, 대화형 계약 제안, 목업 서버 |
 | [structure-review.md](structure-review.md) | 전체 경로 지도, 구조 점검 결과와 근거 |
 | [v1-validation.md](v1-validation.md) | 통합 검증 기록; 실제 실행 여부·범위 확인 |
+| [agent-request.md](agent-request.md) | backend→agent 요청 형식 `{role,content}`, 경보 묶음 텍스트 문법, agent 할 일 |
 | [mock-fab.md](mock-fab.md) | 합성 SECS/GEM 모의 장비, 수집기, 로컬 Prometheus FDC 규칙 |
 | [idea_brief.html](idea_brief.html) | 과거 초기 기획 참고 자료; 현재 API 계약 아님 |
 

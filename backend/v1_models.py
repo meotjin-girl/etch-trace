@@ -407,6 +407,7 @@ class Settings:
     keycloak_client_id: str = "trace-web"
     keycloak_audience: str = "trace-api"
     keycloak_jwks_url: str = ""
+    prometheus_url: str = ""  # empty disables alert intake
 
     @property
     def issuer(self) -> str:

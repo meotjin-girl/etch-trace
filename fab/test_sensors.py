@@ -138,7 +138,7 @@ def test_hsms_roundtrip_and_http():
         assert {item["name"] for item in history["sensors"]} == set(sensors.SENSORS)
         metrics = urllib.request.urlopen(f"{base}/metrics").read().decode()
         assert 'etch_sensor_value{chamber="CH-B",sensor="pressure_pv_mtorr",tool="ETCH-01"} 31.0' in metrics
-        assert 'etch_alarm_active{alarm="PRESSURE_HIGH",chamber="CH-B",ocap="OCAP-ETCH-PRS",tool="ETCH-01"} 1.0' in metrics
+        assert 'etch_alarm_active{alarm="PRESSURE_HIGH",chamber="CH-B",limit="30",ocap="OCAP-ETCH-PRS",sensor="pressure_pv_mtorr",tool="ETCH-01"} 1.0' in metrics
         assert "etch_run_info{" in metrics and 'lot_id="L1"' in metrics
         assert b"<title>" in urllib.request.urlopen(f"{base}/").read()
     finally:

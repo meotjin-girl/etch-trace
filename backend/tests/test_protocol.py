@@ -12,10 +12,10 @@ def test_initial_dispatch_uses_simple_body_and_command_header(
     # Given the agent HTTP boundary.
     # When an initial task is accepted.
     tid = task(client)
-    # Then the accepted command identity is forwarded without changing its body.
+    # Then the question is forwarded as a role=user request with the command identity.
     path, request_headers, body = wire.commands.get_nowait()
     assert path == f"/internal/tasks/{tid}/run"
-    assert body == {"question": "Investigate etch"}
+    assert body == {"role": "user", "content": "Investigate etch"}
     assert request_headers["X-Internal-Key"] == "test-key"
     assert request_headers["X-Command-ID"] == str(detail(client, tid).command_id)
     assert request_headers["X-Requester-Name"] == "owner"

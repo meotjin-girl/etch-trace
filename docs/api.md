@@ -109,7 +109,7 @@ const response = await fetch(`/api/ai/tasks/${id}/stream?after=${lastSeq}`, {
 
 | 호출 | 경로 | 본문·용도 |
 |---|---|---|
-| backend -> agent | POST `/internal/tasks/{id}/run` | `{question}` 또는 `{resume:{text}}`, `{resume:{action,comment,by}}` |
+| backend -> agent | POST `/internal/tasks/{id}/run` | 시작 `{role:"user"\|"system",content}`([agent-request.md](agent-request.md)) 또는 `{resume:{text}}`, `{resume:{action,comment,by}}` |
 | agent -> backend | POST `/internal/tasks/{id}/events` | `{event_id,type,payload}` |
 | business MCP -> backend | GET `/internal/cases` | 샘플 사례 배열 |
 
