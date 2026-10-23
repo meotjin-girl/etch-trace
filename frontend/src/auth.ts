@@ -91,6 +91,7 @@ export function createAuth({
         }
         const authenticated = await next.init({
           onLoad: 'check-sso', flow: 'standard', pkceMethod: 'S256',
+          checkLoginIframe: !["localhost", "127.0.0.1"].includes(globalThis.location.hostname),
           responseMode: 'fragment', redirectUri, logoutMethod: 'POST',
         })
         if (current === version) publish(authenticated ? 'authenticated' : 'anonymous')
