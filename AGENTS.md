@@ -2,7 +2,23 @@
 
 ## OVERVIEW
 
-식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다. 브라우저의 모든 `/api` 요청은 nginx를 거쳐 backend로 가며, backend는 작업·신원·권한·검토·이벤트·승인 스냅샷과 승인 이력·SOP 문서 조회를 소유한다. MCP는 에이전트 전용 도구다. 유일한 LangGraph는 `agent/`에 있으며 MCP로 근거를 읽는다.
+식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다.
+새 기본 실행은 `agent-new/`의 표준 Agent Server다. `/api/investigations`는
+backend의 업무 조사·현재 후보·승인, `/agent/`는 대화·thread·run을 소유한다.
+MCP는 에이전트 전용 도구다. 기존 `agent/`와 `/api/ai/*`는 레거시 호환 경로다.
+
+## AGENT SERVER 계약
+
+- 실행 방법: `docs/agent-server.md`. 실제 검증: `docs/agent-server-validation.md`.
+- 경보 → thread 생성 → 초기 원인 후보 완성 → Business MCP로 업무 조사 신규 저장.
+- 조사 ID와 thread ID는 1:1이며 동일 UUID다. 후속 후보는 같은 조사를 갱신한다.
+- backend의 live 조사 모델·store·router는 `investigations_*` 모듈에 있다.
+- 승인 시 검증된 로그인 사용자와 선택 후보 사본을 저장한다. 승인 뒤에도 대화는 계속된다.
+- Agent Server는 dev 로컬 체크포인트 볼륨, backend는 PostgreSQL 업무 데이터를 저장한다.
+- 공개 대화 요청은 Keycloak Bearer, emitter 내부 요청은 내부 키를 사용한다.
+- 새 경로는 레거시 `WAITING_INPUT`, `WAITING_APPROVAL`, command ID 계약을 따르지 않는다.
+- 동일 경보 중복 방지와 저장 실패 재시도는 현재 요청 범위에서 제외한다.
+- 아래 v1 상태·이벤트·스냅샷 규칙은 레거시 경로에 적용된다.
 
 ## WHERE TO LOOK
 

@@ -1,6 +1,12 @@
 # TRACE v1.0.0
 
-식각 공정 이상 질문을 접수하고, 부족한 정보를 재질문한 뒤 샘플 사례와 문서 조항으로 확인 가설을 작성합니다. 로그인한 팀원은 공동으로 답변·수정 요청·승인을 남깁니다. 승인은 물리적 원인의 확정이 아니라 **근거를 검토한 가설의 승인**입니다.
+식각 장비 경보를 받아 원인 후보를 조사하고, 초기 분석을 조사 목록에 공개합니다.
+로그인한 팀원은 같은 조사에서 질문을 이어가고 후보를 보완·선택·승인합니다.
+승인 후에도 대화할 수 있으며, 승인은 물리적 원인의 확정이 아니라
+**근거를 검토한 가설의 승인**입니다.
+
+신규 실행 구조와 실험 방법은 [Agent Server 안내](docs/agent-server.md)를 참고하세요.
+기존 v1 task API는 호환 경로로 보존합니다.
 
 ## 실행
 
@@ -8,32 +14,40 @@
 
 ```bash
 cp .env.example .env
-# .env의 INTERNAL_API_KEY, POSTGRES_PASSWORD, KEYCLOAK_ADMIN_PASSWORD 변경
+# .env의 OPENAI_API_KEY, OPENAI_MODEL 설정 및 내부 키·개발 비밀번호 변경
 docker compose -f compose.yaml up -d --build
 docker compose -f compose.yaml ps
 ```
 
-`.env.example`의 `WEB_PORT=18080`을 사용하면 화면은 `http://localhost:18080`입니다. 기존 POC의 공개 포트와 겹치지 않도록 별도 포트를 사용합니다. `.env`를 생략하면 실제 기본 포트는 `compose.yaml`의 값을 따릅니다. backend, agent, MCP, PostgreSQL은 내부 네트워크에만 둡니다. nginx가 정적 화면과 `/api` 프록시를 제공합니다.
+`.env.example`의 `WEB_PORT=18080`을 사용하면 화면은 `http://localhost:18080`입니다.
+다른 실행과 겹치면 포트와 Compose 프로젝트명을 분리하세요.
+nginx가 정적 화면과 `/api`, `/agent`, `/auth` 경로를 나눠 제공합니다.
+Agent Server의 Studio용 포트는 localhost의 2024로 공개합니다.
+backend, MCP, PostgreSQL은 내부 네트워크에 둡니다.
 
 새 환경에서는 기본 계정 **`test` / `test`**로 바로 로그인할 수 있습니다. Keycloak 관리자 화면은 같은 주소의 `/auth/admin/`이며, 추가 계정은 관리자가 `trace` realm에 만듭니다. 회원가입은 제공하지 않습니다. 기존 볼륨의 기본 계정 추가 방법은 [계정 생성·URL·영속성 안내](deploy/keycloak/README.md)를 참고하세요.
 
-`seed`가 `db/cases.json`, `db/documents.json`을 PostgreSQL에 적재합니다. 이 데이터는 시연용 샘플이며 PHM 실측 데이터가 아닙니다. PHM 압축 해제, CSV 적재, 임베딩 색인, OpenAI 키는 v1 기본 실행의 필수 조건이 아닙니다. RAG MCP는 문서 ID 정확 조회(`search_documents`)와 `sop-ocap/` SOP·OCAP 문서의 의미 검색(`search_sop`, sop-postgres pgvector)을 제공합니다. 의미 검색에는 `OPENAI_API_KEY`가 필요하며 키가 없으면 보고서에 조회 실패로 표시됩니다.
+`seed`가 `db/cases.json`, `db/documents.json`을 PostgreSQL에 적재합니다.
+이 데이터는 시연용 샘플이며 PHM 실측 데이터가 아닙니다.
+새 Agent의 실제 분석에는 `OPENAI_API_KEY`가 필요합니다.
+RAG MCP는 문서 ID 정확 조회와 `sop-ocap/` SOP·OCAP 의미 검색을 제공합니다.
 
-## 단일 v1 구조
+## 실행 구조
 
 ```text
-브라우저(Vue 3) -> nginx(dist 서빙) -> backend (REST / SSE, 작업·판별·승인 이력·SOP)
-                                          -> agent (유일한 LangGraph, 조사 에이전트 6개, PostgreSQL 체크포인트)
-                                               -> business-mcp -> backend 내부 사례·이력·승인 저장 API
-                                               -> rag-mcp -> PostgreSQL 샘플 문서 / sop-postgres SOP·OCAP 색인
-                                               -> physics-mcp -> 결정론적 식각 관계식 계산
+브라우저(Vue 3) -> nginx -> backend (조사 목록·현재 후보·승인·SOP)
+                       -> agent-new (Agent Server, thread·대화·실행)
+                            -> business-mcp -> backend 조사 저장·사례 API
+                            -> rag-mcp -> 문서 / SOP·OCAP 색인
+                            -> physics-mcp -> 결정론적 식각 관계식 계산
 ```
 
 | 경로 | 책임 |
 |---|---|
 | `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/frontend.md](docs/frontend.md) |
 | `backend/main.py`, `backend/v1_*.py` | 공개 API, JWT 검증·공동 작업 인가, 상태·메시지·검토·이벤트·승인 스냅샷 |
-| `agent/` | 질문 추출, 재질문, MCP 조사, 보고서, 검토 중단·재개 |
+| `agent-new/` | 표준 Agent Server 진입점, 단일 ReAct 조사, 구조화 후보·필수 업무 저장 |
+| `agent/` | 이전 단일 ReAct 구현과 회귀 테스트; `legacy` profile로 실행 |
 | `mcp/` | 사례 조회·결정론적 통계·승인 이력 도구, 문서 조항 조회·SOP 의미 검색 |
 | `mcp/physics_models.py`, `mcp/physics.py` | 식각 깊이·평균 식각 속도·선택비 계산과 입력 검증. [Physics v1](docs/physics.md) |
 | `sop-ocap/` | SOP 3종·OCAP 19종 원문. SOP 화면과 SOP 의미 검색의 출처 |
@@ -42,7 +56,16 @@ docker compose -f compose.yaml ps
 
 숫자는 코드가 계산하며 단위와 근거 사례 ID를 보존합니다. 보고서는 `demo:true`이고 문서 ID·제목·본문, 누락 근거, 검토 의견을 포함합니다. 분류별 서브그래프나 담당 엔지니어 자동 배정은 v1 계약이 아닙니다.
 
-## 요청과 검토
+## 신규 조사와 대화
+
+로그인 후 첫 화면은 `/api/investigations`의 조사 목록입니다. 경보로 시작한
+thread에서 초기 후보 제안과 Business MCP 저장이 끝나면 목록에 나타납니다.
+조사 ID와 thread ID는 동일한 UUID이며 후속 분석이 별도 조사를 만들지 않습니다.
+대화는 `/agent/threads/{id}/state`와 run API로 조회·실행하고, 업무 상세와
+후보 승인 정보는 backend에서 조회합니다. 현재 후보는 갱신되지만 승인 당시
+선택한 후보 사본은 보존됩니다.
+
+## 기존 v1 요청과 검토 (호환 경로)
 
 공개 데이터 API는 `Authorization: Bearer <access token>`이 필수입니다. backend가 Keycloak 서명·issuer·audience·만료를 검증합니다. 로그인한 사용자는 모두 조회·추가 답변·검토할 수 있고, 역할·소유자별 제한은 후속 범위입니다. 토큰은 브라우저 메모리에만 보관합니다.
 
@@ -64,6 +87,7 @@ SSE는 `/api/ai/tasks/{id}/stream?after=0`에 Bearer 헤더를 보내는 fetch �
 ```bash
 uv sync --group dev
 (cd agent && uv sync --group dev && uv run pytest)
+(cd agent-new && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
 (cd frontend && npm ci && npm run type-check && npm test)   # npm run dev:mock 으로 backend 없이 화면 확인
