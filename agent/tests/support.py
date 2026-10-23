@@ -3,15 +3,22 @@
 from dataclasses import dataclass, field
 from statistics import mean, pstdev
 
-from agent.models import Case, Context, Document, Event, Metric, PhysicsResult
+from agent.models import Case, Context, Document, Metric, PhysicsResult
 
 
 def sample_cases() -> list[Case]:
     return [
         Case(
-            id=f"CASE-{index}", equipment="ETCH-07", chamber="CH-B", recipe="OX-120",
-            symptom="endpoint 지연", metrics={"endpoint_sec": value},
-            cause=cause, action="문서에 따른 현장 점검", docs=[f"DOC#{index}"], score=score,
+            id=f"CASE-{index}",
+            equipment="ETCH-07",
+            chamber="CH-B",
+            recipe="OX-120",
+            symptom="endpoint 지연",
+            metrics={"endpoint_sec": value},
+            cause=cause,
+            action="문서에 따른 현장 점검",
+            docs=[f"DOC#{index}"],
+            score=score,
         )
         for index, value, cause, score in [
             (1, 94, "폴리머 누적", 0.95),
@@ -34,8 +41,11 @@ class Evidence:
 
     def search_cases(self, context: Context) -> list[Case]:
         self.searches += 1
-        return [case for case in self.cases if
-                not context.equipment or case.equipment == context.equipment]
+        return [
+            case
+            for case in self.cases
+            if not context.equipment or case.equipment == context.equipment
+        ]
 
     def analyze_metrics(self, cases: list[Case], context: Context) -> list[Metric]:
         self.analyses += 1
@@ -47,12 +57,21 @@ class Evidence:
             average, std = mean(values), pstdev(values)
             delta = (value - average) / average * 100 if average else 0
             z = (value - average) / std if std else None
-            result.append(Metric.model_validate({
-                "key": key, "value": value, "mean": average, "std": std,
-                "deltaPct": delta, "z": z,
-                "severity": "비정상" if abs(z or 0) >= 2 or abs(delta) >= 20 else "정상",
-                "unit": "sec", "caseIds": [case.id for case in cases],
-            }))
+            result.append(
+                Metric.model_validate(
+                    {
+                        "key": key,
+                        "value": value,
+                        "mean": average,
+                        "std": std,
+                        "deltaPct": delta,
+                        "z": z,
+                        "severity": "비정상" if abs(z or 0) >= 2 or abs(delta) >= 20 else "정상",
+                        "unit": "sec",
+                        "caseIds": [case.id for case in cases],
+                    }
+                )
+            )
         return result
 
     def search_documents(self, document_ids: list[str]) -> list[Document]:
@@ -65,29 +84,27 @@ class Evidence:
     def evaluate_etch_physics(self, context: Context) -> list[PhysicsResult]:
         rate, seconds = context.physics.etch_rate_nm_min, context.physics.etch_time_sec
         missing = [
-            key for key, value in (("etch_rate_nm_min", rate), ("etch_time_sec", seconds))
+            key
+            for key, value in (("etch_rate_nm_min", rate), ("etch_time_sec", seconds))
             if value is None
         ]
         result = None
         if not missing:
             assert rate is not None and seconds is not None
             result = {
-                "key": "expected_etch_depth_nm", "value": rate * seconds / 60,
-                "unit": "nm", "source": "calculated",
+                "key": "expected_etch_depth_nm",
+                "value": rate * seconds / 60,
+                "unit": "nm",
+                "source": "calculated",
             }
-        return [PhysicsResult.model_validate({
-            "model": "etch_depth_constant_rate", "status": (
-                "needs_more_data" if missing else "calculated"
-            ),
-            "formula": "D = R * t", "result": result, "missing_fields": missing,
-        })]
-
-
-@dataclass
-class Events:
-    values: list[Event] = field(default_factory=list)
-    task_ids: list[str] = field(default_factory=list)
-
-    def __call__(self, task_id: str, event: Event) -> None:
-        self.values.append(event)
-        self.task_ids.append(task_id)
+        return [
+            PhysicsResult.model_validate(
+                {
+                    "model": "etch_depth_constant_rate",
+                    "status": ("needs_more_data" if missing else "calculated"),
+                    "formula": "D = R * t",
+                    "result": result,
+                    "missing_fields": missing,
+                }
+            )
+        ]

@@ -1,19 +1,8 @@
-"""Wire models shared by the agent's parser, graph, and HTTP boundary."""
+"""Typed inputs and evidence models used by the single ReAct agent."""
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
-
-type EventType = Literal[
-    "SEARCH_STARTED",
-    "ANALYSIS_STARTED",
-    "REPORT_STARTED",
-    "QUESTION",
-    "APPROVAL_REQUIRED",
-    "DONE",
-    "INCOMPLETE",
-    "FAILED",
-]
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Model(BaseModel):
@@ -44,20 +33,6 @@ class Requester(Model):
     role: Literal["user", "worker", "engineer", "admin"]
 
 
-class HistoryEvidence(Model):
-    """Approved, identity-filtered history returned by the Business MCP."""
-
-    id: str
-    question: str
-    summary: str
-    causes: list[str] = Field(default_factory=list)
-    docIds: list[str] = Field(default_factory=list)
-    approvedBy: str
-    approvedAt: str
-    eventTime: str | None = None
-    lotId: str | None = None
-
-
 class Case(Model):
     model_config = ConfigDict(frozen=True, extra="allow")
     id: str
@@ -73,7 +48,6 @@ class Case(Model):
 
 
 class Metric(Model):
-    # MCP can attach units and supporting case IDs without losing them here.
     model_config = ConfigDict(frozen=True, extra="allow")
     key: str
     value: float
@@ -110,48 +84,6 @@ class Document(Model):
     text: str
 
 
-class InvestigationCheck(Model):
-    """A retrieved SOP clause; legacy provisional records remain readable."""
-
-    title: str
-    rationale: str
-    source: Literal["rag_mcp", "provisional_sop"] = "rag_mcp"
-    docId: str | None = None
-
-
-class InvestigationStage(Model):
-    """One specialist node's traceable result and its evidence boundary."""
-
-    key: Literal[
-        "scope", "run_comparison", "physics", "sensor", "maintenance", "recommendation",
-    ]
-    title: str
-    status: Literal["sample_based", "partial", "unavailable", "provisional"]
-    agent_mode: Literal["llm", "rule_based"] = "rule_based"
-    historyIds: list[str] = Field(default_factory=list)
-    findings: list[str] = Field(default_factory=list)
-    unknowns: list[str] = Field(default_factory=list)
-    caseIds: list[str] = Field(default_factory=list)
-    docIds: list[str] = Field(default_factory=list)
-
-
-class Report(Model):
-    context: Context
-    scored: list[Case]
-    metrics: list[Metric]
-    physicsResults: list[PhysicsResult] = Field(default_factory=list)
-    causeCases: list[Case]
-    docIds: list[str]
-    documents: list[Document]
-    history: list[HistoryEvidence] = Field(default_factory=list)
-    checks: list[InvestigationCheck]
-    stages: list[InvestigationStage]
-    summary: str
-    unknowns: list[str]
-    feedback: list[str]
-    demo: Literal[True] = True
-
-
 class Clarification(Model):
     text: str = Field(min_length=1)
 
@@ -163,14 +95,17 @@ class Review(Model):
 
 
 class InitialRequest(Model):
+    """Compatibility with backend versions still posting {question}."""
+
     question: str = Field(min_length=1)
 
 
+class AgentMessage(Model):
+    role: Literal["system", "user"]
+    content: str = Field(min_length=1)
+
+
 class ResumeRequest(Model):
+    """Compatibility envelope; continuation is converted into a user message."""
+
     resume: Clarification | Review
-
-
-class Event(Model):
-    event_id: str
-    type: EventType
-    payload: dict[str, JsonValue]

@@ -1,129 +1,150 @@
+from typing import Any, cast
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent.graph import build_graph
 from agent.main import create_app
-from agent.tests.support import Events, Evidence
+from agent.models import Context, PhysicsInputs
+from agent.react_agent import build_react_graph, prepare_request
+from agent.tests.support import Evidence
+from agent.tools import TOOL_NAMES, build_tools
 
 
-@pytest.fixture
-def api(monkeypatch):
-    # The public HTTP handler runs a real graph; only evidence and persistence are local.
+def _client(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     app = create_app()
-    events = Events()
-    app.state.graph = build_graph(InMemorySaver(), Evidence(), events)
+    saver = InMemorySaver()
+    evidence = Evidence()
+    app.state.graph = build_react_graph(saver, evidence)
     app.state.internal_key = "test-key"
-    return TestClient(app, headers={"X-Command-ID": str(uuid4())}), events
+    return TestClient(app, headers={"X-Command-ID": str(uuid4())}), evidence
 
 
-def test_internal_key_when_missing_or_wrong_is_rejected(api):
-    # Given
-    client, events = api
+def test_internal_key_when_missing_or_wrong_is_rejected(monkeypatch):
+    client, _ = _client(monkeypatch)
     url = f"/internal/tasks/{uuid4()}/run"
-    # When / Then
-    assert client.post(url, json={"question": "ETCH-07 endpoint 지연"}).status_code == 403
-    assert (
-        client.post(
-            url, headers={"X-Internal-Key": "wrong"}, json={"question": "ETCH-07 endpoint 지연"}
-        ).status_code
-        == 403
-    )
-    assert not events.values
+    payload = {"role": "user", "content": "압력이 설정값보다 높습니다."}
+    assert client.post(url, json=payload).status_code == 403
+    assert client.post(url, headers={"X-Internal-Key": "wrong"}, json=payload).status_code == 403
 
 
-def test_requester_when_authenticated_user_is_forwarded(api):
-    # Given a trusted backend request using the shared user role.
-    client, _ = api
+def test_initial_alert_and_user_followups_share_one_conversation_id(monkeypatch):
+    client, _ = _client(monkeypatch)
     task_id = str(uuid4())
-    # When the graph starts with stored requester attribution.
-    response = client.post(
-        f"/internal/tasks/{task_id}/run",
-        headers={
-            "X-Internal-Key": "test-key",
-            "X-Requester-Name": "collaborator",
-            "X-Requester-Role": "user",
+    url = f"/internal/tasks/{task_id}/run"
+    headers = {
+        "X-Internal-Key": "test-key",
+        "X-Requester-Name": "collaborator",
+        "X-Requester-Role": "user",
+    }
+
+    initial = client.post(
+        url,
+        headers=headers,
+        json={
+            "role": "system",
+            "content": "[경보] ETCH-07 / CH-B / Lot LOT-1 / Wafer W01 / OX-120\n"
+            "- 15:15:11 FDC WATCH rf_sensor z=4.1 (OCAP-RF)",
         },
-        json={"question": "endpoint 지연"},
     )
-    # Then the role survives the real HTTP model and graph checkpoint.
-    assert response.status_code == 200
-    snapshot = client.app.state.graph.get_state({"configurable": {"thread_id": task_id}})
-    assert snapshot.values["requester"].role == "user"
-    assert snapshot.values["requester"].name == "collaborator"
+    assert initial.status_code == 200
+    assert initial.json()["status"] == "completed"
+    assert "OPENAI_API_KEY" in initial.json()["response"]
+
+    followup = client.post(
+        url,
+        headers={"X-Internal-Key": "test-key"},
+        json={"role": "user", "content": "원인 후보가 이상해. 다시 찾아줘"},
+    )
+    assert followup.status_code == 200
+    assert followup.json()["response"]
+
+    app = cast(Any, client.app)
+    snapshot = app.state.graph.get_state({"configurable": {"thread_id": task_id}})
+    assert snapshot.values["context"]["equipment"] == "ETCH-07"
+    assert len(snapshot.values["messages"]) == 4
+    assert isinstance(snapshot.values["messages"][0], HumanMessage)
+    assert isinstance(snapshot.values["messages"][1], AIMessage)
 
 
-def test_http_flow_when_clarifying_revising_then_approving(api):
-    # Given
-    client, events = api
-    url = f"/internal/tasks/{uuid4()}/run"
+def test_legacy_backend_resume_becomes_user_turn_in_same_thread(monkeypatch):
+    client, _ = _client(monkeypatch)
+    task_id = str(uuid4())
+    url = f"/internal/tasks/{task_id}/run"
     headers = {"X-Internal-Key": "test-key"}
-    initial = client.post(url, headers=headers, json={"question": "endpoint 지연 94초"})
-    assert initial.json() == {"status": "interrupted", "waiting": "clarification"}
-    assert (
-        client.post(
-            url,
-            headers=headers,
-            json={
-                "resume": {"action": "approve", "comment": "", "by": "engineer"},
-            },
-        ).status_code
-        == 409
-    )
-    clarified = client.post(url, headers=headers, json={"resume": {"text": "ETCH-07"}})
-    assert clarified.json()["waiting"] == "review"
-    revised = client.post(
-        url,
-        headers=headers,
-        json={
-            "resume": {"action": "revise", "comment": "근거 보완 요청", "by": "engineer"},
-        },
-    )
-    assert revised.json()["waiting"] == "review"
-    # When
-    approved = client.post(
-        url,
-        headers=headers,
-        json={
-            "resume": {"action": "approve", "comment": "", "by": "engineer"},
-        },
-    )
-    # Then
-    assert approved.json() == {"status": "completed"}
-    assert events.values[-1].payload["report"]["feedback"] == ["근거 보완 요청"]
-    assert (
-        client.post(
-            url,
-            headers=headers,
-            json={
-                "resume": {"action": "approve", "comment": "", "by": "engineer"},
-            },
-        ).status_code
-        == 409
-    )
-    assert client.post(url, headers=headers, json={"question": "새 조사"}).status_code == 409
+    client.post(url, headers=headers, json={"question": "처음 조사해줘"})
+    resumed = client.post(url, headers=headers, json={"resume": {"text": "압력이 높다는 뜻이야"}})
+    assert resumed.status_code == 200
+    app = cast(Any, client.app)
+    snapshot = app.state.graph.get_state({"configurable": {"thread_id": task_id}})
+    assert len(snapshot.values["messages"]) == 4
+    assert snapshot.values["messages"][2].content == "압력이 높다는 뜻이야"
 
 
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {},
-        {"question": "x", "resume": {"text": "x"}},
-        {"resume": {"text": "x", "action": "approve", "comment": "", "by": "x"}},
-        {"resume": {"action": "save", "comment": "", "by": "x"}},
-        {"resume": {"action": "approve", "comment": ""}},
-    ],
-)
-def test_payload_when_not_one_valid_command_is_rejected(api, payload):
-    # Given
-    client, events = api
-    # When
-    response = client.post(
-        f"/internal/tasks/{uuid4()}/run", headers={"X-Internal-Key": "test-key"}, json=payload
+def test_tools_are_visible_and_ordered_for_the_react_agent():
+    tools = build_tools(Evidence())
+    assert tuple(tool.name for tool in tools) == TOOL_NAMES
+    assert TOOL_NAMES == (
+        "search_cases",
+        "analyze_metrics",
+        "search_documents",
+        "search_sop",
+        "evaluate_etch_physics",
+        "list_investigations",
+        "record_selection",
     )
-    # Then
-    assert response.status_code == 422
-    assert not events.values
+    physics = next(tool for tool in tools if tool.name == "evaluate_etch_physics")
+    assert "D=R*t" in physics.description
+
+
+def test_react_graph_loops_from_toolnode_back_to_model(monkeypatch):
+    evidence = Evidence()
+    calls = []
+
+    def fake_llm(model, system_prompt, messages, tools):
+        calls.append((system_prompt, messages, tools))
+        if len(calls) == 1:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "function": {
+                                        "name": "evaluate_etch_physics",
+                                        "arguments": (
+                                            '{"inputs":{"etch_rate_nm_min":500,'
+                                            '"etch_time_sec":120}}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "예상 식각 깊이는 1,000 nm입니다."}}]}
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.setattr("agent.react_agent._call_llm", fake_llm)
+    graph = build_react_graph(InMemorySaver(), evidence)
+    task_id = str(uuid4())
+    result = graph.invoke(
+        prepare_request("user", "식각 속도 500 nm/min, 식각 시간 120초일 때 깊이를 계산해줘"),
+        {"configurable": {"thread_id": task_id}, "recursion_limit": 20},
+    )
+    assert len(calls) == 2
+    assert "evaluate_etch_physics" in str(calls[0][2])
+    assert isinstance(calls[1][1][-1], ToolMessage)
+    assert "1000" in str(calls[1][1][-1].content)
+    assert result["messages"][-1].content == "예상 식각 깊이는 1,000 nm입니다."
+    physics_result = evidence.evaluate_etch_physics(
+        Context(physics=PhysicsInputs(etch_rate_nm_min=500, etch_time_sec=120))
+    )[0].result
+    assert physics_result is not None
+    assert physics_result.value == 1000

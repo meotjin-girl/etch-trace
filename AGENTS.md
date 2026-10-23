@@ -13,7 +13,7 @@
 | 로그인·공동 작업 인가 | `backend/v1_auth.py`, `v1_commands.py` | Keycloak JWT 검증, 로그인 사용자 전체 조회·답변·검토 |
 | 상태·메시지·검토·이벤트·스냅샷 | `backend/v1_store.py`, `v1_schema.sql` | DB 연결은 lifespan에서 열림 |
 | 내부 명령 | `backend/v1_dispatch.py` | agent HTTP 실행·재개, command ID |
-| 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·물리 계산·문서·보고서·검토 |
+| 조사 그래프 | `agent/react_agent.py`, `agent/tools.py`, `agent/models.py` | 단일 ReAct agent↔ToolNode 순환, task ID checkpoint 대화 |
 | MCP 어댑터 | `agent/evidence.py` | business/rag/physics MCP만 사용, 업무 DB 직접 조회 금지 |
 | 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
 | 물리 계산 | `mcp/physics.py`, `mcp/physics_models.py` | 식각 깊이·평균 속도·선택비, 부족/오류 입력 명시 |
@@ -55,7 +55,7 @@ uv run --project mcp --with pytest python -m pytest tests/test_physics.py -q
 (cd backend/prometheus && docker run --rm -v "$PWD":/w -w /w --entrypoint promtool prom/prometheus:v2.53.0 test rules rules_test.yml)
 ```
 
-- `agent/tests/`: 질문 추출·보완, 재질문, 수정·승인, 근거 보존, 콜백 replay, PostgreSQL 프로세스 재시작(`AGENT_TEST_DATABASE_URL` 필요).
+- `agent/tests/`: ReAct model→ToolNode→model cycle, 동일 task ID의 대화 연속성, 고정 경보 parser, MCP 경계. 실 PostgreSQL checkpoint 재시작은 별도 integration test로 추가할 수 있다.
 - `backend/tests/`: 실제 PostgreSQL과 HTTP 경계로 권한, 대기 상태, 검토 경쟁, 승인 스냅샷, 이벤트·SSE replay, 실패·재시작 검증. `TEST_DATABASE_URL` 필요(기본 `postgresql:///postgres`).
 - `tests/test_evidence.py`: 샘플·유사도·통계·MCP 경계 검증. DB 검증에는 `EVIDENCE_TEST_DATABASE_URL` 필요.
 - `tests/test_physics.py`: 식각 관계식, 단위 변환, 부족 데이터와 잘못된 입력 검증.

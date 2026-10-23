@@ -1,4 +1,4 @@
-"""Internal HTTP runner. The backend owns public state and failure handling."""
+"""Internal HTTP runner for the single checkpointed ReAct agent."""
 
 import hmac
 import os
@@ -7,94 +7,65 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Annotated, Literal
 from urllib.parse import unquote
-from urllib.request import Request, urlopen
 from uuid import UUID
 
-import anyio
 from fastapi import FastAPI, Header, HTTPException
-from fastmcp import Client
 from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.config import get_config
-from langgraph.types import Command
 
-from .evidence import MCPEvidenceProvider, mcp_url
-from .graph import build_graph
-from .models import Clarification, Event, InitialRequest, Requester, ResumeRequest
+from .evidence import MCPEvidenceProvider
+from .models import AgentMessage, Clarification, InitialRequest, Requester, ResumeRequest, Review
+from .react_agent import (
+    build_react_graph,
+    latest_response,
+    prepare_request,
+    selection_from_messages,
+)
 
 
 @dataclass(frozen=True, slots=True)
-class Callback:
-    backend_url: str
+class Settings:
     internal_key: str
-    business_url: str | None = None
-
-    def __call__(self, task_id: str, event: Event) -> None:
-        """HTTP errors propagate so the backend cannot mistake failure for success."""
-        if event.type == "DONE" and self.business_url:
-            anyio.run(
-                self._save_investigation,
-                task_id,
-                event,
-                get_config().get("configurable", {})["command_id"],
-            )
-            return
-        request = Request(
-            f"{self.backend_url.rstrip('/')}/internal/tasks/{task_id}/events",
-            data=event.model_dump_json().encode(),
-            headers={
-                "Content-Type": "application/json",
-                "X-Internal-Key": self.internal_key,
-                "X-Command-ID": get_config().get("configurable", {})["command_id"],
-            },
-            method="POST",
-        )
-        with urlopen(request, timeout=30) as response:
-            response.read()
-
-    async def _save_investigation(self, task_id: str, event: Event, command_id: str) -> None:
-        assert self.business_url is not None
-        async with Client(mcp_url(self.business_url)) as client:
-            await client.call_tool(
-                "save_investigation",
-                {
-                    "task_id": task_id,
-                    "command_id": command_id,
-                    "event_id": event.event_id,
-                    "payload": event.payload,
-                },
-            )
+    database_url: str
+    business_url: str
+    rag_url: str
+    physics_url: str
 
 
 def create_app() -> FastAPI:
-    """Open the checkpoint connection only during application lifespan."""
+    """Open the PostgreSQL checkpointer at startup; task ID is the conversation ID."""
     locks: dict[str, Lock] = {}
     locks_guard = Lock()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        key = os.environ["INTERNAL_API_KEY"]
-        if not key:
+        settings = Settings(
+            internal_key=os.environ["INTERNAL_API_KEY"],
+            database_url=os.environ["DATABASE_URL"],
+            business_url=os.environ["BUSINESS_MCP_URL"],
+            rag_url=os.environ["RAG_MCP_URL"],
+            physics_url=os.environ["PHYSICS_MCP_URL"],
+        )
+        if not settings.internal_key:
             raise RuntimeError("INTERNAL_API_KEY must not be empty")
-        with PostgresSaver.from_conn_string(os.environ["DATABASE_URL"]) as saver:
+        with PostgresSaver.from_conn_string(settings.database_url) as saver:
             saver.setup()
-            app.state.internal_key = key
-            app.state.graph = build_graph(
+            app.state.internal_key = settings.internal_key
+            app.state.graph = build_react_graph(
                 saver,
                 MCPEvidenceProvider(
-                    os.environ["BUSINESS_MCP_URL"],
-                    os.environ["RAG_MCP_URL"],
-                    os.environ["PHYSICS_MCP_URL"],
+                    settings.business_url,
+                    settings.rag_url,
+                    settings.physics_url,
                 ),
-                Callback(os.environ["BACKEND_URL"], key, os.environ["BUSINESS_MCP_URL"]),
             )
             yield
 
-    app = FastAPI(title="TRACE Agent", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="TRACE ReAct Agent", version="1.0.0", lifespan=lifespan)
 
     @app.post("/internal/tasks/{task_id}/run")
     def run(
         task_id: UUID,
-        body: InitialRequest | ResumeRequest,
+        body: AgentMessage | InitialRequest | ResumeRequest,
         x_command_id: Annotated[UUID, Header()],
         x_internal_key: Annotated[str | None, Header()] = None,
         x_requester_name: Annotated[str | None, Header()] = None,
@@ -102,8 +73,7 @@ def create_app() -> FastAPI:
             Literal["user", "worker", "engineer", "admin"] | None, Header()
         ] = None,
     ) -> dict[str, str]:
-        key = app.state.internal_key
-        if not x_internal_key or not hmac.compare_digest(x_internal_key, key):
+        if not x_internal_key or not hmac.compare_digest(x_internal_key, app.state.internal_key):
             raise HTTPException(status_code=403, detail="Invalid internal key")
         if (x_requester_name is None) != (x_requester_role is None):
             raise HTTPException(status_code=422, detail="Incomplete requester identity")
@@ -112,44 +82,41 @@ def create_app() -> FastAPI:
             if x_requester_name is not None and x_requester_role is not None
             else None
         )
-        task = str(task_id)
-        # One uvicorn worker owns all thread invocations (see Dockerfile).
-        # Lock covers checkpoint read, validation, and the entire graph invocation.
+
+        match body:
+            case AgentMessage(role=role, content=content):
+                user_role, user_content = role, content
+            case InitialRequest(question=question):
+                user_role, user_content = "user", question
+            case ResumeRequest(resume=Clarification(text=text)):
+                user_role, user_content = "user", text
+            case ResumeRequest(resume=Review(action="approve")):
+                user_role = "user"
+                user_content = "현재 대화에서 제시된 최종 원인-조치 세트를 승인합니다."
+            case ResumeRequest(resume=Review(action="revise", comment=comment)):
+                user_role = "user"
+                user_content = "기존 조사 결과를 수정해 주세요. " + comment
+            case _:
+                raise HTTPException(status_code=422, detail="Unsupported agent request")
+
+        graph = app.state.graph
+        config = {
+            "configurable": {"thread_id": str(task_id), "command_id": str(x_command_id)},
+            "recursion_limit": 100,
+        }
         with locks_guard:
-            thread_lock = locks.setdefault(task, Lock())
+            thread_lock = locks.setdefault(str(task_id), Lock())
         with thread_lock:
-            graph = app.state.graph
-            config = {
-                "configurable": {"thread_id": task, "command_id": str(x_command_id)},
-                "recursion_limit": 100,
-            }
-            snapshot = graph.get_state(config)
-            match body:
-                case InitialRequest(question=question):
-                    if snapshot.values:
-                        raise HTTPException(status_code=409, detail="Task already initialized")
-                    graph.invoke(
-                        {
-                            "task_id": task,
-                            "question": question,
-                            "requester": requester,
-                        },
-                        config,
-                    )
-                case ResumeRequest(resume=answer):
-                    if not snapshot.interrupts:
-                        raise HTTPException(status_code=409, detail="Task is not waiting for input")
-                    expected = "clarification" if isinstance(answer, Clarification) else "review"
-                    if snapshot.interrupts[0].value["kind"] != expected:
-                        raise HTTPException(
-                            status_code=409,
-                            detail="Resume does not match waiting state",
-                        )
-                    graph.invoke(Command(resume=answer.model_dump()), config)
-            snapshot = graph.get_state(config)
-            if snapshot.interrupts:
-                return {"status": "interrupted", "waiting": snapshot.interrupts[0].value["kind"]}
-            return {"status": "completed"}
+            result = graph.invoke(
+                prepare_request(user_role, user_content, requester),
+                config,
+            )
+        messages = result.get("messages", [])
+        selected = selection_from_messages(messages)
+        return {
+            "status": "selected" if selected else "completed",
+            "response": latest_response(messages),
+        }
 
     return app
 
