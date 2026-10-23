@@ -2,7 +2,7 @@
 
 import re
 
-from .models import Context, PhysicsInputs
+from .models import Context, ControlLimit, PhysicsInputs
 
 
 def _measurement(text: str, labels: str, units: str) -> tuple[float, str] | None:
@@ -22,6 +22,8 @@ def parse_question(text: str, existing: Context | None = None) -> Context:
     equipment = re.search(r"(?<![A-Z0-9])ETCH[\s_-]?(\d+)(?![A-Z0-9])", upper)
     chamber = re.search(r"(?<![A-Z0-9])CH[\s_-]?([A-Z])(?![A-Z0-9])", upper)
     recipe = re.search(
+        r"(?<![A-Z0-9])(RCP(?:-[A-Z0-9]+)+)(?![A-Z0-9])", upper,
+    ) or re.search(
         r"(?<![A-Z0-9])(?!ETCH[\s_-]|CH[\s_-])([A-Z]{2,5}-\d{2,4})(?![A-Z0-9])",
         upper,
     )
@@ -69,6 +71,28 @@ def parse_question(text: str, existing: Context | None = None) -> Context:
         if measured:
             physics[key] = measured[0]
             sources[key] = "user_input"
+    depth_patterns = {
+        "measured_etch_depth_nm": r"measured\s*etch\s*depth|실측\s*(?:제거|식각)\s*깊이",
+        "target_etch_depth_nm": r"target\s*etch\s*depth|목표\s*(?:제거|식각)\s*깊이",
+    }
+    for key, labels in depth_patterns.items():
+        measured = _measurement(text, labels, r"nm|나노미터")
+        if measured:
+            physics[key] = measured[0]
+            sources[key] = "user_input"
+    control_range = re.search(
+        r"(?:승인(?:된)?\s*)?(?:깊이\s*)?(?:관리|규격)\s*(?:범위|한계)"
+        r"[^\d]{0,20}(\d+(?:\.\d+)?)\s*(?:~|에서|-)\s*"
+        r"(\d+(?:\.\d+)?)\s*(?:nm|나노미터)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if control_range:
+        physics["depth_control_limit"] = ControlLimit(
+            lower=float(control_range.group(1)), upper=float(control_range.group(2)),
+            unit="nm", approved=bool(re.search(r"승인", control_range.group(0))),
+            document_id="user_supplied",
+        ).model_dump()
     rate_patterns = {
         "target_etch_rate_nm_min": r"target\s*(?:film\s*)?etch\s*rate|목표막\s*식각\s*속도",
         "mask_etch_rate_nm_min": r"mask\s*etch\s*rate|마스크\s*식각\s*속도|보호막\s*식각\s*속도",
@@ -86,6 +110,25 @@ def parse_question(text: str, existing: Context | None = None) -> Context:
     ):
         physics["etch_rate_nm_min"] = metrics["etch_rate_nm_min"]
         sources["etch_rate_nm_min"] = "user_input"
+    feature_width = _measurement(
+        text,
+        r"feature\s*width|pattern\s*width|opening\s*width|패턴\s*폭|개구\s*폭",
+        r"nm|나노미터",
+    )
+    if feature_width:
+        physics["feature_width_nm"] = feature_width[0]
+        sources["feature_width_nm"] = "user_input"
+    arde = re.search(
+        r"(?:ARDE\s*(?:coefficient|k)|ARDE\s*계수|보정\s*계수\s*k)"
+        r"[^\d]{0,15}(\d+(?:\.\d+)?)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if arde:
+        physics["arde_coefficient"] = float(arde.group(1))
+        sources["arde_coefficient"] = "user_input"
+    if re.search(r"시뮬레이션|simulation|ARDE|aspect\s*ratio|형상", text, re.IGNORECASE):
+        physics["simulation_requested"] = True
     physics["sources"] = sources
     data["physics"] = PhysicsInputs.model_validate(physics)
 
@@ -101,6 +144,8 @@ def parse_question(text: str, existing: Context | None = None) -> Context:
     for subject, change, symptom in rules:
         if re.search(subject, lower) and re.search(change, lower) and symptom not in symptoms:
             symptoms.append(symptom)
+    if physics["simulation_requested"] and not symptoms:
+        symptoms.append("교육용 식각 시뮬레이션 요청")
     if symptoms:
         data["symptom"] = " · ".join(symptoms)
     return Context.model_validate(data)

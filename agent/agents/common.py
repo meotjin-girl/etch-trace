@@ -15,12 +15,15 @@ from ..models import (
     Case,
     Context,
     Document,
+    EducationalSimulationResult,
     HistoryEvidence,
     InvestigationCheck,
     InvestigationStage,
     Metric,
     PhysicsResult,
+    QuantitativeResult,
     Requester,
+    SensorAnalysis,
 )
 
 
@@ -30,6 +33,9 @@ class AgentState(TypedDict):
     cases: NotRequired[list[Case]]
     metrics: NotRequired[list[Metric]]
     physics_results: NotRequired[list[PhysicsResult]]
+    quantitative_results: NotRequired[list[QuantitativeResult]]
+    sensor_analysis: NotRequired[SensorAnalysis | None]
+    educational_simulation: NotRequired[EducationalSimulationResult | None]
     documents: NotRequired[list[Document]]
     history: NotRequired[list[HistoryEvidence]]
     checks: NotRequired[list[InvestigationCheck]]

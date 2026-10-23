@@ -1,3 +1,5 @@
+# pyright: reportArgumentType=false, reportUnannotatedClassAttribute=false
+# pyright: reportAny=false, reportUnknownMemberType=false, reportUnknownVariableType=false
 """Deterministic zero-order etch calculations with explicit evidence limits."""
 
 from __future__ import annotations
@@ -39,6 +41,9 @@ class PhysicsResult(Model):
     assumptions: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    problem: str = ""
+    interpretation: str = ""
+    recommended_checks: list[str] = Field(default_factory=list)
 
 
 UNITS = {
@@ -86,6 +91,8 @@ def calculate_etch_depth(data: PhysicsInputs) -> PhysicsResult:
         "formula": "D = R * t",
         "inputs": inputs,
         "assumptions": ["식각 시간 동안 평균 식각 속도가 일정합니다."],
+        "problem": "평균 식각 속도와 공정 시간으로 예상 제거 깊이 확인",
+        "recommended_checks": ["실측 식각 깊이", "식각률 출처", "실제 공정 시간"],
     }
     if missing:
         return PhysicsResult(status="needs_more_data", missing_fields=missing, **common)
@@ -108,6 +115,7 @@ def calculate_etch_depth(data: PhysicsInputs) -> PhysicsResult:
             key="expected_etch_depth_nm", value=depth, unit="nm", source="calculated",
         ),
         warnings=["계산 예상값이며 실측 식각 깊이가 아닙니다."],
+        interpretation="일정한 평균 식각 속도를 가정한 예상 제거 깊이입니다.",
         **common,
     )
 
@@ -121,6 +129,8 @@ def calculate_average_etch_rate(data: PhysicsInputs) -> PhysicsResult:
         "formula": "R = (D0 - D1) / t",
         "inputs": inputs,
         "assumptions": ["전후 막 두께 차이가 해당 식각 단계에서 제거된 두께를 나타냅니다."],
+        "problem": "식각 전후 계측과 공정 시간으로 실측 평균 식각 속도 확인",
+        "recommended_checks": ["두께 계측 위치", "계측기", "Recipe Step 경계"],
     }
     if missing:
         return PhysicsResult(status="needs_more_data", missing_fields=missing, **common)
@@ -146,6 +156,7 @@ def calculate_average_etch_rate(data: PhysicsInputs) -> PhysicsResult:
         result=PhysicalValue(
             key="average_etch_rate_nm_min", value=rate, unit="nm/min", source="calculated",
         ),
+        interpretation="제공된 전후 두께 차이에서 계산한 구간 평균 식각 속도입니다.",
         **common,
     )
 
@@ -159,6 +170,8 @@ def calculate_selectivity(data: PhysicsInputs) -> PhysicsResult:
         "formula": "S = R_target / R_mask",
         "inputs": inputs,
         "assumptions": ["두 식각 속도는 비교 가능한 동일 공정 조건에서 측정되었습니다."],
+        "problem": "목표막 대비 마스크 소모 속도와 선택비 확인",
+        "recommended_checks": ["초기 마스크 두께", "잔여 마스크 두께", "동일 공정 조건"],
     }
     if missing:
         return PhysicsResult(status="needs_more_data", missing_fields=missing, **common)
@@ -184,6 +197,7 @@ def calculate_selectivity(data: PhysicsInputs) -> PhysicsResult:
             unit="ratio",
             source="calculated",
         ),
+        interpretation="목표막과 마스크의 평균 식각 속도 비율입니다.",
         **common,
     )
 

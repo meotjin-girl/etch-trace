@@ -3,7 +3,17 @@
 from dataclasses import dataclass, field
 from statistics import mean, pstdev
 
-from agent.models import Case, Context, Document, Event, Metric, PhysicsResult
+from agent.models import (
+    Case,
+    Context,
+    Document,
+    EducationalSimulationResult,
+    Event,
+    Metric,
+    PhysicsResult,
+    QuantitativeResult,
+    SensorAnalysis,
+)
 
 
 def sample_cases() -> list[Case]:
@@ -81,6 +91,41 @@ class Evidence:
             ),
             "formula": "D = R * t", "result": result, "missing_fields": missing,
         })]
+
+    def analyze_etch_quantitatively(self, context: Context) -> list[QuantitativeResult]:
+        measured = context.physics.measured_etch_depth_nm
+        target = context.physics.target_etch_depth_nm
+        limit = context.physics.depth_control_limit
+        if measured is None or target is None or limit is None or not limit.approved:
+            return []
+        return [QuantitativeResult.model_validate({
+            "analysis": "metrology_comparison",
+            "problem": "실측 깊이와 승인 규격 비교",
+            "status": "CALCULATED",
+            "value_origin": "CALCULATED",
+            "validation_status": "VALIDATED",
+            "formula": "error = measured - target",
+            "results": [{
+                "key": "absolute_error", "value": measured - target,
+                "unit": "nm", "origin": "CALCULATED", "source": "test",
+            }],
+            "within_control_limit": (
+                (limit.lower is None or measured >= limit.lower)
+                and (limit.upper is None or measured <= limit.upper)
+            ),
+            "control_limit": limit,
+        })]
+
+    def analyze_sensor_run(self, context: Context) -> SensorAnalysis:
+        return SensorAnalysis(
+            problem="센서 시계열 정량 분석", status="INSUFFICIENT_DATA",
+            missing_fields=["sensor_history"],
+        )
+
+    def simulate_etch_education(
+        self, context: Context, sensor: SensorAnalysis | None,
+    ) -> EducationalSimulationResult | None:
+        return None
 
 
 @dataclass
