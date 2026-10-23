@@ -71,7 +71,7 @@ X-Internal-Key, X-Command-ID, X-Requester-Name, X-Requester-Role   (기존과 �
 7. 작업 `question`에는 사람이 읽는 요약을 넣는다(예: `ETCH-02/CH-A SIMLOT-… 경보 3건: FDC_WATCH, RF_REFLECT_HIGH`). 첫 메시지에는 agent에 보낸 content 원문을 넣는다.
    - 묶음 원자료(JSON)는 `v1_alert_tasks.bundle`에 근거로 보존한다.
 
-Prometheus는 backend 컨테이너에서 `http://host.docker.internal:9090`(로컬 `backend/prometheus/compose.yaml`)로 접근한다.
+Prometheus는 루트 `compose.yaml`의 `prometheus` 서비스이며 backend는 내부 이름 `http://prometheus:9090`으로 접근한다(CD 배포 서버·로컬 동일). 중복 방지는 backend DB 단위라서, 여러 환경이 동시에 켜져 있으면 같은 경보로 환경마다 작업이 1건씩 생긴다.
 
 ## agent 담당자 할 일 (backend는 이미 이 형식으로 보냄)
 

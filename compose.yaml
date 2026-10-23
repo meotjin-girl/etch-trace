@@ -78,10 +78,8 @@ services:
       KEYCLOAK_CLIENT_ID: trace-web
       KEYCLOAK_AUDIENCE: trace-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/auth/realms/trace/protocol/openid-connect/certs
-      # Local Prometheus from backend/prometheus/compose.yaml; empty disables alert intake (docs/agent-request.md)
-      PROMETHEUS_URL: ${PROMETHEUS_URL-http://host.docker.internal:9090}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Alert intake polls the prometheus service; set PROMETHEUS_URL= to disable (docs/agent-request.md)
+      PROMETHEUS_URL: ${PROMETHEUS_URL-http://prometheus:9090}
     volumes:
       - ./sop-ocap:/sop:ro
     depends_on:
@@ -171,6 +169,19 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
+  # Rule-based FDC over the mock fab collector (backend/prometheus/targets.json); internal only, no host port.
+  prometheus:
+    restart: unless-stopped
+    image: prom/prometheus:v2.53.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./backend/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
   web:
     restart: unless-stopped
     build: ./frontend
@@ -185,5 +196,6 @@ services:
         condition: service_healthy
 volumes:
   keycloak_data:
+  prometheus_data:
   v1_pgdata:
   sop_pgdata:

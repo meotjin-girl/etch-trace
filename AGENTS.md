@@ -23,7 +23,7 @@
 | SOP 화면 API | `backend/v1_sop.py` | `sop-ocap/` 머리 표·원문 파싱, `/api/sops` |
 | 경로 지도 | `docs/structure-review.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |
-| 모의 장비·FDC | `fab/`, `backend/prometheus/`, `docs/mock-fab.md` | 합성 SECS/GEM 장비 3대(AWS), 수집기 HTTP, 로컬 Prometheus 규칙 기반 FDC |
+| 모의 장비·FDC | `fab/`, `backend/prometheus/`, `docs/mock-fab.md` | 합성 SECS/GEM 장비 3대(AWS, 수동 운영), 수집기 HTTP. 규칙 기반 FDC Prometheus는 루트 compose 서비스(호스트 포트 없음) |
 | 경보 → agent 요청 | `backend/v1_alerts.py`, `docs/agent-request.md` | Prometheus 폴링, Lot 단위 묶음, `{role:"system"\|"user",content}`. agent 쪽 수신은 미구현 |
 
 ## CONVENTIONS

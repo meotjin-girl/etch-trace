@@ -16,6 +16,14 @@ tests:
           - exp_labels: {tool: ETCH-01, chamber: CH-B, sensor: pressure_pv_mtorr, source: fdc, ocap: SOP-ETCH-12}
             exp_annotations: {summary: "ETCH-01/CH-B pressure_pv_mtorr unchanged for 20 s"}
 
+  - name: a fresh series is not stale
+    interval: 5s
+    input_series:
+      - series: 'etch_sensor_value{tool="ETCH-01",chamber="CH-A",sensor="pressure_pv_mtorr"}'
+        values: '25.1 25.1'
+    alert_rule_test:
+      - {eval_time: 5s, alertname: SENSOR_STALE, exp_alerts: []}
+
   - name: oscillation is not a trend
     interval: 5s
     input_series:
