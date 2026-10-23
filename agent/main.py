@@ -84,6 +84,7 @@ def create_app() -> FastAPI:
                     os.environ["BUSINESS_MCP_URL"],
                     os.environ["RAG_MCP_URL"],
                     os.environ["PHYSICS_MCP_URL"],
+                    os.environ.get("SENSOR_MCP_URL", ""),
                 ),
                 Callback(os.environ["BACKEND_URL"], key, os.environ["BUSINESS_MCP_URL"]),
             )

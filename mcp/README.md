@@ -27,10 +27,17 @@ uv sync
 BACKEND_URL=http://backend:8000 INTERNAL_API_KEY=secret uv run python business.py
 DATABASE_URL=postgresql://user:password@postgres/etch MCP_PORT=8001 uv run python rag.py
 MCP_PORT=8002 uv run python physics.py
+FAB_COLLECTOR_URL=http://localhost:8080 MCP_PORT=8003 uv run python sensor.py
 ```
 
-All three servers use Streamable HTTP at `/mcp`, default port 8000. Run them in
-separate containers or set `MCP_PORT` to avoid port conflicts.
+All four servers use Streamable HTTP at `/mcp`, default port 8000. Run them in
+separate containers or set `MCP_PORT` to avoid port conflicts. Physics and Sensor
+should use distinct host ports; the root `.env.example` uses 8004 and 8005.
+
+Physics exposes the v1/v2 deterministic tools plus `simulate_educational_etch`.
+That Level 2/3 tool uses declared, uncalibrated assumption coefficients and returns
+only `SIMULATED / NOT_VALIDATED` fixed-width profile diagrams. It does not predict
+bowing, taper, equipment faults, recipe actions, or lot disposition.
 
 ```sh
 docker build -t etch-mcp -f mcp/Dockerfile mcp

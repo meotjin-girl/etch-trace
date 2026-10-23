@@ -2,6 +2,7 @@ import json
 import random
 import socket
 import urllib.request
+import datetime
 
 import secsgem.common
 import secsgem.hsms
@@ -69,6 +70,27 @@ def test_oscillation_and_stale_shapes():
     assert stale[11]["sensor_data_quality"] == "SUSPECT_STALE"
 
 
+def test_collector_keeps_bounded_run_history_with_step_and_samples():
+    link = collector.Link("ETCH-01", "127.0.0.1", free_port())
+    base = {
+        "run_no": 42, "recipe_id": sensors.RECIPE_ID, "recipe_step": "MAIN_ETCH",
+        "sensor_data_quality": "GOOD",
+    }
+    for values in sensors.run_samples("NORMAL", random.Random(42)):
+        offset = values["sample_offset_s"]
+        link.updated_at = (
+            datetime.datetime(2026, 10, 23, tzinfo=datetime.UTC)
+            + datetime.timedelta(seconds=offset)
+        ).isoformat()
+        link._record_run("CH-B", base | values)
+    history = link.run_history()
+    assert len(history) == 1
+    assert history[0]["run_id"] == "ETCH-01:CH-B:42"
+    assert history[0]["step"] == "MAIN_ETCH"
+    assert len(history[0]["samples"]) == 25
+    assert history[0]["ended_at"] is not None
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -111,6 +133,9 @@ def test_hsms_roundtrip_and_http():
         current = json.load(urllib.request.urlopen(f"{base}/api/current"))
         assert current["synthetic"] is True
         assert {(m["tool"], m["chamber"]) for m in current["modules"]} == {("ETCH-01", "CH-A"), ("ETCH-01", "CH-B")}
+        history = json.load(urllib.request.urlopen(f"{base}/api/runs"))
+        assert history["synthetic"] is True
+        assert {item["name"] for item in history["sensors"]} == set(sensors.SENSORS)
         metrics = urllib.request.urlopen(f"{base}/metrics").read().decode()
         assert 'etch_sensor_value{chamber="CH-B",sensor="pressure_pv_mtorr",tool="ETCH-01"} 31.0' in metrics
         assert 'etch_alarm_active{alarm="PRESSURE_HIGH",chamber="CH-B",ocap="OCAP-ETCH-PRS",tool="ETCH-01"} 1.0' in metrics

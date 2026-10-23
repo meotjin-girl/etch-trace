@@ -21,10 +21,16 @@ def build(evidence: EvidenceProvider):
         search_sop = getattr(evidence, "search_sop", None)
         if callable(search_sop):
             try:
+                sensor_analysis = state.get("sensor_analysis")
                 query = " ".join([
                     value for value in (
                         context.equipment, context.chamber, context.recipe, context.symptom,
                         *(f"{key}={value:g}" for key, value in context.metrics.items()),
+                        *(
+                            signal.sensor
+                            for signal in (sensor_analysis.signals if sensor_analysis else [])
+                            if signal.first_anomaly_sec is not None
+                        ),
                     ) if value
                 ])
                 sop_documents = cast(SopRagSearcher, evidence).search_sop(query)

@@ -2,13 +2,22 @@ from fastmcp import Client, FastMCP
 from pydantic import JsonValue
 
 from agent.evidence import MCPEvidenceProvider
-from agent.models import Case, Context, PhysicsInputs
+from agent.models import (
+    Case,
+    Context,
+    EducationalSimulationResult,
+    PhysicsInputs,
+    SensorAnalysis,
+    SensorProcessPoint,
+)
 from agent.tests.support import Evidence
 
 
 def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeypatch):
     # Given: real in-process FastMCP servers, clients, tool schemas, and dispatch.
-    business, rag, physics = FastMCP("business"), FastMCP("rag"), FastMCP("physics")
+    business, rag, physics, sensor = (
+        FastMCP("business"), FastMCP("rag"), FastMCP("physics"), FastMCP("sensor")
+    )
     evidence = Evidence()
     seen = []
 
@@ -40,13 +49,42 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
         seen.append(("evaluate_etch_physics", parsed.physics))
         return [item.model_dump(mode="json") for item in evidence.evaluate_etch_physics(parsed)]
 
+    @physics.tool
+    def analyze_etch_quantitatively(inputs: dict[str, JsonValue]) -> list[dict[str, JsonValue]]:
+        seen.append(("analyze_etch_quantitatively", inputs))
+        return []
+
+    @physics.tool
+    def simulate_educational_etch(
+        inputs: dict[str, JsonValue],
+    ) -> EducationalSimulationResult:
+        seen.append(("simulate_educational_etch", inputs))
+        return EducationalSimulationResult(
+            status="SIMULATED", completed_levels=[1, 2, 3],
+            source_run_id=str(inputs["source_run_id"]),
+        )
+
+    @sensor.tool
+    def analyze_current_etch_run(
+        equipment: str | None = None, chamber: str | None = None,
+        recipe: str | None = None,
+    ) -> SensorAnalysis:
+        seen.append(("analyze_current_etch_run", (equipment, chamber, recipe)))
+        return SensorAnalysis(
+            problem="센서 시계열 정량 분석", status="INSUFFICIENT_DATA",
+            missing_fields=["sensor_history"],
+        )
+
     servers = {
         "http://business/mcp": business,
         "http://rag/mcp": rag,
         "http://physics/mcp": physics,
+        "http://sensor/mcp": sensor,
     }
     monkeypatch.setattr("agent.evidence.Client", lambda url: Client(servers[url]))
-    adapter = MCPEvidenceProvider("http://business", "http://rag/mcp", "http://physics")
+    adapter = MCPEvidenceProvider(
+        "http://business", "http://rag/mcp", "http://physics", "http://sensor",
+    )
     context = Context(
         equipment="ETCH-07",
         metrics={"endpoint_sec": 94},
@@ -57,6 +95,26 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
     metrics = adapter.analyze_metrics(cases, context)
     documents = adapter.search_documents(["DOC#1"])
     physics_results = adapter.evaluate_etch_physics(context)
+    quantitative_results = adapter.analyze_etch_quantitatively(context)
+    sensor_result = adapter.analyze_sensor_run(context)
+    simulation_context = Context(physics=PhysicsInputs(
+        etch_rate_nm_min=100, feature_width_nm=80, simulation_requested=True,
+    ))
+    process_point = SensorProcessPoint(
+        offset_sec=0, source_rf_w=1000, source_rf_reference_w=1000,
+        bias_rf_w=200, bias_rf_reference_w=200,
+        pressure_mtorr=25, pressure_reference_mtorr=25,
+        sf6_sccm=100, sf6_reference_sccm=100,
+        o2_sccm=10, o2_reference_sccm=10,
+        esc_temp_c=20, esc_temp_reference_c=20,
+    )
+    simulation = adapter.simulate_etch_education(
+        simulation_context,
+        SensorAnalysis(
+            problem="sensor", status="CALCULATED", target_run_id="RUN-1",
+            process_series=[process_point, process_point.model_copy(update={"offset_sec": 5})],
+        ),
+    )
     # Then
     assert cases == evidence.cases
     assert metrics[0].value == 94
@@ -64,11 +122,23 @@ def test_adapter_when_fastmcp_returns_arrays_preserves_real_tool_results(monkeyp
     assert documents[0].id == "DOC#1"
     assert physics_results[0].result is not None
     assert physics_results[0].result.value == 1000
-    assert seen == [
+    assert quantitative_results == []
+    assert sensor_result.status == "INSUFFICIENT_DATA"
+    assert simulation is not None and simulation.status == "SIMULATED"
+    assert seen[:6] == [
         ("search_cases", Context(equipment="ETCH-07", metrics={"endpoint_sec": 94})),
         ("analyze_metrics", 5), ("search_documents", ["DOC#1"]),
         ("evaluate_etch_physics", context.physics),
+        ("analyze_etch_quantitatively", {
+            "measured_etch_depth_nm": None, "target_etch_depth_nm": None,
+            "depth_control_limit": None, "rate_intervals": [],
+        }),
+        ("analyze_current_etch_run", ("ETCH-07", None, None)),
     ]
+    assert seen[6][0] == "simulate_educational_etch"
+    assert seen[6][1]["base_etch_rate_nm_min"] == 100
+    assert seen[6][1]["feature_width_nm"] == 80
+    assert len(seen[6][1]["process_points"]) == 2
 
 
 def test_completion_uses_investigation_mcp_and_keeps_retry_ids(monkeypatch):
