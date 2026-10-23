@@ -46,6 +46,7 @@ test('app shell mounts every route with backend data', async () => {
   const {default: router} = await import('@/router')
   const {useIdentityStore} = await import('@/stores/identity')
   useIdentityStore().status = 'authenticated'
+  useIdentityStore().liveApi.list = async () => []
   const task = {id:'t1', status:'WAITING_APPROVAL', question:'질문', user_name:'이엔지니어', user_role:'engineer',
     report:{documents:[{id:'DOC#1', title:'문서', text:'본문'}], docIds:['DOC#1'], metrics:[], causeCases:[]}, events:[]}
   useIdentityStore().api = {
@@ -60,7 +61,8 @@ test('app shell mounts every route with backend data', async () => {
   const wrapper = mount(App, {global:{plugins:[router]}, attachTo:document.body})
   // [path, expected text, progress card visible]
   const pages: [string, string, boolean][] = [
-    ['/', '어떤 이상을 조사할까요?', true], ['/records', '조사 기록을 선택해 주세요', false],
+    ['/', '등록된 조사가 없습니다', false], ['/legacy', '어떤 이상을 조사할까요?', true],
+    ['/records', '조사 기록을 선택해 주세요', false],
     ['/records/t1', '조사 열기 / 이어가기', true], ['/sop', 'SOP-ETCH-12', false]]
   for (const [path, expected, progress] of pages) {
     await router.push(path)

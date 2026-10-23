@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
 import EvidencePanel from '@/components/EvidencePanel.vue'
 import AuthGate from '@/components/AuthGate.vue'
@@ -8,24 +8,29 @@ import { useIdentityStore } from '@/stores/identity'
 import { useInvestigationStore } from '@/stores/investigation'
 import { useRecordsStore } from '@/stores/records'
 import { useUiStore } from '@/stores/ui'
+import { useLiveInvestigationsStore } from '@/stores/live-investigations'
 
 const investigation = useInvestigationStore()
 const records = useRecordsStore()
 const ui = useUiStore()
 const router = useRouter()
 const identity = useIdentityStore()
+const live = useLiveInvestigationsStore()
+const route = useRoute()
+const livePage = computed(() => route.name === 'investigations' || route.name === 'live-investigation')
 watch(() => identity.status, status => {
   if (status === 'authenticated') void records.refresh()
 })
 
 async function newInvestigation() {
   investigation.reset()
-  await router.push('/')
+  await router.push('/legacy')
   document.getElementById('questionInput')?.focus()
 }
 function leave() {
   investigation.stopTask()
   records.abort()
+  live.reset()
 }
 
 onMounted(() => {
@@ -38,7 +43,7 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
 
 <template>
   <AuthGate v-if="identity.status !== 'authenticated'" />
-  <div v-else class="app-shell" :class="{'sop-open': $route.name === 'sop', 'evidence-closed': ui.evidenceClosed}">
+  <div v-else class="app-shell" :class="{'sop-open': $route.name === 'sop' || livePage, 'evidence-closed': ui.evidenceClosed && !livePage}">
     <AppSidebar @new="newInvestigation" />
 
     <main class="workspace">
@@ -66,9 +71,10 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
           <input id="sopSearch" v-model="ui.sopQuery" type="search" placeholder="문서명, 문서 번호, 키워드 검색" autocomplete="off">
         </label>
         <span v-else-if="$route.name === 'records'">모든 상태의 서버 조사를 열어 대화·진행·검토 이력을 확인하거나 이어갈 수 있습니다.</span>
+        <span v-else-if="livePage" role="status">경보 기반 조사 · 후보 검토 · 승인 후에도 후속 대화 가능</span>
         <span v-else role="status">{{ investigation.statusText }}</span>
       </section>
-      <div class="network-notice" role="alert" :hidden="!ui.networkError">
+      <div class="network-notice" role="alert" :hidden="!ui.networkError || livePage">
         <span>{{ ui.networkError }}</span>
         <button type="button" class="secondary-button" @click="investigation.retry()">다시 연결</button>
       </div>
@@ -76,7 +82,7 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
       <RouterView />
     </main>
 
-    <EvidencePanel />
+    <EvidencePanel v-if="!livePage" />
   </div>
 
 </template>

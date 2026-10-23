@@ -52,6 +52,21 @@ Network feedback is a persistent inline alert with an explicit retry button.
 Pending mutations disable duplicate submissions. Empty and terminal states use
 text, not simulated progress. Disabled document search stays labeled upcoming.
 
+The root is the live investigation list; `/investigations/:id` opens the same
+backend record and Agent Server thread. `/legacy` retains the previous task
+composer, and `/records` retains task history. Live pages reuse the records
+surface with a 980px content limiter and the SOP shell's two-column navigation
+layout; the records region owns scrolling, without an empty legacy evidence rail.
+Detail stacks alert metadata, current candidate cards, the immutable approved
+snapshot, and conversation. Candidate cards reuse evidence-item and detail-evidence
+primitives with 12px gaps. Approval buttons identify candidates by ID; pending
+requests disable duplicate actions. The approved snapshot has its own heading,
+revision, author and timestamp; later candidate updates never replace its content.
+Conversation reuses message/avatar and composer primitives. Busy runs show a live
+status and are joined on reopen; a disconnected run offers explicit reconnect.
+Approval never removes or disables the composer. Tool messages and assistant
+tool-call intermediates do not appear as conversation replies.
+
 ## 6. Motion & Interaction
 Keep the existing .28s message rise, .18–.25s hover/drawer transitions and
 highlight treatment. Progress changes only on backend status/events.
