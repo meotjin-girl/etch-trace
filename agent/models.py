@@ -20,6 +20,23 @@ class Model(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class ControlLimit(Model):
+    lower: float | None = None
+    upper: float | None = None
+    unit: str
+    approved: bool = False
+    document_id: str | None = None
+    revision: str | None = None
+
+
+class RateInterval(Model):
+    start_sec: float
+    end_sec: float
+    etch_rate_nm_min: float
+    origin: Literal["MEASURED", "SIMULATED"]
+    source: str
+
+
 class PhysicsInputs(Model):
     etch_rate_nm_min: float | None = None
     etch_time_sec: float | None = None
@@ -27,6 +44,13 @@ class PhysicsInputs(Model):
     post_thickness_nm: float | None = None
     target_etch_rate_nm_min: float | None = None
     mask_etch_rate_nm_min: float | None = None
+    measured_etch_depth_nm: float | None = None
+    target_etch_depth_nm: float | None = None
+    depth_control_limit: ControlLimit | None = None
+    rate_intervals: list[RateInterval] = Field(default_factory=list)
+    simulation_requested: bool = False
+    feature_width_nm: float | None = None
+    arde_coefficient: float = 0.10
     sources: dict[str, str] = Field(default_factory=dict)
 
 
@@ -101,6 +125,134 @@ class PhysicsResult(Model):
     assumptions: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    problem: str = ""
+    interpretation: str = ""
+    recommended_checks: list[str] = Field(default_factory=list)
+
+
+class QuantitativeValue(Model):
+    key: str
+    value: float
+    unit: str
+    origin: Literal["MEASURED", "CALCULATED", "SIMULATED"]
+    source: str
+
+
+class QuantitativeResult(Model):
+    analysis: Literal[
+        "reference_run_comparison", "time_resolved_etch_depth", "metrology_comparison",
+    ]
+    version: Literal["2.0"] = "2.0"
+    problem: str
+    status: Literal["CALCULATED", "INSUFFICIENT_DATA", "INVALID_INPUT"]
+    value_origin: Literal["MEASURED", "CALCULATED", "SIMULATED"] | None = None
+    validation_status: Literal["VALIDATED", "NOT_VALIDATED"] = "NOT_VALIDATED"
+    formula: str
+    inputs: list[QuantitativeValue] = Field(default_factory=list)
+    results: list[QuantitativeValue] = Field(default_factory=list)
+    reference_ids: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    interpretation: str = ""
+    recommended_checks: list[str] = Field(default_factory=list)
+    within_control_limit: bool | None = None
+    control_limit: ControlLimit | None = None
+
+
+class SensorSignalAnalysis(Model):
+    sensor: str
+    unit: str
+    minimum: float
+    maximum: float
+    mean: float
+    first_anomaly_sec: float | None = None
+    anomaly_duration_sec: float = 0
+    maximum_setpoint_deviation: float | None = None
+    reference_comparison: QuantitativeResult | None = None
+    cooccurring_sensors: list[str] = Field(default_factory=list)
+    related_alarms: list[str] = Field(default_factory=list)
+    ocap_ids: list[str] = Field(default_factory=list)
+    threshold_source: Literal["synthetic_baseline", "equipment_alarm", "none"] = "none"
+
+
+class SensorProcessPoint(Model):
+    offset_sec: float
+    source_rf_w: float
+    source_rf_reference_w: float
+    bias_rf_w: float
+    bias_rf_reference_w: float
+    pressure_mtorr: float
+    pressure_reference_mtorr: float
+    sf6_sccm: float
+    sf6_reference_sccm: float
+    o2_sccm: float
+    o2_reference_sccm: float
+    esc_temp_c: float
+    esc_temp_reference_c: float
+    source: str = "mock_fab_sensor"
+
+
+class SensorAnalysis(Model):
+    version: Literal["2.0"] = "2.0"
+    problem: str
+    status: Literal["CALCULATED", "INSUFFICIENT_DATA", "INVALID_INPUT"]
+    target_run_id: str | None = None
+    signals: list[SensorSignalAnalysis] = Field(default_factory=list)
+    process_series: list[SensorProcessPoint] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    causal_conclusion: Literal[False] = False
+
+
+class SensitivityCoefficient(Model):
+    variable: Literal["source_rf", "bias_rf", "pressure", "sf6", "o2", "esc_temp"]
+    value: float
+    unit: Literal["per_relative_change"] = "per_relative_change"
+    source: str
+    calibrated: Literal[False] = False
+
+
+class RelativeRatePoint(Model):
+    offset_sec: float
+    relative_rate: float
+    simulated_process_rate_nm_min: float
+    source: str
+
+
+class ProfileCoordinate(Model):
+    x_nm: float
+    y_nm: float
+
+
+class ProfileFrame(Model):
+    offset_sec: float
+    depth_nm: float
+    opening_width_nm: float
+    aspect_ratio: float
+    simulated_arde_rate_nm_min: float
+    removed_region: list[ProfileCoordinate]
+
+
+class EducationalSimulationResult(Model):
+    version: Literal["3.0"] = "3.0"
+    mode: Literal["EDUCATIONAL_ASSUMPTION"] = "EDUCATIONAL_ASSUMPTION"
+    status: Literal["SIMULATED", "INSUFFICIENT_DATA", "INVALID_INPUT"]
+    validation_status: Literal["NOT_VALIDATED"] = "NOT_VALIDATED"
+    completed_levels: list[Literal[1, 2, 3]] = Field(default_factory=list)
+    source_run_id: str | None = None
+    arde_coefficient: float | None = None
+    arde_coefficient_source: str = (
+        "TRACE educational assumption v1; not literature-derived or calibrated"
+    )
+    arde_coefficient_calibrated: Literal[False] = False
+    formulas: list[str] = Field(default_factory=list)
+    coefficients: list[SensitivityCoefficient] = Field(default_factory=list)
+    relative_rate_series: list[RelativeRatePoint] = Field(default_factory=list)
+    profile_frames: list[ProfileFrame] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    causal_conclusion: Literal[False] = False
 
 
 class Document(Model):
@@ -140,6 +292,9 @@ class Report(Model):
     scored: list[Case]
     metrics: list[Metric]
     physicsResults: list[PhysicsResult] = Field(default_factory=list)
+    quantitativeResults: list[QuantitativeResult] = Field(default_factory=list)
+    sensorAnalysis: SensorAnalysis | None = None
+    educationalSimulation: EducationalSimulationResult | None = None
     causeCases: list[Case]
     docIds: list[str]
     documents: list[Document]

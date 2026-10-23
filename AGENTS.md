@@ -14,16 +14,17 @@
 | 상태·메시지·검토·이벤트·스냅샷 | `backend/v1_store.py`, `v1_schema.sql` | DB 연결은 lifespan에서 열림 |
 | 내부 명령 | `backend/v1_dispatch.py` | agent HTTP 실행·재개, command ID |
 | 조사 그래프 | `agent/graph.py`, `query.py`, `models.py` | 접수·재질문·사례·통계·물리 계산·문서·보고서·검토 |
-| MCP 어댑터 | `agent/evidence.py` | business/rag/physics MCP만 사용, 업무 DB 직접 조회 금지 |
+| MCP 어댑터 | `agent/evidence.py` | business/rag/physics/sensor MCP만 사용, 업무 DB 직접 조회 금지 |
 | 사례·계산 | `mcp/business.py`, `mcp/evidence.py` | backend `/internal/cases` 조회, 결정론적 통계 |
 | 물리 계산 | `mcp/physics.py`, `mcp/physics_models.py` | 식각 깊이·평균 속도·선택비, 부족/오류 입력 명시 |
+| 정량·센서·교육 시뮬레이션 | `mcp/quantitative_models.py`, `simulation_models.py`, `sensor_models.py`, `sensor.py` | 정상 Run 비교·R(t) 적분·실측/규격·Mock Fab 시계열·미보정 Level 2/3 교육 모델 |
 | 문서 | `mcp/rag.py` | `search_documents` exact-ID 조회와 `search_sop` SOP·OCAP 벡터 검색(`sop-ocap/` 마운트). SOP 색인은 별도 `sop-postgres`에 저장하며 `OPENAI_API_KEY` 필요 |
 | 샘플 적재 | `db/seed.py`, `cases.json`, `documents.json` | PHM 아님, demo/source 표시 보존 |
 | 화면 | `frontend/src/` (Vue 3 + TS, Pinia, Router), `docs/frontend.md` | 공개 backend 연동, seq 기반 이벤트 복원, 채팅 판별. `npm run dev:mock`으로 backend 없이 실행 |
 | SOP 화면 API | `backend/v1_sop.py` | `sop-ocap/` 머리 표·원문 파싱, `/api/sops` |
 | 경로 지도 | `docs/structure-review.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web만 공개 |
-| 모의 장비·FDC | `fab/`, `backend/prometheus/`, `docs/mock-fab.md` | 합성 SECS/GEM 장비 3대(AWS), 수집기 HTTP, 로컬 Prometheus 규칙 기반 FDC |
+| 모의 장비·FDC | `fab/`, `backend/prometheus/`, `docs/mock-fab.md` | 합성 SECS/GEM 장비 3대(AWS), 수집기 `/api/runs`, Sensor MCP, 로컬 Prometheus 규칙 기반 FDC |
 | 경보 → agent 요청 | `backend/v1_alerts.py`, `docs/agent-request.md` | Prometheus 폴링, Lot 단위 묶음, `{role:"system"\|"user",content}`. agent 쪽 수신은 미구현 |
 
 ## CONVENTIONS

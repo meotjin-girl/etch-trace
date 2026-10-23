@@ -163,7 +163,12 @@ Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 
 - Lot과 센서값은 이렇게 결합한다: `etch_sensor_value * on(tool,chamber) group_left(lot_id, wafer_id) etch_run_info`.
 - 주입한 고장 시나리오(정답 라벨)는 노출하지 않는다. 데이터 README의 "에이전트 입력에 넣지 않음" 원칙과 같다.
 
-## TRACE로 신호 전달 (backend 구현, agent 대기)
+## TRACE 연결
+
+Collector는 `/api/runs`에 최근 200개 합성 Run과 5초 샘플을 메모리로 보존한다.
+`mcp/sensor.py`는 이 읽기 전용 API를 사용해 TRACE Sensor Agent에 정량 결과를 전달한다.
+collector를 재시작하면 이 이력은 사라진다. `FAB_COLLECTOR_URL`이 없거나 범위가 맞지
+않으면 `INSUFFICIENT_DATA`를 반환한다.
 
 backend가 Prometheus `GET /api/v1/alerts`를 폴링해 장비 알람과 FDC 경보를 (장비, 챔버, Lot) 단위로 묶는다. 묶음은 `{"role":"system","content":<고정 형식 텍스트>}`로 agent에 보낸다. 형식·묶음 규칙과 agent 쪽 할 일은 [agent-request.md](agent-request.md)에 있다.
 

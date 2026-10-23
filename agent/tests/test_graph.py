@@ -6,7 +6,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from agent.graph import build_graph
-from agent.models import Report
+from agent.models import EducationalSimulationResult, Report, SensorAnalysis
 from agent.tests.support import Events, Evidence
 
 
@@ -118,6 +118,41 @@ def test_incomplete_when_search_has_no_case_evidence():
     assert evidence.analyses == 0
 
 
+def test_sensor_evidence_allows_analysis_without_matching_cases():
+    class SensorOnlyEvidence(Evidence):
+        def analyze_sensor_run(self, context):
+            return SensorAnalysis.model_validate({
+                "problem": "센서 시계열 정량 분석", "status": "CALCULATED",
+                "target_run_id": "RUN-SENSOR-ONLY",
+                "signals": [{
+                    "sensor": "pressure_pv_mtorr", "unit": "mTorr",
+                    "minimum": 25, "maximum": 34, "mean": 29,
+                    "first_anomaly_sec": 45, "anomaly_duration_sec": 15,
+                    "cooccurring_sensors": ["rf_reflected_w"],
+                    "related_alarms": ["PRESSURE_HIGH"],
+                    "ocap_ids": ["OCAP-ETCH-PRS"],
+                    "threshold_source": "equipment_alarm",
+                }],
+            })
+
+    provider = SensorOnlyEvidence(cases=[])
+    _, events, _, _, graph, config = setup_graph(provider)
+    graph.invoke({
+        "task_id": config["configurable"]["thread_id"],
+        "question": "ETCH-01 CH-A RCP-OX-ETCH-EDU-01 압력 상승",
+    }, config)
+
+    snapshot = graph.get_state(config)
+    report = snapshot.values["report"]
+    assert snapshot.interrupts[0].value["kind"] == "review"
+    assert report.scored == []
+    assert report.sensorAnalysis is not None
+    assert report.sensorAnalysis.target_run_id == "RUN-SENSOR-ONLY"
+    assert [event.type for event in events.values] == [
+        "SEARCH_STARTED", "ANALYSIS_STARTED", "REPORT_STARTED", "APPROVAL_REQUIRED",
+    ]
+
+
 def test_callback_failure_when_publishing_is_not_swallowed():
     # Given
     task = str(uuid4())
@@ -140,3 +175,86 @@ def test_callback_failure_when_publishing_is_not_swallowed():
     graph = build_graph(saver, Evidence(), events)
     graph.invoke(None, config)
     assert attempted[0].event_id == events.values[0].event_id
+
+
+def test_v2_quantitative_and_sensor_results_reach_review_report():
+    class IntegratedEvidence(Evidence):
+        def analyze_sensor_run(self, context):
+            return SensorAnalysis.model_validate({
+                "problem": "센서 시계열 정량 분석", "status": "CALCULATED",
+                "target_run_id": "RUN-1",
+                "signals": [{
+                    "sensor": "pressure_pv_mtorr", "unit": "mTorr",
+                    "minimum": 25, "maximum": 31, "mean": 28,
+                    "first_anomaly_sec": 50, "anomaly_duration_sec": 20,
+                    "cooccurring_sensors": [], "related_alarms": ["PRESSURE_HIGH"],
+                    "ocap_ids": ["OCAP-ETCH-PRS"],
+                    "threshold_source": "equipment_alarm",
+                }],
+            })
+
+    _, _, _, _, graph, config = setup_graph(IntegratedEvidence())
+    graph.invoke({
+        "task_id": config["configurable"]["thread_id"],
+        "question": (
+            "ETCH-07 CH-B OX-120 식각 속도 저하, 실측 식각 깊이 920 nm, "
+            "목표 식각 깊이 1000 nm, 승인 관리 범위 950~1050 nm"
+        ),
+    }, config)
+    report = graph.get_state(config).values["report"]
+    assert report.quantitativeResults[0].status == "CALCULATED"
+    assert report.quantitativeResults[0].within_control_limit is False
+    assert report.sensorAnalysis is not None
+    assert report.sensorAnalysis.target_run_id == "RUN-1"
+
+
+def test_level_1_to_3_education_simulation_stays_separate_in_report():
+    class SimulationEvidence(Evidence):
+        def analyze_sensor_run(self, context):
+            return SensorAnalysis(
+                problem="센서 시계열 정량 분석", status="CALCULATED",
+                target_run_id="MOCK-RUN-1",
+            )
+
+        def simulate_etch_education(self, context, sensor):
+            return EducationalSimulationResult.model_validate({
+                "status": "SIMULATED", "completed_levels": [1, 2, 3],
+                "source_run_id": "MOCK-RUN-1",
+                "formulas": ["D[n+1] = D[n] + R[n] * dt / 60"],
+                "coefficients": [{
+                    "variable": "source_rf", "value": 0.35,
+                    "source": "TRACE educational assumption v1",
+                    "calibrated": False,
+                }],
+                "relative_rate_series": [{
+                    "offset_sec": 0, "relative_rate": 1,
+                    "simulated_process_rate_nm_min": 100,
+                    "source": "mock_fab_sensor",
+                }],
+                "profile_frames": [{
+                    "offset_sec": 60, "depth_nm": 95,
+                    "opening_width_nm": 80, "aspect_ratio": 1.1875,
+                    "simulated_arde_rate_nm_min": 89,
+                    "removed_region": [
+                        {"x_nm": -40, "y_nm": 0}, {"x_nm": 40, "y_nm": 0},
+                        {"x_nm": 40, "y_nm": 95}, {"x_nm": -40, "y_nm": 95},
+                    ],
+                }],
+                "assumptions": ["교육용 가정"],
+                "warnings": ["실측값 또는 검증된 예측값이 아닙니다."],
+            })
+
+    _, _, _, _, graph, config = setup_graph(SimulationEvidence())
+    graph.invoke({
+        "task_id": config["configurable"]["thread_id"],
+        "question": (
+            "ETCH-01 CH-A RCP-OX-ETCH-EDU-01 ARDE 형상 시뮬레이션, "
+            "식각 속도 100 nm/min, 패턴 폭 80 nm"
+        ),
+    }, config)
+    report = graph.get_state(config).values["report"]
+    assert report.educationalSimulation is not None
+    assert report.educationalSimulation.status == "SIMULATED"
+    assert report.educationalSimulation.validation_status == "NOT_VALIDATED"
+    assert report.sensorAnalysis is not None
+    assert any("실측·원인 분석 결과가 아님" in item for item in report.stages[2].findings)

@@ -48,6 +48,134 @@ export interface PhysicsResult {
   assumptions: string[]
   missing_fields: string[]
   warnings: string[]
+  problem?: string
+  interpretation?: string
+  recommended_checks?: string[]
+}
+
+export interface ControlLimit {
+  lower?: number | null
+  upper?: number | null
+  unit: string
+  approved?: boolean
+  document_id?: string | null
+  revision?: string | null
+}
+
+export interface QuantitativeValue {
+  key: string
+  value: number
+  unit: string
+  origin: 'MEASURED' | 'CALCULATED' | 'SIMULATED'
+  source: string
+}
+
+export interface QuantitativeResult {
+  analysis: 'reference_run_comparison' | 'time_resolved_etch_depth' | 'metrology_comparison'
+  version: '2.0'
+  problem: string
+  status: 'CALCULATED' | 'INSUFFICIENT_DATA' | 'INVALID_INPUT'
+  value_origin?: 'MEASURED' | 'CALCULATED' | 'SIMULATED' | null
+  validation_status: 'VALIDATED' | 'NOT_VALIDATED'
+  formula: string
+  inputs: QuantitativeValue[]
+  results: QuantitativeValue[]
+  reference_ids: string[]
+  missing_fields: string[]
+  warnings: string[]
+  interpretation?: string
+  recommended_checks?: string[]
+  within_control_limit?: boolean | null
+  control_limit?: ControlLimit | null
+}
+
+export interface SensorSignalAnalysis {
+  sensor: string
+  unit: string
+  minimum: number
+  maximum: number
+  mean: number
+  first_anomaly_sec?: number | null
+  anomaly_duration_sec: number
+  maximum_setpoint_deviation?: number | null
+  reference_comparison?: QuantitativeResult | null
+  cooccurring_sensors: string[]
+  related_alarms: string[]
+  ocap_ids: string[]
+  threshold_source: 'synthetic_baseline' | 'equipment_alarm' | 'none'
+}
+
+export interface SensorProcessPoint {
+  offset_sec: number
+  source_rf_w: number
+  source_rf_reference_w: number
+  bias_rf_w: number
+  bias_rf_reference_w: number
+  pressure_mtorr: number
+  pressure_reference_mtorr: number
+  sf6_sccm: number
+  sf6_reference_sccm: number
+  o2_sccm: number
+  o2_reference_sccm: number
+  esc_temp_c: number
+  esc_temp_reference_c: number
+  source: string
+}
+
+export interface SensorAnalysis {
+  version: '2.0'
+  problem: string
+  status: 'CALCULATED' | 'INSUFFICIENT_DATA' | 'INVALID_INPUT'
+  target_run_id?: string | null
+  signals: SensorSignalAnalysis[]
+  process_series?: SensorProcessPoint[]
+  missing_fields: string[]
+  warnings: string[]
+  causal_conclusion: false
+}
+
+export interface SensitivityCoefficient {
+  variable: 'source_rf' | 'bias_rf' | 'pressure' | 'sf6' | 'o2' | 'esc_temp'
+  value: number
+  unit: 'per_relative_change'
+  source: string
+  calibrated: false
+}
+
+export interface RelativeRatePoint {
+  offset_sec: number
+  relative_rate: number
+  simulated_process_rate_nm_min: number
+  source: string
+}
+
+export interface ProfileFrame {
+  offset_sec: number
+  depth_nm: number
+  opening_width_nm: number
+  aspect_ratio: number
+  simulated_arde_rate_nm_min: number
+  removed_region: { x_nm: number; y_nm: number }[]
+}
+
+export interface EducationalSimulationResult {
+  version: '3.0'
+  mode: 'EDUCATIONAL_ASSUMPTION'
+  status: 'SIMULATED' | 'INSUFFICIENT_DATA' | 'INVALID_INPUT'
+  validation_status: 'NOT_VALIDATED'
+  completed_levels: (1 | 2 | 3)[]
+  source_run_id?: string | null
+  arde_coefficient?: number | null
+  arde_coefficient_source?: string
+  arde_coefficient_calibrated?: false
+  formulas: string[]
+  coefficients: SensitivityCoefficient[]
+  relative_rate_series: RelativeRatePoint[]
+  profile_frames: ProfileFrame[]
+  missing_fields: string[]
+  assumptions: string[]
+  warnings: string[]
+  causal_conclusion: false
 }
 
 export interface CauseCase {
@@ -109,6 +237,9 @@ export interface Report {
   context?: { equipment?: string; chamber?: string; recipe?: string; [key: string]: unknown }
   metrics?: Metric[]
   physicsResults?: PhysicsResult[]
+  quantitativeResults?: QuantitativeResult[]
+  sensorAnalysis?: SensorAnalysis | null
+  educationalSimulation?: EducationalSimulationResult | null
   causeCases?: CauseCase[]
   docIds?: string[]
   documents?: EvidenceDocument[]

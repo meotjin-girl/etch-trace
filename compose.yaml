@@ -140,6 +140,16 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
+  sensor-mcp:
+    build: ./mcp
+    command: ["uv", "run", "python", "sensor.py"]
+    environment:
+      FAB_COLLECTOR_URL: ${FAB_COLLECTOR_URL:-}
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
   agent:
     restart: unless-stopped
     build: ./agent
@@ -149,6 +159,7 @@ services:
       BUSINESS_MCP_URL: http://business-mcp:8000/mcp
       RAG_MCP_URL: http://rag-mcp:8000/mcp
       PHYSICS_MCP_URL: http://physics-mcp:8000/mcp
+      SENSOR_MCP_URL: http://sensor-mcp:8000/mcp
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
       LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
@@ -165,6 +176,8 @@ services:
       rag-mcp:
         condition: service_healthy
       physics-mcp:
+        condition: service_healthy
+      sensor-mcp:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]

@@ -34,6 +34,7 @@ from .models import (
     Clarification,
     Context,
     Document,
+    EducationalSimulationResult,
     Event,
     EventType,
     HistoryEvidence,
@@ -41,9 +42,11 @@ from .models import (
     InvestigationStage,
     Metric,
     PhysicsResult,
+    QuantitativeResult,
     Report,
     Requester,
     Review,
+    SensorAnalysis,
 )
 from .query import clarification_message, missing_fields, parse_question
 
@@ -57,6 +60,9 @@ class State(TypedDict):
     scored: list[Case]
     metrics: list[Metric]
     physics_results: list[PhysicsResult]
+    quantitative_results: list[QuantitativeResult]
+    sensor_analysis: SensorAnalysis | None
+    educational_simulation: EducationalSimulationResult | None
     documents: list[Document]
     history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
@@ -79,6 +85,9 @@ class Update(TypedDict, total=False):
     scored: list[Case]
     metrics: list[Metric]
     physics_results: list[PhysicsResult]
+    quantitative_results: list[QuantitativeResult]
+    sensor_analysis: SensorAnalysis | None
+    educational_simulation: EducationalSimulationResult | None
     documents: list[Document]
     history: list[HistoryEvidence]
     checks: list[InvestigationCheck]
@@ -131,6 +140,9 @@ def template_report(state: State) -> Report:
         scored=state["scored"],
         metrics=state["metrics"],
         physicsResults=state.get("physics_results", []),
+        quantitativeResults=state.get("quantitative_results", []),
+        sensorAnalysis=state.get("sensor_analysis"),
+        educationalSimulation=state.get("educational_simulation"),
         causeCases=cause_cases(state["scored"]),
         docIds=list(dict.fromkeys([
             *document_ids(state["scored"]),
@@ -154,7 +166,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     scope_graph = scope_agent_module.build(evidence)
     comparison_graph = comparison_agent_module.build(evidence)
     physics_graph = physics_agent_module.build(evidence)
-    sensor_graph = sensor_agent_module.build()
+    sensor_graph = sensor_agent_module.build(evidence)
     maintenance_graph = maintenance_agent_module.build()
     recommendation_graph = recommendation_agent_module.build(evidence)
 
@@ -205,6 +217,10 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         publish(state, "SEARCH_STARTED", {})
         return {}
 
+    def prefetch_sensor(state: State) -> Update:
+        """Know whether independent sensor evidence can support a case-free scope."""
+        return {"sensor_analysis": evidence.analyze_sensor_run(state["context"])}
+
     def scope_agent(state: State) -> Update:
         result = scope_graph.invoke({
             "context": state["context"], "requester": state.get("requester"),
@@ -216,7 +232,17 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         }
 
     def after_scope(state: State) -> Literal["analysis_started", "incomplete"]:
-        return "analysis_started" if state["scored"] else "incomplete"
+        physics = state["context"].physics.model_dump(
+            exclude={"sources"}, exclude_defaults=True,
+        )
+        has_physics_input = any(value not in (None, [], {}) for value in physics.values())
+        sensor = state.get("sensor_analysis")
+        has_sensor_evidence = sensor is not None and sensor.status == "CALCULATED"
+        return (
+            "analysis_started"
+            if state["scored"] or has_physics_input or has_sensor_evidence
+            else "incomplete"
+        )
 
     def analysis_started(state: State) -> Update:
         publish(state, "ANALYSIS_STARTED", {})
@@ -232,13 +258,24 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
         }
 
     def sensor_agent(state: State) -> Update:
-        result = sensor_graph.invoke({"context": state["context"]})
-        return {"stages": [*state.get("stages", []), result["result"]]}
+        result = sensor_graph.invoke({
+            "context": state["context"],
+            "sensor_analysis": state.get("sensor_analysis"),
+        })
+        return {
+            "sensor_analysis": result.get("sensor_analysis"),
+            "stages": [*state.get("stages", []), result["result"]],
+        }
 
     def physics_agent(state: State) -> Update:
-        result = physics_graph.invoke({"context": state["context"]})
+        result = physics_graph.invoke({
+            "context": state["context"],
+            "sensor_analysis": state.get("sensor_analysis"),
+        })
         return {
             "physics_results": result.get("physics_results", []),
+            "quantitative_results": result.get("quantitative_results", []),
+            "educational_simulation": result.get("educational_simulation"),
             "stages": [*state.get("stages", []), result["result"]],
         }
 
@@ -251,6 +288,8 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
             "context": state["context"], "cases": state["scored"],
             "metrics": state["metrics"], "stages": state["stages"],
             "physics_results": state.get("physics_results", []),
+            "quantitative_results": state.get("quantitative_results", []),
+            "sensor_analysis": state.get("sensor_analysis"),
             "history": state.get("history", []),
         })
         return {
@@ -301,7 +340,7 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     builder = StateGraph(State, input_schema=TaskInput)
     nodes = {
         "intake": intake, "question_event": question_event, "clarify": clarify,
-        "search_started": search_started,
+        "search_started": search_started, "prefetch_sensor": prefetch_sensor,
         "scope_agent": scope_agent,
         "analysis_started": analysis_started, "analyze": analyze,
         "physics_agent": physics_agent, "sensor_agent": sensor_agent,
@@ -317,7 +356,8 @@ def build_graph(checkpointer: BaseCheckpointSaver, evidence: EvidenceProvider, e
     builder.add_conditional_edges("intake", after_intake)
     builder.add_edge("question_event", "clarify")
     builder.add_conditional_edges("clarify", after_intake)
-    builder.add_edge("search_started", "scope_agent")
+    builder.add_edge("search_started", "prefetch_sensor")
+    builder.add_edge("prefetch_sensor", "scope_agent")
     builder.add_conditional_edges("scope_agent", after_scope)
     builder.add_edge("analysis_started", "analyze")
     builder.add_edge("analyze", "physics_agent")
