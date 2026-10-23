@@ -19,7 +19,7 @@ docker compose -p trace-experiment -f compose.yaml up -d --build
 ```
 
 웹 로그인은 새 개발 realm의 `test` / `test` 계정을 사용한다.
-기존 `agent/`는 참조·레거시용으로 보존하며 기본 실행은 `agent-new/`다.
+기존 `agent/`는 참조·레거시용으로 보존하며 기본 실행은 `agent/`다.
 레거시 컨테이너는 `--profile legacy`로 추가 실행할 수 있다.
 
 ## 데이터 책임
@@ -96,7 +96,7 @@ Emitter는 서버 간 내부 키로 Agent Server를 호출한다. nginx 공개 �
 
 ## Studio와 저장소
 
-`agent-new/langgraph.json`의 `trace` 그래프를 사용한다. 개발용 서버 주소는
+`agent/langgraph.json`의 `trace` 그래프를 사용한다. 개발용 서버 주소는
 기본적으로 `http://localhost:2024`이고 위 포트 변경 예에서는 12024다.
 LangSmith 로그인과 로컬 Agent Server 인증은 별개다. Studio의
 **Server connection settings → Custom Headers**에 다음 두 항목을 설정한다.

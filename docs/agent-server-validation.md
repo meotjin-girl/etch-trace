@@ -71,7 +71,7 @@ Studio 연결과 정상 대화 우선 범위로 UI의 모든 예외·경쟁 상�
 | 범위 | 결과 |
 |---|---|
 | backend 전체 실제 PostgreSQL/HTTP 테스트 | 134 통과 |
-| agent-new 그래프·체크포인트·MCP·인증 | 37 통과 |
+| agent 그래프·체크포인트·MCP·인증 | 37 통과 |
 | frontend Vitest | 62 통과 |
 | frontend type-check / production build | 통과 |
 | 기존 agent | 8 통과 |
@@ -80,7 +80,7 @@ Studio 연결과 정상 대화 우선 범위로 UI의 모든 예외·경쟁 상�
 | 변경 Python의 서비스별 Ruff / basedpyright | 통과 |
 | 실제 nginx 이미지 구문 검사 / 최종 Compose health | 통과 |
 
-backend와 agent-new는 자체 개발 의존성으로 pytest·Ruff·basedpyright를 실행했다.
+backend와 agent는 자체 개발 의존성으로 pytest·Ruff·basedpyright를 실행했다.
 frontend는 `npm run type-check && npm test && npm run build`로 확인했다.
 MCP는 `uv run --project mcp` 환경에서 실행했다.
 워크스페이스 LSP가 서비스별 venv를 찾지 못하는 진단은 서비스 CLI 검사로 확인했다.

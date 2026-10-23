@@ -36,7 +36,7 @@ RAG MCP는 문서 ID 정확 조회와 `sop-ocap/` SOP·OCAP 의미 검색을 제
 
 ```text
 브라우저(Vue 3) -> nginx -> backend (조사 목록·현재 후보·승인·SOP)
-                       -> agent-new (Agent Server, thread·대화·실행)
+                       -> agent (Agent Server, thread·대화·실행)
                             -> business-mcp -> backend 조사 저장·사례 API
                             -> rag-mcp -> 문서 / SOP·OCAP 색인
                             -> physics-mcp -> 결정론적 식각 관계식 계산
@@ -46,7 +46,7 @@ RAG MCP는 문서 ID 정확 조회와 `sop-ocap/` SOP·OCAP 의미 검색을 제
 |---|---|
 | `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/frontend.md](docs/frontend.md) |
 | `backend/main.py`, `backend/v1_*.py` | 공개 API, JWT 검증·공동 작업 인가, 상태·메시지·검토·이벤트·승인 스냅샷 |
-| `agent-new/` | 표준 Agent Server 진입점, 단일 ReAct 조사, 구조화 후보·필수 업무 저장 |
+| `agent/` | 표준 Agent Server 진입점, 단일 ReAct 조사, 구조화 후보·필수 업무 저장 |
 | `agent/` | 이전 단일 ReAct 구현과 회귀 테스트; `legacy` profile로 실행 |
 | `mcp/` | 사례 조회·결정론적 통계·승인 이력 도구, 문서 조항 조회·SOP 의미 검색 |
 | `mcp/physics_models.py`, `mcp/physics.py` | 식각 깊이·평균 식각 속도·선택비 계산과 입력 검증. [Physics v1](docs/physics.md) |
@@ -87,7 +87,7 @@ SSE는 `/api/ai/tasks/{id}/stream?after=0`에 Bearer 헤더를 보내는 fetch �
 ```bash
 uv sync --group dev
 (cd agent && uv sync --group dev && uv run pytest)
-(cd agent-new && uv sync --group dev && uv run pytest)
+(cd agent && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
 (cd frontend && npm ci && npm run type-check && npm test)   # npm run dev:mock 으로 backend 없이 화면 확인

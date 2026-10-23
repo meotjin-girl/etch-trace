@@ -3,7 +3,7 @@
 ## OVERVIEW
 
 업무 조사·후보·승인과 레거시 v1 작업·이벤트 영속화 경계다.
-LangGraph 실행은 별도 `agent-new/` Agent Server가 담당한다.
+LangGraph 실행은 별도 `agent/` Agent Server가 담당한다.
 `main.py`는 lifespan과 router 조합, `api_dependencies.py`는 공유 인증·runtime,
 `legacy_api.py`는 기존 v1 경로를 소유한다.
 

@@ -1,32 +1,31 @@
+# Copyright 2026 TRACE contributors
+"""The copied parser preserves existing alert semantics."""
+
 import pytest
 
-from agent.alert_text import parse_alert_text
+from trace_agent.alert_text import parse_alert_text
+from trace_agent.errors import ContractError
+
+from .conftest import ALERT
 
 
-def test_parse_alert_text_preserves_identity_values_and_sensor_gaps():
-    text = (
-        "[경보] ETCH-02 / CH-A / Lot SIMLOT-20261022-2A151416 / "
-        "Wafer SIMLOT-20261022-2A151416-W01 / RCP-OX-ETCH-EDU-01\n"
-        "- 15:15:11 FDC FDC_WATCH source_rf_reflected_w z=4.1 (OCAP-ETCH-RF)\n"
-        "- 15:15:36 장비 RF_REFLECT_HIGH source_rf_reflected_w=39.4 W "
-        "(한계 37 W) (OCAP-ETCH-RF)\n"
-        "- source_rf_reflected_w (W, 정상 5.364±0.590): 5.2 - 44.1\n"
-    )
-    result = parse_alert_text(text)
-    assert (result.tool_id, result.chamber_id, result.recipe_id) == (
-        "ETCH-02",
-        "CH-A",
-        "RCP-OX-ETCH-EDU-01",
-    )
-    assert [item["source"] for item in result.alert_lines] == ["fdc", "equipment"]
-    assert result.alert_lines[0]["sensor"] == "source_rf_reflected_w"
-    assert result.alert_lines[0]["value"] == "z=4.1"
-    assert result.alert_lines[1]["sensor"] == "source_rf_reflected_w"
-    assert result.alert_lines[1]["value"] == "39.4 W (한계 37 W)"
-    assert result.sensor_lines[0]["points"] == [5.2, None, 44.1]
-    assert result.original_text == text
+def test_parser_preserves_observations_units_gaps_and_source() -> None:
+    # Given / When: the established equipment/FDC/series envelope.
+    parsed = parse_alert_text(ALERT)
+
+    # Then: structured context retains the exact original alongside typed values.
+    assert parsed.alert.source_text == ALERT
+    assert parsed.alert.tool_id == "ETCH-02"
+    assert parsed.alert_lines[0].value == "z=4.1"
+    assert parsed.alert_lines[1].value == "39.4 W (한계 37 W)"
+    assert parsed.sensor_lines[0].unit == "W"
+    assert parsed.sensor_lines[0].points == [5.2, None, 44.1]
+    assert parsed.context().metrics == {"source_rf_reflected_w": 44.1}
+    assert parsed.unparsed_lines == ["unknown observations retained"]
 
 
-def test_parse_alert_text_rejects_invalid_header():
-    with pytest.raises(ValueError, match="경보 헤더"):
-        parse_alert_text("ETCH-02 CH-A 경보 내용")
+@pytest.mark.parametrize("text", ["", "ETCH-02 CH-A alert", "[경보] / CH / Lot L / Wafer W / R"])
+def test_parser_rejects_invalid_header(text: str) -> None:
+    # Given / When / Then: invalid alert syntax fails at the input boundary.
+    with pytest.raises(ContractError):
+        _ = parse_alert_text(text)

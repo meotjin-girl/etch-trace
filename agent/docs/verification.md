@@ -1,15 +1,15 @@
 # Standalone agent verification
 
-Verified on October 23, 2026, on macOS arm64. All changes are under `agent-new/`.
+Verified on October 23, 2026, on macOS arm64. All changes are under `agent/`.
 No Compose invocation, sibling source modification, or commit was made.
 
 ## Environment isolation
 
-Owned temporary root: `/tmp/trace-agent-new.2xedbc`.
+Owned temporary root: `/tmp/trace-agent.2xedbc`.
 Dependencies were installed with:
 
 ```sh
-cd agent-new
+cd agent
 UV_CACHE_DIR="$RUN_TMP/uv-cache" \
 UV_PROJECT_ENVIRONMENT="$RUN_TMP/venv" uv sync --group dev
 ```
@@ -66,7 +66,7 @@ KEYCLOAK_URL=http://127.0.0.1:20348/auth \
 KEYCLOAK_REALM=trace \
 LANGSMITH_TRACING=false \
 "$RUN_TMP/venv/bin/langgraph" dev \
-  --config "$REPO/agent-new/langgraph.json" \
+  --config "$REPO/agent/langgraph.json" \
   --host 127.0.0.1 --port 20347 --no-browser --no-reload
 ```
 
@@ -94,7 +94,7 @@ The schemas endpoint requires the assistant UUID, not the graph slug.
 - `trace_agent-1.0.0.tar.gz`
 - `trace_agent-1.0.0-py3-none-any.whl`
 
-`docker build -t trace-agent-new-owned-2xedbc agent-new` exited 0, including
+`docker build -t trace-agent-owned-2xedbc agent` exited 0, including
 `uv sync --locked --no-dev` in the image.
 
 Started the image with injected environment only, an externally supplied named

@@ -3,7 +3,7 @@
 ## OVERVIEW
 
 식각 이상 조사 시연 서비스. 단일 실행 구성은 `compose.yaml`이다.
-새 기본 실행은 `agent-new/`의 표준 Agent Server다. `/api/investigations`는
+새 기본 실행은 `agent/`의 표준 Agent Server다. `/api/investigations`는
 backend의 업무 조사·현재 후보·승인, `/agent/`는 대화·thread·run을 소유한다.
 MCP는 에이전트 전용 도구다. 기존 `agent/`와 `/api/ai/*`는 레거시 호환 경로다.
 
