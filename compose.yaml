@@ -75,10 +75,8 @@ services:
       KEYCLOAK_CLIENT_ID: trace-web
       KEYCLOAK_AUDIENCE: trace-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/auth/realms/trace/protocol/openid-connect/certs
-      # Local Prometheus from backend/prometheus/compose.yaml; empty disables alert intake (docs/agent-request.md)
-      PROMETHEUS_URL: ${PROMETHEUS_URL-http://host.docker.internal:9090}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Set PROMETHEUS_URL= to disable alert intake (docs/agent-request.md).
+      PROMETHEUS_URL: ${PROMETHEUS_URL-http://prometheus:9090}
     volumes:
       - ./sop-ocap:/sop:ro
     depends_on:
@@ -86,6 +84,8 @@ services:
         condition: service_healthy
       seed:
         condition: service_completed_successfully
+      prometheus:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
       interval: 3s
@@ -134,6 +134,17 @@ services:
       timeout: 5s
       retries: 20
 
+  # Standalone implementation for the separately planned Agent integration.
+  sensor-mcp:
+    build: ./mcp
+    command: ["uv", "run", "python", "sensor.py"]
+    environment:
+      FAB_COLLECTOR_URL: ${FAB_COLLECTOR_URL:-}
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
   web:
     build: ./frontend
     ports:
@@ -195,9 +206,12 @@ services:
     volumes:
       - ./backend/prometheus:/etc/prometheus:ro
       - prometheus-data:/prometheus
-    ports:
-      - "127.0.0.1:9090:9090"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   keycloak_data:

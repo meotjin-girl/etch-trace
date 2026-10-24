@@ -6,8 +6,10 @@ import logging
 import os
 import threading
 import time
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import secsgem.common
 import secsgem.gem
@@ -22,6 +24,16 @@ EVENTS_ENABLED_SVID, ALARMS_SET_SVID = 1003, 1005  # secsgem built-ins
 NAMES = list(sensors.SVID_OFFSET)
 ALARM_NAMES = list(sensors.ALARMS)
 RECONNECT_AFTER = 6  # failed polls (30 s)
+RUN_HISTORY_LIMIT = 200
+SETPOINT_FOR_SENSOR = {
+    "pressure_pv_mtorr": "pressure_sp_mtorr",
+    "source_rf_pv_w": "source_rf_sp_w",
+    "bias_rf_pv_w": "bias_rf_sp_w",
+    "gas_sf6_pv_sccm": "gas_sf6_sp_sccm",
+    "gas_o2_pv_sccm": "gas_o2_sp_sccm",
+    "esc_temp_pv_c": "esc_temp_sp_c",
+    "backside_he_pv_torr": "backside_he_sp_torr",
+}
 
 
 class Link:
@@ -33,6 +45,9 @@ class Link:
         self.updated_at: str | None = None
         self.chambers: dict[str, dict] = {c: {} for c in sensors.CHAMBER_BAND}
         self.alarms: set[int] = set()
+        self._history_lock = threading.Lock()
+        self._active_runs: dict[str, dict] = {}
+        self.completed_runs: deque[dict] = deque(maxlen=RUN_HISTORY_LIMIT)
         self.svids = [band + off for band in sensors.CHAMBER_BAND.values() for off in sensors.SVID_OFFSET.values()]
         self.ceids = {band + c for band in sensors.CHAMBER_BAND.values() for c in (sensors.CEID_RUN_START, sensors.CEID_RUN_END)}
         self.host = secsgem.gem.GemHostHandler(
@@ -75,16 +90,92 @@ class Link:
             log.warning("%s poll failed, reply=%s", self.tool_id, reply and reply.header, exc_info=True)
             self.up = False
             return
+        self.alarms = set(alarms)
+        self.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
         for i, chamber in enumerate(sensors.CHAMBER_BAND):
             self.chambers[chamber] = dict(zip(NAMES, values[i * len(NAMES) : (i + 1) * len(NAMES)]))
-        self.alarms = set(alarms)
+            self._record_run(chamber, self.chambers[chamber])
         self.up = True
-        self.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
         if not self.ceids <= set(events):  # a restarted tool forgets reports; the enabled list says so
             try:
                 self._subscribe()
             except Exception:
                 log.warning("%s subscribe failed", self.tool_id, exc_info=True)
+
+    def _record_run(self, chamber: str, values: dict) -> None:
+        """Keep bounded synthetic Run history for TRACE integration tests and demos."""
+        run_no = values.get("run_no")
+        recipe = values.get("recipe_id")
+        step = values.get("recipe_step")
+        offset = values.get("sample_offset_s")
+        if not run_no or not recipe or not step or not isinstance(offset, (int, float)):
+            return
+        run_id = f"{self.tool_id}:{chamber}:{run_no}"
+        assert self.updated_at is not None
+        observed_at = datetime.datetime.fromisoformat(self.updated_at)
+        started_at = observed_at - datetime.timedelta(seconds=float(offset))
+        sample = {
+            "offset_sec": float(offset),
+            "timestamp": self.updated_at,
+            "values": {name: values[name] for name in sensors.SENSORS},
+            "setpoints": {name: values[name] for name in sensors.SETPOINTS},
+            "alarms": self.active_alarms(chamber),
+            "quality": values.get("sensor_data_quality", "UNKNOWN"),
+        }
+        with self._history_lock:
+            current = self._active_runs.get(chamber)
+            if current and current["run_id"] != run_id:
+                self._finalize(chamber, current)
+                current = None
+            if current is None:
+                if (
+                    self.completed_runs
+                    and self.completed_runs[-1]["run_id"] == run_id
+                    and self.completed_runs[-1]["samples"][-1]["offset_sec"] == float(offset)
+                ):
+                    return
+                current = {
+                    "run_id": run_id,
+                    "equipment": self.tool_id,
+                    "chamber": chamber,
+                    "recipe": str(recipe),
+                    "step": str(step),
+                    "started_at": started_at.isoformat(),
+                    "ended_at": None,
+                    "measurement_condition_id": "mock-fab-v1",
+                    "normal_candidate": False,
+                    "samples": [],
+                }
+                self._active_runs[chamber] = current
+            if not current["samples"] or current["samples"][-1]["offset_sec"] != float(offset):
+                current["samples"].append(sample)
+            if float(offset) >= sensors.RUN_S:
+                self._finalize(chamber, current)
+
+    def _finalize(self, chamber: str, run: dict) -> None:
+        samples = run["samples"]
+        if not samples:
+            self._active_runs.pop(chamber, None)
+            return
+        run["ended_at"] = samples[-1]["timestamp"]
+        run["normal_candidate"] = all(
+            sample["quality"] == "GOOD"
+            and not sample["alarms"]
+            for sample in samples
+        ) and all(
+            abs(
+                sum(sample["values"][name] for sample in samples) / len(samples) - normal_mean
+            ) <= 3 * normal_sd
+            for name, (normal_mean, normal_sd, *_rest) in sensors.SENSORS.items()
+        )
+        self.completed_runs.append(run)
+        self._active_runs.pop(chamber, None)
+
+    def run_history(self) -> list[dict]:
+        with self._history_lock:
+            active = [json.loads(json.dumps(run)) for run in self._active_runs.values()]
+            completed = [json.loads(json.dumps(run)) for run in self.completed_runs]
+        return completed + active
 
     def run(self) -> None:
         self.host.enable()
@@ -135,6 +226,28 @@ def snapshot(links: list[Link]) -> dict:
         "sensors": sensor_meta,
         "modules": modules,
     }
+
+
+def run_history(links: list[Link]) -> dict:
+    alarm_names = {
+        sensor: [name for name, (alarm_sensor, *_rest) in sensors.ALARMS.items()
+                 if alarm_sensor == sensor]
+        for sensor in sensors.SENSORS
+    }
+    descriptors = [
+        {
+            "name": name,
+            "unit": unit,
+            "normal_mean": mean,
+            "normal_std": sd,
+            "ocap_id": ocap,
+            "setpoint_key": SETPOINT_FOR_SENSOR.get(name),
+            "alarm_names": alarm_names[name],
+        }
+        for name, (mean, sd, _floor, _subsystem, unit, ocap) in sensors.SENSORS.items()
+    ]
+    runs = [run for link in links for run in link.run_history()]
+    return {"synthetic": True, "sensors": descriptors, "runs": runs}
 
 
 class Metrics:
@@ -188,13 +301,17 @@ def serve(links: list[Link], port: int) -> ThreadingHTTPServer:
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            path = self.path.split("?")[0]
+            path = urlsplit(self.path).path
             if path == "/":
                 self._send(200, "text/html; charset=utf-8", page)
             elif path == "/api/current":
                 self._send(200, "application/json", json.dumps(snapshot(links)).encode())
             elif path == "/metrics":
                 self._send(200, CONTENT_TYPE_LATEST, generate_latest(registry))
+            elif path == "/api/runs":
+                self._send(
+                    200, "application/json", json.dumps(run_history(links)).encode(),
+                )
             else:
                 self._send(404, "text/plain", b"not found")
 
