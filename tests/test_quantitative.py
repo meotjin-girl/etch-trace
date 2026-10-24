@@ -165,4 +165,3 @@ def test_approved_limit_takes_priority_but_no_limit_does_not_pass_or_fail():
     ))
     assert no_limit.within_control_limit is None
     assert approved.within_control_limit is False
-

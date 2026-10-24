@@ -19,7 +19,8 @@ const flow = computed(() => {
   return agentFlow(record.events || [], record.report)
 })
 const nav = [
-  {to: '/', name: 'investigation', icon: 'fi-rr-pulse', label: '이상 조사'},
+  {to: '/', name: 'investigations', icon: 'fi-rr-pulse', label: '이상 조사'},
+  {to: '/legacy', name: 'investigation', icon: 'fi-rr-comment', label: '기존 작업 조사'},
   {to: '/records', name: 'records', icon: 'fi-rr-time-past', label: '조사 기록'},
   {to: '/sop', name: 'sop', icon: 'fi-rr-book-alt', label: 'SOP 목록'},
 ]
@@ -39,7 +40,7 @@ const nav = [
     <nav class="nav-section" aria-label="조사 메뉴">
       <p class="nav-label">WORKSPACE</p>
       <RouterLink v-for="item in nav" :key="item.name" v-slot="{ navigate }" :to="item.to" custom>
-        <button class="nav-item" :class="{active: $route.name === item.name}" type="button" @click="navigate">
+        <button class="nav-item" :class="{active: $route.name === item.name || (item.name === 'investigations' && $route.name === 'live-investigation')}" type="button" @click="navigate">
           <i class="nav-icon" :class="item.icon" aria-hidden="true"></i> {{ item.label }}
           <em v-if="item.name === 'records'">{{ records.serverCount }}</em>
         </button>

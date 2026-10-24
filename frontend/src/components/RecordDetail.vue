@@ -16,7 +16,7 @@ const history = computed(() => mergeEvents([], props.task.events || [])
   .map(event => ({seq:event.seq, at:event.created_at, ...eventLine(event)})))
 
 async function resume() {
-  if (await investigation.activateTask(props.task.id)) router.push('/')
+  if (await investigation.activateTask(props.task.id)) router.push('/legacy')
 }
 </script>
 

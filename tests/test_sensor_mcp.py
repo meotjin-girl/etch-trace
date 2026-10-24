@@ -40,4 +40,3 @@ def test_sensor_mcp_reads_collector_run_history(monkeypatch):
     assert result.target_run_id == "ETCH-01:CH-B:4"
     assert result.signals[0].first_anomaly_sec == 0
     assert result.signals[0].related_alarms == ["PRESSURE_HIGH"]
-

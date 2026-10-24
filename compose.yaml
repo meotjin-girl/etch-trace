@@ -1,7 +1,6 @@
 services:
   # Local development only; account storage is separate from application data.
   keycloak:
-    restart: unless-stopped
     image: quay.io/keycloak/keycloak:26.8.1
     command: ["start-dev", "--import-realm"]
     environment:
@@ -28,7 +27,6 @@ services:
       start_period: 60s
       retries: 30
   postgres:
-    restart: unless-stopped
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: trace
@@ -42,7 +40,6 @@ services:
       timeout: 3s
       retries: 20
   sop-postgres:
-    restart: unless-stopped
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: trace
@@ -66,11 +63,11 @@ services:
       postgres:
         condition: service_healthy
   backend:
-    restart: unless-stopped
     build: ./backend
     environment:
       DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
       AGENT_URL: http://agent:8000
+      AGENT_SERVER_URL: http://agent:2024
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
       SOP_DOCUMENTS_DIR: /sop
       KEYCLOAK_URL: ${KEYCLOAK_URL:-http://localhost:${WEB_PORT:-8080}/auth}
@@ -78,7 +75,7 @@ services:
       KEYCLOAK_CLIENT_ID: trace-web
       KEYCLOAK_AUDIENCE: trace-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/auth/realms/trace/protocol/openid-connect/certs
-      # Alert intake polls the prometheus service; set PROMETHEUS_URL= to disable (docs/agent-request.md)
+      # Set PROMETHEUS_URL= to disable alert intake (docs/agent-request.md).
       PROMETHEUS_URL: ${PROMETHEUS_URL-http://prometheus:9090}
     volumes:
       - ./sop-ocap:/sop:ro
@@ -87,7 +84,7 @@ services:
         condition: service_healthy
       seed:
         condition: service_completed_successfully
-      agent:
+      prometheus:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
@@ -95,7 +92,6 @@ services:
       timeout: 5s
       retries: 20
   business-mcp:
-    restart: unless-stopped
     build: ./mcp
     command: ["uv", "run", "python", "business.py"]
     environment:
@@ -110,7 +106,6 @@ services:
       timeout: 5s
       retries: 20
   rag-mcp:
-    restart: unless-stopped
     build: ./mcp
     command: ["uv", "run", "python", "rag.py"]
     environment:
@@ -138,6 +133,8 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
+
+  # Standalone implementation for the separately planned Agent integration.
   sensor-mcp:
     build: ./mcp
     command: ["uv", "run", "python", "sensor.py"]
@@ -148,58 +145,10 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
-  agent:
-    restart: unless-stopped
-    build: ./agent
-    environment:
-      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
-      BACKEND_URL: http://backend:8000
-      BUSINESS_MCP_URL: http://business-mcp:8000/mcp
-      RAG_MCP_URL: http://rag-mcp:8000/mcp
-      PHYSICS_MCP_URL: http://physics-mcp:8000/mcp
-      SENSOR_MCP_URL: http://sensor-mcp:8000/mcp
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
-      LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
-      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-etch-trace-dev}
-      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
-      LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-}
-    depends_on:
-      seed:
-        condition: service_completed_successfully
-      business-mcp:
-        condition: service_healthy
-      rag-mcp:
-        condition: service_healthy
-      physics-mcp:
-        condition: service_healthy
-      sensor-mcp:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
-      interval: 3s
-      timeout: 5s
-      retries: 20
-  # Rule-based FDC over the mock fab collector (backend/prometheus/targets.json); internal only, no host port.
-  prometheus:
-    restart: unless-stopped
-    image: prom/prometheus:v2.53.0
-    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
-    volumes:
-      - ./backend/prometheus:/etc/prometheus:ro
-      - prometheus_data:/prometheus
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
   web:
-    restart: unless-stopped
     build: ./frontend
     ports:
-      - "127.0.0.1:${WEB_PORT:-8080}:80"
+      - "${WEB_PORT:-8080}:80"
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -207,8 +156,66 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
+      agent:
+        condition: service_healthy
+
+  agent:
+    build: ./agent
+    environment:
+      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+      BACKEND_URL: http://backend:8000
+      BUSINESS_MCP_URL: http://business-mcp:8000/mcp
+      RAG_MCP_URL: http://rag-mcp:8000/mcp
+      PHYSICS_MCP_URL: http://physics-mcp:8000/mcp
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://localhost:${WEB_PORT:-8080}/auth}
+      KEYCLOAK_REALM: trace
+      KEYCLOAK_AUDIENCE: trace-api
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/auth/realms/trace/protocol/openid-connect/certs
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-etch-trace-dev}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
+    ports:
+      - "127.0.0.1:${AGENT_SERVER_PORT:-8001}:2024"
+    volumes:
+      - agent_dev_state:/app/.langgraph_api
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      business-mcp:
+        condition: service_healthy
+      rag-mcp:
+        condition: service_healthy
+      physics-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2024/ok',timeout=2).close()"] 
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./backend/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   keycloak_data:
-  prometheus_data:
   v1_pgdata:
   sop_pgdata:
+  agent_dev_state:
+  prometheus-data:

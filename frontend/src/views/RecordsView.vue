@@ -28,7 +28,7 @@ function refresh() {
 }
 function start() {
   investigation.reset()
-  router.push('/')
+  router.push('/legacy')
 }
 </script>
 

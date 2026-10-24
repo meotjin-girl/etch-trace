@@ -80,6 +80,9 @@ def ingest(
     chunks: list[Chunk],
 ) -> IngestResult:
     """Atomically refresh the experiment corpus, reusing unchanged embeddings."""
+    # Parallel ToolNode searches may arrive on the very first request. PostgreSQL
+    # IF NOT EXISTS does not serialize concurrent catalog creation or embedding.
+    _ = connection.execute("SELECT pg_advisory_xact_lock(746722831)")
     _ = connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
     _ = connection.execute("""
         CREATE TABLE IF NOT EXISTS sop_rag_model_chunks (

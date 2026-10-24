@@ -1,0 +1,12 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "trace": "trace_agent.graph:trace",
+    "investigator": "trace_agent.graph:investigator"
+  },
+  "env": ".env",
+  "auth": {
+    "path": "trace_agent.auth:auth",
+    "disable_studio_auth": false
+  }
+}

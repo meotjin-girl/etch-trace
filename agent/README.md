@@ -1,35 +1,141 @@
-# TRACE Agent 안내
+# TRACE Agent Server
 
-실제 조사 그래프 흐름과 데이터 한계는 [한국어 Agent 설명](../docs/agent.md)을 기준으로 확인하세요.
+Installable, independent `src/trace_agent` application. No imports from `agent/`,
+no backend database access, no specialist graphs, and no custom checkpoint saver.
+Graph ID `trace`; `investigator` is an alias of the same graph.
 
-## 실행
+## Local run
 
-저장소 루트에서 실행합니다.
+From the repository root:
 
 ```sh
+cd agent
 cp .env.example .env
-# 필요하면 .env에 OPENAI_API_KEY와 OPENAI_MODEL을 설정
-# 루트 디렉터리에서 실행
-docker compose -f compose.yaml up -d --build
+# Edit .env: real OPENAI_API_KEY, INTERNAL_API_KEY, issuer/JWKS and reachable MCP URLs.
+uv sync --locked --group dev
+uv run --no-sync langgraph dev --host 127.0.0.1 --port 2024 --no-browser
 ```
 
-화면은 `http://localhost:8080`에서 확인합니다. 로그는 `docker compose -f compose.yaml logs -f agent backend`, 종료는 `docker compose -f compose.yaml down`입니다.
+The CLI loads `.env`. Existing `OPENAI_MODEL` is honored; the default when absent
+or empty is `gpt-4.1-mini`. Missing `OPENAI_API_KEY` fails a run with
+`ConfigurationError`, not a fabricated candidate or successful fallback.
+MCP and Keycloak must be independently reachable; this command does not start them.
 
-## 다섯 에이전트와 주요 파일
+Local dev state lives in `.langgraph_api/` under the working directory. Keep that
+directory across restarts. LangGraph Server supplies the checkpointer.
+This is a development deployment, not the production LangGraph platform runtime.
 
-| 파일 | 역할 |
-|---|---|
-| `graph.py` | 조사 접수·보완·검토를 관리하는 Supervisor 그래프. 아래 다섯 하위 그래프를 순서대로 호출 |
-| `agents/scope_agent.py` | Business MCP 데모 사례와 요청자 권한으로 조회한 승인 조사 이력 중 유사한 최대 3건을 확인 |
-| `agents/comparison_agent.py` | Business MCP 통계 도구로 입력 계측값을 데모 사례와 비교 |
-| `agents/sensor_agent.py` | 입력값과 실제 센서 시계열을 구분. 센서 MCP가 없으면 미확인 표시 |
-| `agents/maintenance_agent.py` | 정비 이력 MCP가 아직 없어 조회 불가 상태 표시 |
-| `agents/recommendation_agent.py` | 사례 문서 ID exact 조회와 자연어 SOP RAG 검색을 모두 호출해 원인 후보·문서 기반 점검 순서 정리 |
-| `agents/common.py` | 각 하위 그래프의 근거 수집→역할 추론 구조와 선택적 LLM 호출을 공통 제공 |
-| `evidence.py` | Business/RAG MCP의 사례·통계·문서·SOP 의미 검색·승인 이력 도구 호출부 |
-| `main.py` | 엔지니어 승인 뒤 Business MCP `save_investigation` 호출 |
-| `models.py` | 에이전트 간 전달되는 조사 단계·근거·보고서 자료 형식 |
+## Docker run
 
-Agent의 구조화 문구 분석은 `OPENAI_API_KEY`와 `OPENAI_MODEL` 설정이 모두 있을 때 에이전트별로 최대 한 번 실행합니다. 별도의 SOP RAG MCP는 `OPENAI_API_KEY`로 query embedding과 조항 재순위화를 실행하므로, 키가 없거나 MCP 호출이 실패하면 의미 검색을 수행했다고 표시하지 않고 미확인 사유를 보고합니다. 첫 SOP 검색 시에는 문서 인덱스가 생성되며 문서 변경이 없으면 임베딩은 재사용됩니다.
+From the repository root, after configuring `agent/.env`:
 
-추천 에이전트는 기존 RAG MCP의 `search_documents(document_ids)` 정확 ID 조회와 `search_sop(query)` 자연어 검색을 모두 호출합니다. 후자는 기존 `sop_chunks.py`, `sop_vectors.py`, `sop_rerank.py`를 사용해 SOP/WI/SPEC 후보 20개를 찾고 3개 조항을 재순위화합니다. Compose는 분리된 `sop-postgres`와 문서 폴더 mount를 제공하며, 첫 요청이 현재 조항 색인을 자동으로 적재합니다. 센서 시계열과 정비 이력의 전용 MCP는 아직 없으므로 확인 불가로 표시합니다. 승인 이력은 Backend가 저장한 요청자 신원으로 권한 필터 후 참고하며, 기존 근거 metadata를 보고서까지 보존합니다.
+```sh
+docker build -t trace-agent-dev ./agent
+docker volume create trace-agent-dev-state
+docker run --rm --name trace-agent-dev \
+  --env-file agent/.env \
+  --mount type=volume,source=trace-agent-dev-state,target=/app/.langgraph_api \
+  -p 127.0.0.1:2024:2024 \
+  trace-agent-dev
+```
+
+The image starts `langgraph dev --host 0.0.0.0 --port 2024 --no-browser --no-reload`.
+The state volume is deliberately supplied externally, not created by the image.
+Container URLs must resolve from inside the container: use a shared Docker network
+and service DNS, or `host.docker.internal` for host services on Docker Desktop.
+Keep `KEYCLOAK_ISSUER` equal to the token's public `iss`; set
+`KEYCLOAK_JWKS_URL` separately if keys need an internal URL.
+Alternatively omit `KEYCLOAK_ISSUER` and supply the existing `KEYCLOAK_URL` plus
+`KEYCLOAK_REALM` (default `trace`). The issuer then becomes
+`KEYCLOAK_URL/realms/KEYCLOAK_REALM`. A missing `.env` file is allowed when all
+settings are injected through the environment. `/ok` is a public health endpoint.
+No Compose file is required or modified.
+
+## Authentication and request contract
+
+Send `Authorization: Bearer <Keycloak access token>`. Validation requires RS256,
+the configured JWKS and exact issuer, audience `trace-api`, expiration, nonempty
+subject, and payload `typ=Bearer`. For Studio on the localhost-only development
+server, configure custom headers `X-Auth-Scheme: custom` and `X-Internal-Key` from
+the root environment. This explicit trusted credential is independent of Studio's
+own LangSmith bearer. Public nginx routes strip both headers and continue to
+require a Keycloak access token. LangSmith login alone is not local API access.
+All authenticated users collaborate on all threads; there are no owner filters.
+
+An internal emitter may send `X-Internal-Key` only without an Authorization
+header. An invalid or empty Authorization header never falls back to the internal
+key. The browser proxy must strip `X-Internal-Key`; never ship it to browser code.
+The internal identity is `trace-alert-emitter`.
+
+Create a thread, then run it; the server-generated thread UUID is also the
+business investigation UUID:
+
+```sh
+curl -sS http://localhost:2024/threads \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' -d '{}'
+
+# Set THREAD_ID to the returned thread_id.
+curl -N "http://localhost:2024/threads/$THREAD_ID/runs/stream" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"assistant_id":"trace","input":{"request":{"role":"system","content":"[경보] ETCH-02 / CH-A / Lot LOT-1 / Wafer W01 / RCP-1\n- 15:15:11 FDC FDC_WATCH pressure z=4.1 (OCAP-ETCH-PRESSURE)"}},"stream_mode":["values"],"multitask_strategy":"reject","on_disconnect":"continue"}'
+```
+
+Follow up on the **same** thread with
+`{"request":{"role":"user","content":"첫 후보의 조치만 다시 조사해 주세요"}}`.
+Standard `{"messages":[{"role":"user","content":"이 계산을 설명해 주세요"}]}`
+also works. An alert envelope is appended as a human message, never as a system
+instruction, and is consumed once. A second system envelope cannot replace the
+immutable alert. The public input schema excludes candidates, revision and approval.
+Use one active run per thread (`multitask_strategy=reject`).
+
+## Investigation lifecycle
+
+`prepare -> agent <-> ToolNode -> reason -> publish` retains the original single
+ReAct domain behavior. Evidence tools are `search_cases`, `analyze_metrics`,
+`search_documents`, `search_sop`, `evaluate_etch_physics`, `list_investigations`.
+The last retains the existing MCP `user_name/user_role` argument signature using
+shared service attribution; it does not install an ownership filter.
+
+`reason` uses ChatOpenAI's schema-constrained output, not prose parsing. Each
+candidate has cause, action, a concise evidence rationale, checks, case IDs,
+document IDs, unknowns, and an ID. The model returns null IDs for new candidates;
+code assigns UUID4. Existing IDs must be explicitly retained; unknown and duplicate
+IDs fail the run. A changed proposal is a full replacement, including unchanged
+candidates. Null candidates or an identical list produces no business write.
+Summary-only changes do not increment the revision.
+
+The mandatory publication node calls Business MCP
+`upsert_live_investigation(thread_id,payload)` with `base_revision=0` initially,
+then the matching revision. Thread identity comes from execution configuration,
+not model arguments. Publication errors fail the run; no fake successful record is
+checkpointed. Initial alert investigations must produce a nonempty candidate list.
+General conversations without proposals can stay conversation-only.
+
+Before followups on a published investigation, `get_live_investigation(thread_id)`
+refreshes candidates, revision and approval. Approval remains backend-owned and
+immutable. Approval never disables conversation or editing; the snapshot is shown
+to the model separately from current candidates. There is no `record_selection`.
+Unknown identifiers in a user-started investigation remain empty rather than invented.
+
+## Checks
+
+```sh
+cd agent
+uv sync --locked --group dev
+uv run --no-sync pytest
+uv run --no-sync ruff check .
+uv run --no-sync basedpyright
+```
+
+Tests use a real compiled graph and ToolNode, real in-process FastMCP transport,
+and only replace model responses and external business storage. Signed JWT tests
+exercise cryptographic validation, including invalid tokens and internal-key
+precedence. Verification evidence and remaining integration limits are in
+`docs/verification.md`.
+
+`typings/` contains narrow declarations for the upstream graph and ChatOpenAI
+methods used here. They fill incomplete upstream annotations for the strict
+`basedpyright` gate; runtime execution still uses the installed libraries. No
+diagnostics are disabled and no runtime compatibility layer is installed.

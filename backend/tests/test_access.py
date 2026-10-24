@@ -284,6 +284,20 @@ def test_stream_stops_when_its_verified_token_expires(
     assert response.text == ""
     assert detail(client, tid).status == "RUNNING"
 
+def test_auth_config_is_available_without_lifespan_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Given public Keycloak settings and an app whose lifespan has not run.
+    monkeypatch.setenv("KEYCLOAK_URL", "https://login.example/auth")
+    monkeypatch.setenv("KEYCLOAK_REALM", "trace-test")
+    monkeypatch.setenv("KEYCLOAK_CLIENT_ID", "trace-web-test")
+    app = main.create_app()
+    route = next(route for route in app.routes if getattr(route, "path", None) == "/api/auth/config")
+    # When the anonymous bootstrap endpoint is invoked directly.
+    assert route.endpoint() == {
+        "url": "https://login.example/auth",
+        "realm": "trace-test",
+        "clientId": "trace-web-test",
+    }
+
 
 def test_auth_config_contains_only_public_adapter_settings(client: TestClient) -> None:
     # Given an anonymous browser bootstrapping login.

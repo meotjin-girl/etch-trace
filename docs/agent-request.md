@@ -15,7 +15,7 @@ X-Internal-Key, X-Command-ID, X-Requester-Name, X-Requester-Role   (기존과 �
 | `system` | Prometheus 경보 firing (모의 장비 알람 + FDC 규칙) | 아래 **고정 형식 텍스트** |
 
 - `content`는 두 경우 모두 문자열이다. 줄바꿈은 `\n`이다.
-- 이 `role`은 **backend→agent 요청 봉투**의 필드다. agent 내부에서 LLM을 부를 때 쓰는 messages의 `system`/`user`(`agent/agents/common.py::_ask_model`)와는 다른 층위다.
+- 이 `role`은 **backend→agent 요청 봉투**의 필드다. Agent는 이를 보고 system 경보를 구조화할지, user 대화 발화로 다룰지 결정한다. LLM 내부 system prompt와는 다른 층위다.
 - 재개 요청 `{"resume": {...}}`(재질문 답변, 검토 결과)는 바뀌지 않는다.
 - 시스템 요청 작업의 요청자는 `FAB-ALERT`(role `user`, user_id 없음)다.
   - 이 값은 `X-Requester-Name`/`X-Requester-Role` 헤더로 전달된다.
@@ -73,16 +73,10 @@ X-Internal-Key, X-Command-ID, X-Requester-Name, X-Requester-Role   (기존과 �
 
 Prometheus는 루트 `compose.yaml`의 `prometheus` 서비스이며 backend는 내부 이름 `http://prometheus:9090`으로 접근한다(CD 배포 서버·로컬 동일). 중복 방지는 backend DB 단위라서, 여러 환경이 동시에 켜져 있으면 같은 경보로 환경마다 작업이 1건씩 생긴다.
 
-## agent 담당자 할 일 (backend는 이미 이 형식으로 보냄)
+## Agent 요청 처리
 
-현재 agent `InitialRequest`는 `{question}`만 받는다(`extra="forbid"`). 그래서 새 본문은 **422로 거절되고 작업은 FAILED**가 된다. 질문 경로도 마찬가지다. 이 backend 변경은 아래 agent 변경과 함께 머지해야 한다.
+Agent는 `{role:"system"|"user", content:string}`를 받아 단일 ReAct 그래프로 처리한다. `role=system` 경보는 파서가 헤더와 센서/알람 줄을 구조화하고 원문과 함께 대화에 추가한다. `role=user`와 후속 발화는 자연어 그대로 같은 LangGraph 체크포인트 thread에 추가된다. Business·RAG·Physics MCP 호출은 LLM이 현재 질문과 대화 맥락에 따라 `agent/tools.py`에 정의된 Tools에서 선택한다.
 
-1. `InitialRequest`를 `{role: Literal["system","user"], content: str}`로 바꾼다.
-2. `role == "user"`: 기존 경로(`parse_question(content)` → 필요하면 재질문)를 그대로 쓴다.
-3. `role == "system"`: 위 문법대로 줄 단위로 파싱한다.
-   - 헤더 → `Context(equipment, chamber, recipe)`, 경보 rule·ocap → `symptom`
-   - 장비 알람 줄의 `sensor=값` → `metrics`
-   - 센서 줄 → `AgentState.sensor_data`
-   - 재질문하지 않는다. content 원문을 LLM user 메시지에 그대로 넣어도 된다.
-4. 데모 사례(`db/cases.json`, ETCH-07/09)는 모의 장비와 맞지 않는다. 그래서 system 요청에서는 사례가 0건이어도 INCOMPLETE로 끝내지 않는다.
-5. SOP 검색 query에 경보의 `ocap` ID를 포함한다.
+Backend 호환용 `{question}` 시작과 `{resume:{text}}` 재질문·검토 형식도 받지만, Agent 내부에서는 모두 같은 task ID의 사용자 메시지로 변환한다. 따라서 Backend가 보낸 `task_id`는 첫 호출부터 마지막 이어 말하기까지 동일해야 한다. 그래프 내부 요청 모델은 Frontend 화면 상태나 단계별 출력 형식을 요구하지 않고, 최종 답변 텍스트를 `response`에 반환한다. UI와 무관한 직접 시험은 `docker compose exec agent python -m agent.dev_chat`를 사용한다.
+
+Agent 코드에서 자연어 질문·승인 의도 분류를 정규식으로 하지 않는다. 고정된 경보 텍스트 포맷만 deterministic parser로 구조화하며, Tool 선택과 사용자 의도는 LLM이 대화 이력에 따라 판단한다. Physics MCP는 해당 API가 제공하는 결정론적 식각 관계 계산에만 사용하며, 온도·압력의 원인을 시뮬레이션했다고 간주하지 않는다.
