@@ -1,11 +1,29 @@
 # Copyright 2026 TRACE contributors
-"""The six evidence tools exposed to the single ReAct loop."""
+"""The evidence tools exposed to the single ReAct loop."""
 
 from langchain_core.tools import BaseTool, tool
-from pydantic import JsonValue, TypeAdapter
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from .evidence import Evidence
-from .models import Case, Context, PhysicsInputs
+from .models import (
+    Case,
+    Context,
+    PhysicsEducationalSimulationInputs,
+    PhysicsInputs,
+    PhysicsMetrologyComparisonInputs,
+    PhysicsQuantitativeInputs,
+    PhysicsRateSeriesInputs,
+    PhysicsReferenceComparisonInputs,
+)
+
+
+def _physics_arguments(inputs: BaseModel) -> dict[str, JsonValue]:
+    """Serialize a typed Agent input using the Physics MCP's nested input shape."""
+    return {
+        "inputs": TypeAdapter(dict[str, JsonValue]).validate_python(
+            inputs.model_dump(mode="json", exclude_none=True)
+        )
+    }
 
 
 def build_tools(evidence: Evidence) -> list[BaseTool]:
@@ -64,6 +82,52 @@ def build_tools(evidence: Evidence) -> list[BaseTool]:
         )
 
     @tool
+    async def compare_reference_runs(inputs: PhysicsReferenceComparisonInputs) -> JsonValue:
+        """실제 제공된 과거 정상 Run만 대상으로 동일 조건 편차를 비교한다.
+
+        Run 이력을 직접 조회하지 않으므로 실제 자료만 입력으로 받는다.
+        """
+        return await evidence.call(
+            "physics", "compare_reference_runs", _physics_arguments(inputs)
+        )
+
+    @tool
+    async def integrate_etch_rate_series(inputs: PhysicsRateSeriesInputs) -> JsonValue:
+        """명시된 실측·가정 식각률 구간만 적분한다.
+
+        센서값만으로 식각률을 만들어내지 않는다.
+        """
+        return await evidence.call(
+            "physics", "integrate_etch_rate_series", _physics_arguments(inputs)
+        )
+
+    @tool
+    async def compare_metrology_to_spec(inputs: PhysicsMetrologyComparisonInputs) -> JsonValue:
+        """실측·목표값과 승인된 같은 단위의 관리한계를 비교한다.
+
+        승인 규격이 없으면 합격·불합격을 판정하지 않는다.
+        """
+        return await evidence.call(
+            "physics", "compare_metrology_to_spec", _physics_arguments(inputs)
+        )
+
+    @tool
+    async def analyze_etch_quantitatively(inputs: PhysicsQuantitativeInputs) -> JsonValue:
+        """제공된 계측·목표·승인한계와 식각률 구간의 v2 정량 분석을 수행한다."""
+        return await evidence.call(
+            "physics", "analyze_etch_quantitatively", _physics_arguments(inputs)
+        )
+
+    @tool
+    async def simulate_educational_etch(
+        inputs: PhysicsEducationalSimulationInputs,
+    ) -> JsonValue:
+        """명시적 사용자 요청이 있을 때만 미검증 교육용 가정 모델을 실행한다."""
+        return await evidence.call(
+            "physics", "simulate_educational_etch", _physics_arguments(inputs)
+        )
+
+    @tool
     async def list_investigations() -> JsonValue:
         """공동 검토를 위한 승인 조사 이력을 조회한다. 소유자 필터를 적용하지 않는다."""
         # Existing Business MCP requires these legacy attribution arguments.
@@ -79,5 +143,10 @@ def build_tools(evidence: Evidence) -> list[BaseTool]:
         search_documents,
         search_sop,
         evaluate_etch_physics,
+        compare_reference_runs,
+        integrate_etch_rate_series,
+        compare_metrology_to_spec,
+        analyze_etch_quantitatively,
+        simulate_educational_etch,
         list_investigations,
     ]
