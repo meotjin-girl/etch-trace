@@ -46,9 +46,6 @@ async def watch(settings: Settings) -> None:
     while True:
         try:
             bundles = await anyio.to_thread.run_sync(poller.poll)
-        except (OSError, ValueError, KeyError, RuntimeError) as exc:
-            log.error("alert poll failed", extra={"error_type": type(exc).__name__})
-        else:
             for bundle in bundles:
                 try:
                     thread_id = await submit(settings, bundle)
@@ -62,4 +59,7 @@ async def watch(settings: Settings) -> None:
                         "agent server alert submitted",
                         extra={"alert_key": bundle.key, "thread_id": str(thread_id)},
                     )
+        except Exception:
+            # An unexpected poller/submit bug must not terminate the backend lifespan.
+            log.exception("agent server alert poll failed")
         await anyio.sleep(POLL_S)

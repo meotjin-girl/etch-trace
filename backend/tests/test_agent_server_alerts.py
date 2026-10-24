@@ -4,6 +4,7 @@ from threading import Event
 
 import anyio
 import httpx2
+import agent_server_alerts
 import main
 import pytest
 from agent_server_alerts import submit
@@ -41,6 +42,33 @@ def test_submit_creates_thread_and_run_without_legacy_task(
     }
     assert agent_wire.commands.empty()
     assert client.get("/api/ai/tasks", headers=headers()).json() == []
+
+def test_unexpected_poller_error_does_not_terminate_watcher(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Given a poller that raises outside its normal error types.
+    class StopAfterSleep(Exception):
+        pass
+
+    class BrokenPoller:
+        def __init__(self, _prometheus: object, *, known: object):
+            pass
+
+        def poll(self) -> list[object]:
+            raise TypeError("unexpected alert payload")
+
+    async def stop_after_sleep(_seconds: float) -> None:
+        raise StopAfterSleep
+
+    monkeypatch.setattr(agent_server_alerts, "AlertPoller", BrokenPoller)
+    monkeypatch.setattr(agent_server_alerts.anyio, "sleep", stop_after_sleep)
+    config = Settings(
+        "", "", "test-key", prometheus_url="http://prometheus:9090", agent_server_url="http://agent:2024"
+    )
+    # When polling fails, the watcher logs it and remains alive until the test stops it.
+    with caplog.at_level("ERROR"), pytest.raises(StopAfterSleep):
+        anyio.run(agent_server_alerts.watch, config)
+    assert "agent server alert poll failed" in caplog.text
 
 
 @pytest.mark.parametrize("failure_stage", ["thread", "run"])

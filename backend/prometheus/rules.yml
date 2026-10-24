@@ -41,7 +41,10 @@ groups:
           summary: "{{ $labels.tool }}/{{ $labels.chamber }} pressure oscillating without trend (σ40s={{ $value | printf \"%.2f\" }})"
 
       - alert: SENSOR_STALE
-        expr: changes(etch_sensor_value{sensor!="plasma_detected"}[20s]) == 0
+        # require a full window: one or two samples after a restart also show zero changes
+        expr: |
+          changes(etch_sensor_value{sensor!="plasma_detected"}[20s]) == 0
+          and count_over_time(etch_sensor_value{sensor!="plasma_detected"}[20s]) >= 4
         labels: {source: fdc, ocap: SOP-ETCH-12}
         annotations:
           summary: "{{ $labels.tool }}/{{ $labels.chamber }} {{ $labels.sensor }} unchanged for 20 s"

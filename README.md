@@ -40,16 +40,17 @@ RAG MCP는 문서 ID 정확 조회와 `sop-ocap/` SOP·OCAP 의미 검색을 제
                             -> business-mcp -> backend 조사 저장·사례 API
                             -> rag-mcp -> 문서 / SOP·OCAP 색인
                             -> physics-mcp -> 결정론적 식각 관계식 계산
+sensor-mcp (standalone; Agent 도구 연결은 후속 작업)
 ```
 
 | 경로 | 책임 |
 |---|---|
 | `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/frontend.md](docs/frontend.md) |
-| `backend/main.py`, `backend/v1_*.py` | 공개 API, JWT 검증·공동 작업 인가, 상태·메시지·검토·이벤트·승인 스냅샷 |
-| `agent/` | 표준 Agent Server 진입점, 단일 ReAct 조사, 구조화 후보·필수 업무 저장 |
-| `agent/` | 이전 단일 ReAct 구현과 회귀 테스트; `legacy` profile로 실행 |
-| `mcp/` | 사례 조회·결정론적 통계·승인 이력 도구, 문서 조항 조회·SOP 의미 검색 |
-| `mcp/physics_models.py`, `mcp/physics.py` | 식각 깊이·평균 식각 속도·선택비 계산과 입력 검증. [Physics v1](docs/physics.md) |
+| `backend/main.py`, `backend/investigations_api.py`, `backend/investigations_store.py` | 신규 조사 API·JWT 검증·현재 후보·승인 저장; `backend/v1_*.py`는 레거시 호환 |
+| `agent/src/trace_agent/` | 표준 Agent Server, 단일 ReAct 조사, 구조화 후보·업무 저장 |
+| `mcp/` | Business·RAG 도구 구현, 사례·문서 조회와 통계 |
+| `mcp/physics.py`, `mcp/physics_models.py` | Agent가 연결해 사용하는 식각 깊이·평균 식각 속도·선택비 계산. [Physics v1](docs/physics.md) |
+| `mcp/sensor.py`, `mcp/sensor_models.py` | Sensor MCP 구현 및 Mock Fab 시계열 분석; 현재 Agent Server에는 미연결 |
 | `sop-ocap/` | SOP 3종·OCAP 19종 원문. SOP 화면과 SOP 의미 검색의 출처 |
 | `db/` | 샘플 사례·문서와 적재 스크립트 |
 | `compose.yaml`, `deploy/` | 서비스 구성, nginx 프록시 |
@@ -86,7 +87,6 @@ SSE는 `/api/ai/tasks/{id}/stream?after=0`에 Bearer 헤더를 보내는 fetch �
 
 ```bash
 uv sync --group dev
-(cd agent && uv sync --group dev && uv run pytest)
 (cd agent && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v

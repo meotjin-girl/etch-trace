@@ -22,6 +22,20 @@ from v1_store import Store
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     runtime: Runtime | None = None
+    _ = load_dotenv(Path(__file__).parent.parent / ".env")
+    config = settings or Settings(
+        os.getenv("DATABASE_URL", "postgresql://trace:trace@localhost:5432/trace"),
+        os.getenv("AGENT_URL", "http://agent:8001"),
+        os.getenv("INTERNAL_API_KEY", "dev-internal-key"),
+        os.getenv("SOP_DOCUMENTS_DIR", DEFAULT_SOP_DIR),
+        keycloak_url=os.getenv("KEYCLOAK_URL", "http://localhost:8080/auth"),
+        keycloak_realm=os.getenv("KEYCLOAK_REALM", "trace"),
+        keycloak_client_id=os.getenv("KEYCLOAK_CLIENT_ID", "trace-web"),
+        keycloak_audience=os.getenv("KEYCLOAK_AUDIENCE", "trace-api"),
+        keycloak_jwks_url=os.getenv("KEYCLOAK_JWKS_URL", ""),
+        prometheus_url=os.getenv("PROMETHEUS_URL", ""),
+        agent_server_url=os.getenv("AGENT_SERVER_URL", ""),
+    )
 
     def current() -> Runtime:
         assert runtime is not None, "Application lifespan has not started"
@@ -30,20 +44,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
         nonlocal runtime
-        _ = load_dotenv(Path(__file__).parent.parent / ".env")
-        config = settings or Settings(
-            os.getenv("DATABASE_URL", "postgresql://trace:trace@localhost:5432/trace"),
-            os.getenv("AGENT_URL", "http://agent:8001"),
-            os.getenv("INTERNAL_API_KEY", "dev-internal-key"),
-            os.getenv("SOP_DOCUMENTS_DIR", DEFAULT_SOP_DIR),
-            keycloak_url=os.getenv("KEYCLOAK_URL", "http://localhost:8080/auth"),
-            keycloak_realm=os.getenv("KEYCLOAK_REALM", "trace"),
-            keycloak_client_id=os.getenv("KEYCLOAK_CLIENT_ID", "trace-web"),
-            keycloak_audience=os.getenv("KEYCLOAK_AUDIENCE", "trace-api"),
-            keycloak_jwks_url=os.getenv("KEYCLOAK_JWKS_URL", ""),
-            prometheus_url=os.getenv("PROMETHEUS_URL", ""),
-            agent_server_url=os.getenv("AGENT_SERVER_URL", ""),
-        )
         if not config.internal_api_key:
             raise RuntimeError("INTERNAL_API_KEY must not be empty")
         store = Store(config.database_url)
@@ -73,7 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/auth/config")
     def auth_config() -> dict[str, str]:
-        config = current().settings
+        # Login bootstrap is public and does not depend on DB-backed runtime state.
         return {
             "url": config.keycloak_url,
             "realm": config.keycloak_realm,
