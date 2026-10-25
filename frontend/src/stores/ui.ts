@@ -10,6 +10,8 @@ export const useUiStore = defineStore('ui', () => {
   const networkError = ref<string | null>(null)
   // SOP search lives in the top bar row, outside SopView.
   const sopQuery = ref('')
+  // Sidebar search: filters the alarm log by tool, chamber, lot or rule.
+  const search = ref('')
 
   function openEvidence(id: string | null = null) {
     evidenceClosed.value = false
@@ -26,5 +28,5 @@ export const useUiStore = defineStore('ui', () => {
   }
   function clearError() { networkError.value = null }
 
-  return {evidenceClosed, evidenceOpen, highlight, networkError, sopQuery, openEvidence, closeEvidence, notify, clearError}
+  return {evidenceClosed, evidenceOpen, highlight, networkError, sopQuery, search, openEvidence, closeEvidence, notify, clearError}
 })

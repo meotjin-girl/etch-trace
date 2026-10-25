@@ -52,7 +52,7 @@ function start() {
       </div>
       <div class="records-layout">
         <div class="record-list">
-          <RouterLink v-for="item in records.records" :key="item.id" v-slot="{ navigate }" :to="`/records/${encodeURIComponent(item.id)}`" custom>
+          <RouterLink v-for="item in records.records" :key="item.id" v-slot="{ navigate }" :to="`/legacy/records/${encodeURIComponent(item.id)}`" custom>
             <button type="button" class="record-list-item" :class="{active: records.selected?.id === item.id}" @click="navigate">
               <header>
                 <span class="record-id" :title="item.id">#{{ item.legacyId || shortId(item.id) }}</span>

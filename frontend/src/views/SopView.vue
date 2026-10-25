@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { Sop, SopSummary } from '@/api/types'
 import { renderMarkdown } from '@/lib/markdown'
 import { useIdentityStore } from '@/stores/identity'
+import PageHeader from '@/components/PageHeader.vue'
 import { useUiStore } from '@/stores/ui'
 
 const route = useRoute()
@@ -19,11 +20,15 @@ const detail = ref<HTMLElement>()
 const selected = computed(() => route.params.id as string | undefined)
 let request = 0
 
+// Opened from an investigation: its candidate documents come first as "관련 문서".
+const related = computed(() => typeof route.query.related === 'string'
+  ? route.query.related.split(',').map(id => id.split('#')[0]!).filter(Boolean) : [])
 const filtered = computed(() => {
-  const term = ui.sopQuery.trim().toLocaleLowerCase()
+  const term = ui.search.trim().toLocaleLowerCase()
   return summaries.value.filter(item =>
     [item.id, item.title, item.category, item.description, ...(item.tags || [])]
       .join(' ').toLocaleLowerCase().includes(term))
+    .sort((a, b) => Number(related.value.includes(b.id)) - Number(related.value.includes(a.id)))
 })
 
 async function load(id: string) {
@@ -59,45 +64,42 @@ watch(selected, id => { if (id) load(id) })
 </script>
 
 <template>
-  <section id="sopPage" class="sop-page" aria-label="SOP 목록">
-    <div class="sop-sample-notice">샘플 페이지 · 아래 문서는 화면 구성을 위한 예시이며 실제 작업 지침이 아닙니다.</div>
-    <div class="sop-layout">
-      <section class="sop-list-panel" aria-label="SOP 문서 목록">
-        <p class="sop-count" role="status">{{ listError ? '문서를 불러오지 못했습니다.' : summaries.length ? `${filtered.length}개 문서 · 샘플` : '문서를 불러오는 중…' }}</p>
-        <div>
-          <p v-if="listError" class="sop-empty" role="alert">{{ listError }}</p>
-          <template v-else-if="filtered.length">
-            <RouterLink v-for="item in filtered" :key="item.id" v-slot="{ navigate }" :to="`/sop/${encodeURIComponent(item.id)}`" custom>
-              <button type="button" class="sop-list-item" :class="{active: item.id === selected}" :aria-pressed="item.id === selected" @click="navigate">
-                <span class="sop-document-id">{{ item.id }} <span>v{{ item.version }}</span></span>
-                <strong>{{ item.title }}</strong><span class="sop-description">{{ item.description }}</span>
-                <span class="sop-list-meta">{{ item.category }} · {{ item.updatedAt }}</span>
-              </button>
-            </RouterLink>
-          </template>
-          <p v-else-if="summaries.length" class="sop-empty">검색 결과가 없습니다. 다른 키워드로 검색해 주세요.</p>
-        </div>
-      </section>
-      <article ref="detail" class="sop-detail" aria-label="SOP 문서 상세">
-        <p v-if="loading" class="sop-empty" role="status">문서를 불러오는 중…</p>
-        <p v-else-if="detailError" class="sop-empty" role="alert">{{ detailError }}</p>
-        <template v-else-if="document">
-          <header class="sop-document-header">
-            <div class="sop-document-id">{{ document.id }} <span class="sop-sample-badge">샘플 문서</span></div>
-            <h2 tabindex="-1">{{ document.title }}</h2>
-            <p>{{ document.description }}</p>
-            <dl class="sop-metadata">
-              <div><dt>버전</dt><dd>{{ document.version }}</dd></div>
-              <div><dt>최근 개정</dt><dd>{{ document.updatedAt }}</dd></div>
-              <div><dt>담당</dt><dd>{{ document.owner }}</dd></div>
-            </dl>
-            <div class="sop-tags"><span v-for="tag in document.tags" :key="tag">{{ tag }}</span></div>
-          </header>
-          <!-- renderMarkdown escapes raw HTML; this is the only v-html in the app. -->
-          <div class="sop-markdown" v-html="renderMarkdown(document.markdown)"></div>
-        </template>
-        <p v-else class="sop-empty">목록에서 문서를 선택해 주세요.</p>
-      </article>
+  <PageHeader title="SOP · OCAP 원문" subtitle="독립 문서 열람 메뉴 · 알람 처리 단계와 별개 · 문서는 시연용 샘플" ruled />
+  <section id="sopPage" class="sop-grid" aria-label="SOP 목록">
+    <div class="t-card">
+      <h2>{{ related.length ? '관련 문서' : '문서 목록' }}</h2>
+      <p class="t-sub" role="status">{{ listError ? '문서를 불러오지 못했습니다.' : summaries.length ? `${filtered.length}개 문서` : '문서를 불러오는 중…' }}</p>
+      <p v-if="listError" class="t-empty" role="alert">{{ listError }}</p>
+      <RouterLink v-for="item in filtered" :key="item.id" class="t-inner sop-item"
+        :class="{active: item.id === selected, related: related.includes(item.id)}"
+        :to="{path:`/sop/${encodeURIComponent(item.id)}`, query:$route.query}" :aria-current="item.id === selected ? 'page' : undefined">
+        <strong :class="{['t-accent']: item.id === selected}">{{ item.id }}</strong>
+        <span class="t-faint">{{ item.title }} · v{{ item.version }}</span>
+      </RouterLink>
+      <p v-if="summaries.length && !filtered.length" class="t-empty">검색 결과가 없습니다.</p>
     </div>
+    <article ref="detail" class="t-card sop-doc" aria-label="SOP 문서 상세">
+      <p v-if="loading" class="t-empty" role="status">문서를 불러오는 중…</p>
+      <p v-else-if="detailError" class="t-empty" role="alert">{{ detailError }}</p>
+      <template v-else-if="document">
+        <h2 tabindex="-1">{{ document.id }}</h2>
+        <p class="t-sub">{{ document.title }} · 버전 {{ document.version }} · {{ document.owner }} · {{ document.updatedAt }}</p>
+        <hr class="t-rule">
+        <!-- renderMarkdown escapes raw HTML; this is the only v-html in the app. -->
+        <div class="sop-markdown" v-html="renderMarkdown(document.markdown)"></div>
+        <p class="t-faint">문서 연결은 매핑 제안이며, 원인 판정은 재검증 전입니다.</p>
+      </template>
+      <p v-else class="t-empty">목록에서 문서를 선택해 주세요.</p>
+    </article>
   </section>
 </template>
+
+<style scoped>
+.sop-grid { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 32px; align-items: start; }
+.sop-item { display: grid; gap: 10px; margin-top: 18px; color: var(--text); text-decoration: none; }
+.sop-item.active { border-color: var(--border-strong); }
+.sop-item strong { font-size: 17px; }
+.sop-doc :deep(.sop-markdown) { color: var(--text); }
+.sop-doc :deep(.sop-markdown pre), .sop-doc :deep(.sop-markdown th), .sop-doc :deep(.sop-markdown :not(pre) > code) { background: var(--surface-2); }
+@media (max-width: 1080px) { .sop-grid { grid-template-columns: minmax(0, 1fr); } }
+</style>

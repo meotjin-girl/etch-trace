@@ -12,7 +12,7 @@ const route = useRoute()
 const content = ref<HTMLElement>()
 
 // The panel follows the page in view: the selected record, otherwise the live task.
-const docs = computed(() => (route.name === 'records' ? records.selected?.report : investigation.task?.report)?.documents || [])
+const docs = computed(() => (route.name === 'legacy-records' ? records.selected?.report : investigation.task?.report)?.documents || [])
 const ariaHidden = computed(() => ui.evidenceClosed ? 'true' : ui.evidenceOpen ? 'false' : undefined)
 
 watch(() => ui.highlight, async ({id}) => {

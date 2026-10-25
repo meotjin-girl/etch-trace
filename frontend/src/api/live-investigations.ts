@@ -1,12 +1,17 @@
 import type { SessionAuth } from '@/auth'
 import type { Transport } from './client'
 import { createAuthenticatedHttp } from './authenticated-http'
-import { approval, array, investigationSummary, liveInvestigation } from './live-models'
+import { actionRecord, approval, array, investigationSummary, liveInvestigation } from './live-models'
 
 export interface CandidateSelection {
   readonly candidate_id: string
   readonly expected_revision: number
   readonly comment: string
+}
+
+export interface ActionInput {
+  readonly content: string
+  readonly result: string
 }
 
 export function createLiveApi(auth: SessionAuth, transport: Transport = {}) {
@@ -23,6 +28,11 @@ export function createLiveApi(auth: SessionAuth, transport: Transport = {}) {
     async approve(id: string, selection: CandidateSelection, signal?: AbortSignal) {
       return approval(await http.json(`${path(id)}/approval`, {
         method:'POST', body:JSON.stringify(selection), signal,
+      }))
+    },
+    async recordAction(id: string, input: ActionInput, signal?: AbortSignal) {
+      return actionRecord(await http.json(`${path(id)}/action`, {
+        method:'POST', body:JSON.stringify(input), signal,
       }))
     },
   }

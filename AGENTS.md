@@ -35,7 +35,8 @@ MCP는 에이전트 전용 도구다. 이전 v1 task API `/api/ai/*`는 레거�
 | 정량·교육 시뮬레이션 | `mcp/quantitative_models.py`, `mcp/simulation_models.py` | 정상 Run 비교·R(t) 적분·미보정 Level 2/3 교육 모델 |
 | 문서 | `mcp/rag.py` | exact-ID 문서 및 SOP/OCAP 의미 검색; 색인에는 `OPENAI_API_KEY` 필요 |
 | 샘플 적재 | `db/seed.py`, `db/cases.json`, `db/documents.json` | PHM 아님, demo/source 표시 보존 |
-| 화면 | `frontend/src/`, `docs/frontend.md` | 공개 backend 연동, thread 대화와 조사 목록 |
+| 화면 | `frontend/src/`, `docs/frontend.md` | 이상 로그 → AI 조사 → 원인 확인 → 조치 → 기록, 라이트·다크 자동. 이전 질문 화면은 `/legacy` |
+| 로그인 화면 | `deploy/keycloak/themes/trace/` | Keycloak 로그인 테마, compose `KC_SPI_THEME__DEFAULT=trace` |
 | SOP 화면 API | `backend/v1_sop.py` | `sop-ocap/` 표지 표·원문 파싱, `/api/sops` |
 | 경로 지도 | `docs/structure-review.md` | 공개·내부 API, MCP 도구, 파일·데이터 경로 |
 | 서비스 구성 | `compose.yaml`, `deploy/nginx.conf` | web 공개, backend·agent·MCP·DB 내부 네트워크 |

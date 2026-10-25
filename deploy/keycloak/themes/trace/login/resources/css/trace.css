@@ -1,0 +1,54 @@
+/* Same tokens as frontend/src/assets/trace.css; follows the device light/dark setting. */
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f7; --intro: #fbfbfc; --surface: #ffffff; --input: #f4f4f7; --border: #e2e2e8; --border-strong: #cfcfd8;
+  --text: #18181b; --text-muted: #52525b; --text-faint: #85858f; --accent: #6b3fd4; --accent-soft: rgba(107, 63, 212, .1);
+  --danger: #c4314c; --danger-soft: rgba(196, 49, 76, .1);
+  --font: Pretendard, "IBM Plex Sans KR", "Noto Sans KR", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111113; --intro: #18181b; --surface: #1e1e22; --input: #24242a; --border: #2f2f36; --border-strong: #3c3c45;
+    --text: #f4f4f5; --text-muted: #a1a1aa; --text-faint: #71717a; --accent: #a978f7; --accent-soft: rgba(169, 120, 247, .14);
+    --danger: #ec5a73; --danger-soft: rgba(236, 90, 115, .14);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body.trace { font-family: var(--font); background: var(--bg); color: var(--text); }
+.trace-login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); }
+.trace-intro { display: flex; flex-direction: column; padding: 52px 48px 40px; background: var(--intro); border-right: 1px solid var(--border); }
+.trace-brand { display: flex; align-items: center; gap: 22px; }
+.trace-brand strong { font-size: 40px; font-weight: 800; letter-spacing: .02em; }
+.trace-intro h1 { margin: auto 0 0; font-size: clamp(32px, 3.4vw, 50px); line-height: 1.55; font-weight: 800; letter-spacing: -.02em; }
+.trace-flow { margin: 28px 0 auto; color: var(--text-muted); font-size: 18px; }
+.trace-flow span { margin: 0 8px; }
+.trace-note { margin: 0; color: var(--text-faint); font-size: 15px; }
+.trace-panel { display: grid; place-items: center; padding: 40px 24px; }
+.trace-card { width: min(100%, 600px); padding: 52px 48px 56px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+.trace-card h2 { margin: 0; font-size: 32px; font-weight: 800; }
+.trace-sub { margin: 12px 0 38px; color: var(--text-muted); font-size: 16px; }
+.trace-field { display: grid; gap: 14px; margin-bottom: 28px; }
+.trace-field span { font-size: 17px; font-weight: 800; }
+.trace-field input { width: 100%; height: 66px; padding: 0 20px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--input); color: var(--text); font: inherit; font-size: 16px; }
+.trace-field input::placeholder { color: var(--text-faint); }
+.trace-field input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.trace-field input[aria-invalid="true"] { border-color: var(--danger); }
+.trace-button { width: 100%; height: 58px; margin-top: 22px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--input); color: var(--accent); font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.trace-button:hover { background: var(--accent-soft); }
+.trace-button:disabled { opacity: .5; cursor: progress; }
+.trace-foot { margin: 34px 0 0; color: var(--text-muted); font-size: 16px; }
+.trace-alert { margin: 0 0 22px; padding: 12px 16px; border-radius: 10px; font-size: 15px; line-height: 1.6; }
+.trace-alert-error { border: 1px solid var(--danger); background: var(--danger-soft); color: var(--danger); }
+.trace-alert-success, .trace-alert-info, .trace-alert-warning { border: 1px solid var(--border-strong); background: var(--input); color: var(--text-muted); }
+.trace-info { margin-top: 24px; color: var(--text-muted); font-size: 15px; }
+.trace-info a, .trace-card a { color: var(--accent); }
+@media (max-width: 860px) {
+  .trace-login { grid-template-columns: minmax(0, 1fr); }
+  .trace-intro { padding: 28px 24px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .trace-brand strong { font-size: 28px; }
+  .trace-intro h1 { margin-top: 28px; font-size: 26px; }
+  .trace-flow { margin: 16px 0 12px; font-size: 15px; }
+  .trace-card { padding: 32px 22px; }
+  .trace-card h2 { font-size: 26px; }
+}

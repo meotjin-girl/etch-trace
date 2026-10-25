@@ -38,6 +38,14 @@ backend는 공개 `KEYCLOAK_URL/realms/trace`를 issuer로 검증하고,
 API audience는 `trace-api`다. 브라우저에 내부 키·client secret을 전달하지 않는다.
 호스트에서 backend만 실행한다면 같은 공개 `KEYCLOAK_URL`을 명시한다.
 
+## 로그인 테마
+
+로그인 화면은 `deploy/keycloak/themes/trace/login`(Keycloak `base` 상속, 라이트·다크 자동)이다.
+compose가 테마 폴더를 마운트하고 `KC_SPI_THEME__DEFAULT=trace`로 기본 테마를 지정한다. 테마를
+따로 정하지 않은 realm에 적용되므로 기존 `keycloak_data` 볼륨에도 그대로 반영된다. 이 설정은
+모든 테마 종류에 적용돼서, `admin`·`account`·`email`은 Keycloak 기본 테마를 상속만 하는 폴더로 둔다.
+realm이 국제화를 쓰지 않아 영어 메시지 파일에도 한국어 문구를 넣었다.
+
 ## 영속성과 변경
 
 개발용 `start-dev`·H2 파일 저장소는 `keycloak_data` 볼륨을 사용한다.

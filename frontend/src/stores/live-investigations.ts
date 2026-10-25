@@ -12,7 +12,9 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
   const messages = ref<ThreadMessage[]>([])
   const draft = ref('')
   const listError = ref(''), error = ref('')
-  const loadingList = ref(false), loading = ref(false), busy = ref(false), approving = ref(false)
+  const loadingList = ref(false), loading = ref(false), busy = ref(false), approving = ref(false), recording = ref(false)
+  // List cards need the alert text, which only the detail endpoint returns.
+  const previews = ref<Record<string, LiveInvestigation>>({})
   let listController: AbortController | undefined
   let controller: AbortController | undefined
   const canSend = computed(() => Boolean(detail.value) && !loading.value && !busy.value && !approving.value &&
@@ -133,8 +135,8 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
   }
   async function approve(candidateId: string) {
     const selected = detail.value, request = controller
-    if (!selected || !request || selected.approval || approving.value || busy.value || loading.value) return
-    if (!selected.candidates.some(candidate => candidate.id === candidateId)) return
+    if (!selected || !request || selected.approval || approving.value || busy.value || loading.value) return false
+    if (!selected.candidates.some(candidate => candidate.id === candidateId)) return false
     approving.value = true
     error.value = ''
     try {
@@ -143,15 +145,52 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
       }, request.signal)
       if (current(request) && detail.value) detail.value = {...detail.value, approval:snapshot}
       await refreshDetail(request)
+      return true
     } catch (cause) {
-      if (!current(request)) return
+      if (!current(request)) return false
       error.value = message(cause)
       if (cause instanceof ApiError && cause.status === 409) {
         error.value = '다른 사용자가 조사 내용을 변경하거나 승인했습니다. 최신 내용을 확인해 주세요.'
         try { await refreshDetail(request) }
         catch (refreshError) { if (current(request)) error.value = message(refreshError) }
       }
+      return false
     } finally { if (current(request)) approving.value = false }
+  }
+  /** Re-read business detail only (no thread or run handling), e.g. when returning to a step page. */
+  async function reload() {
+    const request = controller
+    if (!request || !detail.value) return
+    try { await refreshDetail(request) }
+    catch (cause) { if (current(request)) error.value = message(cause) }
+  }
+  async function loadPreviews(ids: readonly string[]) {
+    const missing = ids.filter(id => !previews.value[id])
+    const api = useIdentityStore().liveApi
+    const loaded = await Promise.allSettled(missing.map(id => api.detail(id, listController?.signal)))
+    const next = {...previews.value}
+    loaded.forEach(result => { if (result.status === 'fulfilled') next[result.value.id] = result.value })
+    previews.value = next
+  }
+  async function recordAction(content: string, result: string) {
+    const selected = detail.value, request = controller
+    if (!selected || !request || !selected.approval || selected.action || recording.value) return false
+    recording.value = true
+    error.value = ''
+    try {
+      const action = await useIdentityStore().liveApi.recordAction(selected.id, {content, result}, request.signal)
+      if (current(request) && detail.value) detail.value = {...detail.value, action}
+      const {[selected.id]: _stale, ...rest} = previews.value
+      previews.value = rest
+      return true
+    } catch (cause) {
+      if (!current(request)) return false
+      error.value = cause instanceof ApiError && cause.status === 409
+        ? '이미 기록됐거나 아직 원인이 선택되지 않았습니다. 최신 내용을 확인해 주세요.'
+        : message(cause)
+      try { await refreshDetail(request) } catch { /* keep the first error */ }
+      return false
+    } finally { if (current(request)) recording.value = false }
   }
   function close() {
     controller?.abort()
@@ -160,16 +199,18 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     messages.value = []
     draft.value = ''
     error.value = ''
-    loading.value = busy.value = approving.value = false
+    loading.value = busy.value = approving.value = recording.value = false
   }
   function reset() {
     close()
     listController?.abort()
     listController = undefined
     records.value = []
+    previews.value = {}
     loadingList.value = false
     listError.value = ''
   }
   return {records, detail, messages, draft, listError, error, loadingList, loading,
-    busy, approving, canSend, refreshList, open, send, approve, close, reset}
+    busy, approving, recording, previews, canSend, refreshList, loadPreviews, reload, open, send, approve,
+    recordAction, close, reset}
 })

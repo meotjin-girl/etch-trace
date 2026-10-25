@@ -6,6 +6,8 @@ from uuid import UUID
 from api_dependencies import Dependencies
 from fastapi import APIRouter, Depends
 from investigations_models import (
+    ActionInput,
+    ActionRecord,
     Approval,
     ApprovalInput,
     Investigation,
@@ -34,6 +36,14 @@ def router(dependencies: Dependencies) -> APIRouter:
         actor: Annotated[Actor, Depends(dependencies.actor)],
     ) -> Approval:
         return dependencies.current().investigations.approve(thread_id, body, actor)
+
+    @api.post("/api/investigations/{thread_id}/action")
+    def record_action(
+        thread_id: UUID,
+        body: ActionInput,
+        actor: Annotated[Actor, Depends(dependencies.actor)],
+    ) -> ActionRecord:
+        return dependencies.current().investigations.record_action(thread_id, body, actor)
 
     @api.get(
         "/internal/investigations/live/{thread_id}",

@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS v1_live_investigations (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Field action recorded by an engineer after approving a candidate; written once.
+ALTER TABLE v1_live_investigations ADD COLUMN IF NOT EXISTS action jsonb;
+
 CREATE OR REPLACE FUNCTION preserve_live_investigation_evidence()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -20,6 +23,9 @@ BEGIN
     END IF;
     IF OLD.approval IS NOT NULL AND NEW.approval IS DISTINCT FROM OLD.approval THEN
         RAISE EXCEPTION 'Investigation approval is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.action IS NOT NULL AND NEW.action IS DISTINCT FROM OLD.action THEN
+        RAISE EXCEPTION 'Investigation action record is immutable' USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
 END;

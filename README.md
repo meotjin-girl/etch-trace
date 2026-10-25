@@ -66,6 +66,11 @@ thread에서 초기 후보 제안과 Business MCP 저장이 끝나면 목록에 
 후보 승인 정보는 backend에서 조회합니다. 현재 후보는 갱신되지만 승인 당시
 선택한 후보 사본은 보존됩니다.
 
+화면 흐름은 이상 로그 → AI 조사(제안서·대화) → 원인 확인 → 조치 검토 → 조치 기록입니다.
+상태는 이상 탐지(승인 전) / 조치 중(원인 선택) / 조치 완료(조치 기록)이며, 조치 기록은
+`POST /api/investigations/{id}/action`으로 한 번만 저장됩니다. 화면 색은 기기의 라이트·다크
+설정을 따릅니다. 로그인 화면은 `deploy/keycloak/themes/trace` 테마입니다.
+
 ## 기존 v1 요청과 검토 (호환 경로)
 
 공개 데이터 API는 `Authorization: Bearer <access token>`이 필수입니다. backend가 Keycloak 서명·issuer·audience·만료를 검증합니다. 로그인한 사용자는 모두 조회·추가 답변·검토할 수 있고, 역할·소유자별 제한은 후속 범위입니다. 토큰은 브라우저 메모리에만 보관합니다.

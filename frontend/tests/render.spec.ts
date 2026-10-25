@@ -59,18 +59,18 @@ test('app shell mounts every route with backend data', async () => {
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true }
   globalThis.matchMedia ??= (() => ({matches:false})) as never
   const wrapper = mount(App, {global:{plugins:[router]}, attachTo:document.body})
-  // [path, expected text, progress card visible]
+  // [path, expected text, legacy evidence rail visible]
   const pages: [string, string, boolean][] = [
-    ['/', '등록된 조사가 없습니다', false], ['/legacy', '어떤 이상을 조사할까요?', true],
-    ['/records', '조사 기록을 선택해 주세요', false],
-    ['/records/t1', '조사 열기 / 이어가기', true], ['/sop', 'SOP-ETCH-12', false]]
-  for (const [path, expected, progress] of pages) {
+    ['/', '이상 탐지 상태의 알람이 없습니다', false], ['/records', '조사 기록이 아직 없습니다', false],
+    ['/sop', 'SOP-ETCH-12', false], ['/legacy', '어떤 이상을 조사할까요?', true],
+    ['/legacy/records/t1', '조사 열기 / 이어가기', true]]
+  for (const [path, expected, legacy] of pages) {
     await router.push(path)
     await flushPromises()
     expect(wrapper.text()).toContain(expected)
-    expect(wrapper.find('.process-card').exists()).toBe(progress)
+    expect(wrapper.find('.legacy-area').exists()).toBe(legacy)
   }
-  await router.push('/records/t1')
+  await router.push('/legacy/records/t1')
   await flushPromises()
   expect(wrapper.find('[data-evidence-id="DOC#1"]').exists()).toBe(true)
   wrapper.unmount()

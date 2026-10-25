@@ -6,6 +6,8 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from investigations_models import (
+    ActionInput,
+    ActionRecord,
     Approval,
     ApprovalInput,
     Investigation,
@@ -44,7 +46,8 @@ class InvestigationsStore:
                 """SELECT id, id AS thread_id, alert->>'tool_id' AS tool_id,
                    alert->>'chamber_id' AS chamber_id, alert->>'lot_id' AS lot_id,
                    summary, revision, jsonb_array_length(candidates) AS candidate_count,
-                   approval->>'approved_at' AS approved_at, created_at, updated_at
+                   approval->>'approved_at' AS approved_at,
+                   action->>'recorded_at' AS action_recorded_at, created_at, updated_at
                    FROM v1_live_investigations ORDER BY updated_at DESC, id"""
             ).fetchall()
         return [InvestigationSummary.model_validate(row) for row in rows]
@@ -118,3 +121,31 @@ class InvestigationsStore:
                 (Jsonb(approval.model_dump(mode="json")), thread_id),
             )
             return approval
+
+    def record_action(self, thread_id: UUID, body: ActionInput, actor: Actor) -> ActionRecord:
+        """Record the field action once, only after a candidate was approved."""
+        with self.pool.connection() as conn:
+            row = conn.execute(
+                "SELECT *, id AS thread_id FROM v1_live_investigations WHERE id=%s FOR UPDATE",
+                (thread_id,),
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, "Investigation not found")
+            current = Investigation.model_validate(row)
+            if current.approval is None:
+                raise HTTPException(409, "Approve a candidate before recording the action")
+            if current.action is not None:
+                raise HTTPException(409, "Action already recorded")
+            record = ActionRecord(
+                content=body.content,
+                result=body.result,
+                recorded_by_id=actor.subject,
+                recorded_by=actor.name,
+                recorded_at=datetime.now(UTC),
+            )
+            _ = conn.execute(
+                """UPDATE v1_live_investigations SET action=%s,
+                   updated_at=clock_timestamp() WHERE id=%s""",
+                (Jsonb(record.model_dump(mode="json")), thread_id),
+            )
+            return record

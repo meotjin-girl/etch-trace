@@ -4,6 +4,50 @@ import type { Report, Sop } from '../src/api/types'
 // Sample SOPs moved from the former hard-coded src/api/sop.ts.
 export const sopDocuments: Omit<Sop, 'demo'>[] = [
   {
+    id:'OCAP-ETCH-PRS', title:'챔버 압력 이상 대응', category:'OCAP', version:'1.1', updatedAt:'2026-10-20', owner:'Etch설비기술팀',
+    description:'챔버 압력 이상 대응 시 1차 확인 항목(목업 요약). 실제 원문은 sop-ocap/ 문서입니다.', tags:['OCAP'],
+    markdown:`> **목업 요약**: 실제 원문은 저장소 \`sop-ocap/OCAP-ETCH-PRS_*.md\`이며 backend \`/api/sops\`가 제공합니다.
+
+## 4.4 확인 데이터
+pressure error, valve command·position, pump speed·current, foreline pressure, gas flow
+
+## 비교 방법
+같은 chamber·recipe·step의 이전 Run과 비교합니다. 현재 목업에는 승인 관리한계가 없습니다.`,
+  },
+  {
+    id:'OCAP-ETCH-RF', title:'RF 반사전력 이상 대응', category:'OCAP', version:'1.1', updatedAt:'2026-10-20', owner:'Etch설비기술팀',
+    description:'RF 반사전력 이상 대응 시 1차 확인 항목(목업 요약). 실제 원문은 sop-ocap/ 문서입니다.', tags:['OCAP'],
+    markdown:`> **목업 요약**: 실제 원문은 저장소 \`sop-ocap/OCAP-ETCH-RF_*.md\`이며 backend \`/api/sops\`가 제공합니다.
+
+## 4.4 확인 데이터
+forward·reflected power, matching tuning 위치, RF 케이블·커넥터 상태
+
+## 비교 방법
+같은 chamber·recipe·step의 이전 Run과 비교합니다. 현재 목업에는 승인 관리한계가 없습니다.`,
+  },
+  {
+    id:'OCAP-ETCH-GAS', title:'가스 유량 이상 대응', category:'OCAP', version:'1.1', updatedAt:'2026-10-20', owner:'Etch설비기술팀',
+    description:'가스 유량 이상 대응 시 1차 확인 항목(목업 요약). 실제 원문은 sop-ocap/ 문서입니다.', tags:['OCAP'],
+    markdown:`> **목업 요약**: 실제 원문은 저장소 \`sop-ocap/OCAP-ETCH-GAS_*.md\`이며 backend \`/api/sops\`가 제공합니다.
+
+## 4.4 확인 데이터
+MFC setpoint·readback, 가스 라인 압력, 밸브 상태
+
+## 비교 방법
+같은 chamber·recipe·step의 이전 Run과 비교합니다. 현재 목업에는 승인 관리한계가 없습니다.`,
+  },
+  {
+    id:'OCAP-ETCH-TMP', title:'온도·후면 냉각 이상 대응', category:'OCAP', version:'1.1', updatedAt:'2026-10-20', owner:'Etch설비기술팀',
+    description:'온도·후면 냉각 이상 대응 시 1차 확인 항목(목업 요약). 실제 원문은 sop-ocap/ 문서입니다.', tags:['OCAP'],
+    markdown:`> **목업 요약**: 실제 원문은 저장소 \`sop-ocap/OCAP-ETCH-TMP_*.md\`이며 backend \`/api/sops\`가 제공합니다.
+
+## 4.4 확인 데이터
+ESC 온도, 후면 He 압력·유량, 칠러 온도·유량
+
+## 비교 방법
+같은 chamber·recipe·step의 이전 Run과 비교합니다. 현재 목업에는 승인 관리한계가 없습니다.`,
+  },
+  {
     id:'SOP-ETCH-12', title:'식각 공정 이상 대응 절차', category:'공정 이상 대응',
     version:'1.2', updatedAt:'2026-10-12', owner:'공정기술팀',
     description:'이상 접수부터 근거 확인, 점검 계획과 검토 기록까지의 흐름입니다.',
