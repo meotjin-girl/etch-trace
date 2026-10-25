@@ -66,13 +66,13 @@ SSE와 이벤트 조회는 작업별 증가하는 `seq`로 재생한다. 브라�
 - `db/cases.json`, `db/documents.json`은 시연용 샘플이며 PHM 실측 데이터가 아니다.
 - seed는 샘플을 upsert한다. 사례·문서의 demo/source 표시와 조항 ID를 보존한다.
 - 통계는 코드로 계산하며 `sec`, `nm/min`, `W`, `mTorr` 등 샘플에 선언된 단위와 근거 사례 ID를 유지한다.
-- RAG MCP의 `search_documents`는 정확한 문서 ID를 조회한다. `search_sop`는 `sop-ocap/`의 SOP·OCAP 문서를 절 단위로 임베딩해 sop-postgres에 색인하고 질문과 가까운 조항 3개를 재순위화해 반환한다(`OPENAI_API_KEY` 필요, 첫 호출 때 색인).
+- RAG MCP의 `search_documents`는 정확한 문서 ID를 조회한다. `search_sop`는 `sop-ocap/`의 SOP·OCAP 문서를 절 단위로 임베딩해 sop-postgres에 색인하고 질문과 가까운 조항 3개를 재순위화해 반환한다(`OPENAI_API_KEY` 필요). 색인은 compose 기동 때 일회성 `rag-ingest`가 만들고, 검색은 색인을 읽기만 한다. 바뀐 조항만 다시 임베딩하며, 키가 없으면 색인을 건너뛴다.
 - SOP 화면은 backend가 같은 `sop-ocap/` 문서의 머리 표(담당 팀·버전·최근 개정)와 원문을 읽어 제공한다.
 - 이전 PHM 적재·색인·구형 backend 그래프와 점검 스크립트는 제거했다. 이전 구현은 Git 이력에서 확인한다.
 
 ## Compose와 이동
 
-`compose.yaml`이 keycloak, postgres, sop-postgres, seed, backend, business-mcp, rag-mcp, agent, web을 정의한다. web은 `frontend/Dockerfile`로 Vite 빌드 결과를 담고, `sop-ocap/`은 backend와 rag-mcp에 읽기 전용으로 마운트한다. PostgreSQL healthcheck 뒤 seed 완료를 기다리며 backend는 Keycloak healthcheck도 기다린다. 공개 포트는 web만 가지며 `.env.example`의 `WEB_PORT=18080`으로 기존 POC와 포트를 분리한다. [Keycloak URL·계정·영속성](../deploy/keycloak/README.md)을 참고한다.
+`compose.yaml`이 keycloak, postgres, sop-postgres, seed, backend, business-mcp, rag-ingest, rag-mcp, agent, web을 정의한다. web은 `frontend/Dockerfile`로 Vite 빌드 결과를 담고, `sop-ocap/`은 backend와 rag-ingest에 읽기 전용으로 마운트한다. PostgreSQL healthcheck 뒤 seed 완료를 기다리며 backend는 Keycloak healthcheck도 기다린다. 공개 포트는 web만 가지며 `.env.example`의 `WEB_PORT=18080`으로 기존 POC와 포트를 분리한다. [Keycloak URL·계정·영속성](../deploy/keycloak/README.md)을 참고한다.
 
 `docker-compose.yml`, `docker-compose.prod.yml`은 Compose 2.20.3 이상용 `include: [compose.yaml]` 호환 진입점이다. 별도 서비스·포트·볼륨을 덧붙이지 않는다. 권장 명령은 `docker compose -f compose.yaml up -d --build`다. include wrapper와 원본을 여러 `-f`로 중복 병합하지 않는다.
 

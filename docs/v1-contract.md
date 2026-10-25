@@ -90,9 +90,10 @@ All backend/agent internal requests require `X-Internal-Key`.
 - RAG MCP tools: `search_documents(document_ids)` resolves exact IDs from
   `etch_documents`; `search_sop(query)` embeds the query against a separate
   pgvector corpus, retrieves 20 candidates, reranks them and returns three
-  source clauses. The RAG service needs `OPENAI_API_KEY`; its first semantic
-  search indexes the mounted SOP/OCAP source files (`sop-ocap/`) into the persistent
-  `sop-postgres` volume. Failed or unavailable semantic search is reported as
+  source clauses. The RAG service needs `OPENAI_API_KEY`; the one-shot
+  `rag-ingest` service indexes the mounted SOP/OCAP source files (`sop-ocap/`)
+  into the persistent `sop-postgres` volume at compose startup, and search only
+  reads that index. Failed or unavailable semantic search is reported as
   unavailable, not replaced with a locally generated checklist.
 - Physics MCP tool: `evaluate_etch_physics(inputs)` evaluates constant-rate etch
   depth, average etch rate and selectivity. It returns calculated, needs-more-data

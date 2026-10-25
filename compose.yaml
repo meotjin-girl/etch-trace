@@ -105,21 +105,30 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
-  rag-mcp:
+  rag-ingest:
     build: ./mcp
-    command: ["uv", "run", "python", "rag.py"]
+    command: ["uv", "run", "python", "ingest_sop.py"]
     environment:
-      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
       SOP_DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@sop-postgres:5432/trace_sop
       SOP_DOCUMENTS_DIR: /sop
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - ./sop-ocap:/sop:ro
     depends_on:
-      seed:
-        condition: service_completed_successfully
       sop-postgres:
         condition: service_healthy
+  rag-mcp:
+    build: ./mcp
+    command: ["uv", "run", "python", "rag.py"]
+    environment:
+      DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@postgres:5432/trace
+      SOP_DATABASE_URL: postgresql://trace:${POSTGRES_PASSWORD:-trace}@sop-postgres:5432/trace_sop
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      rag-ingest:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
       interval: 3s
