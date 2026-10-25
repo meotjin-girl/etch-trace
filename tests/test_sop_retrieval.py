@@ -15,6 +15,7 @@ from uuid import uuid4
 import psycopg
 from openai import OpenAI
 from psycopg import sql
+from psycopg.conninfo import make_conninfo
 from psycopg.rows import TupleRow
 from pydantic import TypeAdapter
 from typer.testing import CliRunner
@@ -24,6 +25,7 @@ sys.path.insert(0, str(ROOT / "mcp"))
 
 from sop_chunks import Chunk, load_chunks, parse_document
 from sop_experiment import QUESTIONS, Question, app, score
+from sop_rerank import RerankResult
 from sop_vectors import (
     DIMENSIONS,
     Embedder,
@@ -248,6 +250,52 @@ revision notes
 
 @unittest.skipUnless(os.getenv("SOP_TEST_DATABASE_URL"), "SOP_TEST_DATABASE_URL is required")
 class VectorTest(unittest.TestCase):
+    def test_search_reads_prebuilt_index_without_source_files_or_writes(self) -> None:
+        import rag
+
+        # Given: a committed index, no source directory, and read-only search connections.
+        schema_name = f"sop_read_{uuid4().hex}"
+        schema = sql.Identifier(schema_name)
+        base_url = os.environ["SOP_TEST_DATABASE_URL"]
+        with psycopg.connect(base_url) as connection, OpenAI(api_key="test-unused") as client:
+            _ = connection.execute(sql.SQL("CREATE SCHEMA {}").format(schema))
+            _ = connection.execute(sql.SQL("SET search_path TO {}, public").format(schema))
+            vector = Embedding([1.0] * DIMENSIONS)
+            with patch("sop_vectors.Embedder.embed", return_value=([vector] * 3, 3)):
+                _ = ingest(connection, Embedder(client), [sample_chunk(str(n)) for n in (1, 2, 3)])
+            connection.commit()
+            read_url = make_conninfo(
+                base_url,
+                options=f"-csearch_path={schema_name},public -cdefault_transaction_read_only=on",
+            )
+
+            def rank(_client: OpenAI, _query: str, candidates: list[Hit]) -> RerankResult:
+                return RerankResult(candidates, 0, 0, 0.0)
+
+            try:
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "SOP_DATABASE_URL": read_url,
+                            "SOP_DOCUMENTS_DIR": "/nonexistent-source-directory",
+                            "OPENAI_API_KEY": "test-unused",
+                        },
+                    ),
+                    patch("sop_vectors.Embedder.embed", return_value=([vector], 1)),
+                    patch("rag.rerank", side_effect=rank),
+                ):
+                    # When
+                    documents = rag.search_sop("test")
+                # Then
+                self.assertEqual(
+                    [document["id"] for document in documents],
+                    ["SOP-TEST-01#1", "SOP-TEST-01#2", "SOP-TEST-01#3"],
+                )
+            finally:
+                _ = connection.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(schema))
+                connection.commit()
+
     def test_parallel_ingest_waits_before_embedding(self) -> None:
         # Given: a committed schema and the first refresh held inside embedding.
         url = os.environ["SOP_TEST_DATABASE_URL"]

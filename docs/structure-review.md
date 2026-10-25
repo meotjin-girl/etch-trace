@@ -62,7 +62,7 @@ backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 �
 | business-mcp | `search_cases`, `analyze_metrics`, `save_investigation`, `list_investigations`, `get_investigation` | 모두 backend `/internal/**` 경유, DB 직접 접근 없음 |
 | business-mcp | ⚠️ HTTP `GET /api/ai/investigations(/{id})` (`history_http`) | ➖ 삭제 제안 |
 | rag-mcp | `search_documents(document_ids)` | postgres `etch_documents` |
-| rag-mcp | `search_sop(query)` | sop-postgres(pgvector) + OpenAI 임베딩·재순위화, 문서 `/sop` |
+| rag-mcp | `search_sop(query)` | sop-postgres(pgvector) 읽기 + OpenAI 질의 임베딩·재순위화. 색인은 `rag-ingest`가 `/sop`에서 적재 |
 
 ### 파일·데이터 경로
 
