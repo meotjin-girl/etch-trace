@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useInvestigationStore } from '@/stores/investigation'
@@ -28,10 +29,10 @@ watch(() => ui.highlight, async ({id}) => {
   <aside id="evidencePanel" class="evidence-panel" :class="{open: ui.evidenceOpen}" :aria-hidden="ariaHidden" aria-label="조사 근거">
     <div class="evidence-header">
       <div><p class="eyebrow">EVIDENCE</p><h2>조사 근거</h2></div>
-      <button class="close-panel" type="button" aria-label="근거 패널 닫기" @click="ui.closeEvidence()"><i class="fi-rr-cross-small" aria-hidden="true"></i></button>
+      <button class="close-panel" type="button" aria-label="근거 패널 닫기" @click="ui.closeEvidence()"><TraceIcon name="close" /></button>
     </div>
     <div v-if="!docs.length" class="empty-evidence">
-      <div class="empty-symbol" aria-hidden="true"><i class="fi-rr-search"></i></div>
+      <div class="empty-symbol" aria-hidden="true"><TraceIcon name="search" /></div>
       <strong>아직 연결된 근거가 없습니다</strong>
       <p>질문을 입력하면 관련 문서가 여기에 표시됩니다.</p>
     </div>

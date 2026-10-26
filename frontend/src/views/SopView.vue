@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Sop, SopSummary } from '@/api/types'
@@ -67,7 +68,7 @@ watch(selected, id => { if (id) load(id) })
   <PageHeader title="SOP · OCAP 원문" subtitle="독립 문서 열람 메뉴 · 알람 처리 단계와 별개 · 문서는 시연용 샘플" ruled />
   <section id="sopPage" class="sop-grid t-fill t-cols" aria-label="SOP 목록">
     <div class="t-card">
-      <h2>{{ related.length ? '관련 문서' : '문서 목록' }}</h2>
+      <h2 class="t-icon-heading"><TraceIcon name="book" />{{ related.length ? '관련 문서' : '문서 목록' }}</h2>
       <p class="t-sub" role="status">{{ listError ? '문서를 불러오지 못했습니다.' : summaries.length ? `${filtered.length}개 문서` : '문서를 불러오는 중…' }}</p>
       <p v-if="listError" class="t-empty" role="alert">{{ listError }}</p>
       <RouterLink v-for="item in filtered" :key="item.id" class="t-inner sop-item"

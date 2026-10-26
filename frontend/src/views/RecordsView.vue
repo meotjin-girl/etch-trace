@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecordDetail from '@/components/RecordDetail.vue'
@@ -40,13 +41,13 @@ function start() {
       <p>모든 서버 상태와 기존 로컬 기록을 표시합니다.</p>
       <div class="records-empty-actions">
         <button type="button" @click="start">이상 조사 시작</button>
-        <button type="button" class="secondary-button" :disabled="records.refreshing" @click="refresh"><i class="fi-rr-refresh" aria-hidden="true"></i> 새로고침</button>
+        <button type="button" class="secondary-button" :disabled="records.refreshing" @click="refresh"><TraceIcon name="refresh" /> 새로고침</button>
       </div>
     </div>
     <template v-else>
       <div class="records-heading">
         <div>
-          <button type="button" class="secondary-button" :disabled="records.refreshing" @click="refresh"><i class="fi-rr-refresh" aria-hidden="true"></i> 새로고침</button>
+          <button type="button" class="secondary-button" :disabled="records.refreshing" @click="refresh"><TraceIcon name="refresh" /> 새로고침</button>
           <span class="record-count">{{ records.records.length }}건 (로컬 포함)</span>
         </div>
       </div>
