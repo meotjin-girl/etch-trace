@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { LiveInvestigation } from '@/api/live-models'
 import { fixed, readingAt, sensorLabel, signed, type ParsedAlert } from '@/lib/alert-text'
 import { useLiveInvestigationsStore } from '@/stores/live-investigations'
@@ -7,6 +7,18 @@ import { useLiveInvestigationsStore } from '@/stores/live-investigations'
 const props = defineProps<{ investigation: LiveInvestigation, parsed: ParsedAlert }>()
 const live = useLiveInvestigationsStore()
 const tab = ref<'chat' | 'sensor' | 'docs'>('chat')
+const chatBody = ref<HTMLElement | null>(null)
+const suggestions = ['가장 유력한 원인은?', '추가로 확인할 센서는?', '관련 SOP 요약']
+async function scrollToBottom() {
+  await nextTick()
+  if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
+}
+watch([() => live.messages, () => live.busy, () => live.pending, tab], scrollToBottom, {deep:true, immediate:true})
+function suggest(question: string) {
+  if (!live.canSend) return
+  live.draft = question
+  void live.send()
+}
 const tabs = [{key:'chat', label:'대화'}, {key:'sensor', label:'센서 분석'}, {key:'docs', label:'문서 근거'}] as const
 
 // The first human message of an alert thread is the system alert text itself; show it collapsed.
@@ -35,19 +47,32 @@ function keydown(event: KeyboardEvent) {
         @click="tab = item.key">{{ item.label }}</button>
     </div>
 
-    <div v-if="tab === 'chat'" class="ai-body" data-testid="thread-conversation" aria-live="polite">
-      <template v-for="message in visibleMessages" :key="message.id">
+    <div v-if="tab === 'chat'" ref="chatBody" class="ai-body" data-testid="thread-conversation" aria-live="polite">
+      <template v-for="(message, index) in visibleMessages" :key="message.id">
         <div v-if="message.role === 'user'" class="bubble user">
-          <small>◉ 엔지니어 · 질문</small>
           <p>{{ message.text }}</p>
         </div>
-        <div v-else class="bubble ai">
-          <small class="t-accent">✧ TRACE AI · 데이터 분석</small>
-          <p data-testid="thread-message">{{ message.text }}</p>
+        <div v-else class="ai-group">
+          <span class="ai-avatar" aria-hidden="true">✧</span>
+          <div class="ai-content">
+            <small v-if="visibleMessages[index - 1]?.role !== 'assistant'">TRACE AI</small>
+            <div class="bubble ai"><p data-testid="thread-message">{{ message.text }}</p></div>
+          </div>
         </div>
       </template>
-      <p v-if="!visibleMessages.length && !live.loading" class="t-faint">경보 조사 결과에 대해 질문해 보세요.</p>
-      <p v-if="live.busy" class="t-faint" role="status">TRACE AI가 답변을 작성하는 중…</p>
+      <div v-if="live.pending" class="bubble user"><p>{{ live.pending }}</p></div>
+      <div v-if="!visibleMessages.length && !live.pending && !live.loading" class="chat-empty">
+        <span class="empty-icon" aria-hidden="true">✧</span>
+        <p>경보 조사 결과에 대해 질문해 보세요.</p>
+        <div class="suggestions">
+          <button v-for="question in suggestions" :key="question" type="button" :disabled="!live.canSend"
+            @click="suggest(question)">{{ question }}</button>
+        </div>
+      </div>
+      <div v-if="live.busy" class="ai-group" role="status" aria-label="TRACE AI가 답변을 작성하는 중">
+        <span class="ai-avatar" aria-hidden="true">✧</span>
+        <div class="bubble ai typing" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
     </div>
 
     <div v-else-if="tab === 'sensor'" class="ai-body">
@@ -71,33 +96,55 @@ function keydown(event: KeyboardEvent) {
       </RouterLink>
     </div>
 
-    <form v-if="tab === 'chat'" class="composer-row" data-testid="thread-composer" @submit.prevent="live.send()">
-      <label class="sr-only" for="threadQuestion">TRACE AI에게 질문</label>
-      <textarea id="threadQuestion" v-model="live.draft" rows="1" :disabled="!live.canSend"
-        placeholder="알람·센서·문서에 대해 질문…" @keydown="keydown"></textarea>
-      <button type="submit" class="t-btn send" :disabled="!live.canSend || !live.draft.trim()">전송</button>
-    </form>
+    <div v-if="tab === 'chat'" class="chat-composer">
+      <p v-if="live.error" class="chat-error" role="alert">{{ live.error }}</p>
+      <form class="composer-row" data-testid="thread-composer" @submit.prevent="live.send()">
+        <label class="sr-only" for="threadQuestion">TRACE AI에게 질문</label>
+        <textarea id="threadQuestion" v-model="live.draft" rows="1" :disabled="!live.canSend"
+          placeholder="알람·센서·문서에 대해 질문…" aria-describedby="composerHint" @keydown="keydown"></textarea>
+        <button type="submit" class="send" aria-label="전송" :disabled="!live.canSend || !live.draft.trim()">↑</button>
+      </form>
+      <p id="composerHint" class="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</p>
+    </div>
   </aside>
 </template>
 
 <style scoped>
-.ai-panel { display: flex; flex-direction: column; gap: 16px; min-height: 480px; }
+.ai-panel { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+@media (max-width: 1080px) { .ai-panel { min-height: 480px; max-height: 80vh; } }
 .ai-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); }
 .ai-tabs button { padding: 9px 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-size: 12px; }
 .ai-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
 .ai-body { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
-.bubble { padding: 14px 15px; border-radius: 8px; font-size: 12px; line-height: 1.7; }
-.bubble p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bubble small { font-size: 12px; font-weight: 700; }
-.bubble.user { align-self: flex-end; width: 88%; background: var(--bubble); color: var(--bubble-text); }
-.bubble.user small { opacity: .8; }
+.bubble { padding: 11px 14px; border-radius: 14px 14px 14px 4px; font-size: 12px; line-height: 1.7; min-width: 0; flex-shrink: 0; }
+.bubble p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble.user { align-self: flex-end; max-width: 85%; border-radius: 14px 14px 4px 14px; background: var(--bubble); color: var(--bubble-text); }
+.ai-group { display: flex; align-items: flex-start; gap: 8px; max-width: 85%; flex-shrink: 0; }
+.ai-avatar { display: grid; place-items: center; flex: 0 0 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.ai-content { min-width: 0; }
+.ai-content small { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 10px; }
 .bubble.ai { border: 1px solid var(--border); background: var(--surface-2); }
+.typing { display: flex; gap: 5px; align-items: center; min-height: 40px; }
+.typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); animation: pulse 1.2s infinite ease-in-out; }
+.typing span:nth-child(2) { animation-delay: .15s; }
+.typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes pulse { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .typing span { animation: none; } }
+.chat-empty { margin: auto 0; text-align: center; color: var(--text-muted); font-size: 12px; }
+.empty-icon { color: var(--accent); font-size: 28px; }
+.suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.suggestions button { padding: 8px 10px; border: 1px solid var(--border); border-radius: 20px; color: var(--accent); background: var(--surface-2); font-size: 11px; }
 .sensor-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .sensor-table th, .sensor-table td { padding: 8px 4px; border-bottom: 1px solid var(--border); text-align: left; }
 .sensor-table td { text-align: right; }
 .sensor-table tr.hot th, .sensor-table tr.hot td:nth-child(2) { color: var(--danger); }
 .doc-link { display: block; text-decoration: none; }
-.composer-row { display: flex; align-items: center; gap: 9px; padding: 9px 9px 9px 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
-.composer-row textarea { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font-size: 12px; }
-.send { min-height: 36px; padding: 0 16px; font-size: 12px; }
+.chat-composer { flex-shrink: 0; }
+.composer-row { display: flex; align-items: flex-end; gap: 9px; padding: 7px 7px 7px 15px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-2); }
+.composer-row:focus-within { border-color: var(--accent); }
+.composer-row textarea { field-sizing: content; flex: 1; min-width: 0; min-height: 22px; max-height: 88px; margin: 7px 0; line-height: 22px; padding: 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font: inherit; font-size: 12px; overflow-y: auto; }
+.send { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border: 0; border-radius: 50%; background: var(--bubble); color: var(--bubble-text); font-size: 23px; cursor: pointer; }
+.send:disabled { opacity: .4; cursor: default; }
+.composer-hint { margin: 7px 0 0; text-align: center; color: var(--text-muted); font-size: 10px; }
+.chat-error { margin: 0 0 8px; color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
 </style>

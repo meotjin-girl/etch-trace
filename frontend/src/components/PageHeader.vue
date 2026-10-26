@@ -1,5 +1,7 @@
 <script setup lang="ts">
-defineProps<{ title: string, subtitle?: string, ruled?: boolean }>()
+import StepBar from './StepBar.vue'
+
+defineProps<{ title: string, subtitle?: string, ruled?: boolean, step?: 1 | 2 | 3 | 4 | 5 }>()
 </script>
 
 <template>
@@ -8,6 +10,6 @@ defineProps<{ title: string, subtitle?: string, ruled?: boolean }>()
       <h1>{{ title }}</h1>
       <p v-if="subtitle || $slots.subtitle"><slot name="subtitle">{{ subtitle }}</slot></p>
     </div>
-    <span class="t-tag">합성 데이터</span>
+    <StepBar v-if="step" :current="step" />
   </header>
 </template>

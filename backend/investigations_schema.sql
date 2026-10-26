@@ -21,7 +21,9 @@ BEGIN
     IF NEW.alert IS DISTINCT FROM OLD.alert THEN
         RAISE EXCEPTION 'Investigation alert is immutable' USING ERRCODE = '23514';
     END IF;
-    IF OLD.approval IS NOT NULL AND NEW.approval IS DISTINCT FROM OLD.approval THEN
+    -- Clearing a choice is allowed until the field action is recorded; changing it is not.
+    IF OLD.approval IS NOT NULL AND NEW.approval IS DISTINCT FROM OLD.approval
+       AND NOT (NEW.approval IS NULL AND OLD.action IS NULL) THEN
         RAISE EXCEPTION 'Investigation approval is immutable' USING ERRCODE = '23514';
     END IF;
     IF OLD.action IS NOT NULL AND NEW.action IS DISTINCT FROM OLD.action THEN

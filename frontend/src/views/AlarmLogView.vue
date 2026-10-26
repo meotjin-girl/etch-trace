@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
-import StepBar from '@/components/StepBar.vue'
 import type { InvestigationSummary } from '@/api/live-models'
 import {
   fixed, headline, parseAlert, ruleTitle, sensorLabel, signed, stageLabels, stageOf, type Stage,
@@ -60,8 +59,7 @@ const occurred = (id: string, fallback: string) => {
 </script>
 
 <template>
-  <PageHeader title="이상 로그" subtitle="ETCH 장비의 합성 알람 · 경보가 들어오면 AI 조사가 자동으로 시작됩니다" />
-  <StepBar :current="1" />
+  <PageHeader :step="1" title="이상 로그" subtitle="ETCH 장비의 합성 알람 · 경보가 들어오면 AI 조사가 자동으로 시작됩니다" />
 
   <div class="t-tabs" role="tablist" aria-label="처리 상태">
     <button v-for="stage in (['detected', 'acting', 'done'] as const)" :key="stage" type="button" role="tab"
@@ -75,7 +73,7 @@ const occurred = (id: string, fallback: string) => {
     <button type="button" :disabled="live.loadingList" @click="live.refreshList()">다시 연결</button>
   </div>
 
-  <div class="t-split">
+  <div class="t-split t-fill t-cols">
     <section class="t-card" aria-labelledby="alarmListHeading" :aria-busy="live.loadingList">
       <h2 id="alarmListHeading">▦ 장비 알람 이벤트</h2>
       <p class="t-sub">Prometheus 경보 · 장비 알람과 FDC 경보를 Lot 단위로 묶음 · {{ inTab.length }}건</p>

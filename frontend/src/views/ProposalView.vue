@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import AiPanel from '@/components/AiPanel.vue'
 import AlarmHeader from '@/components/AlarmHeader.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import StepBar from '@/components/StepBar.vue'
 import { useInvestigation } from '@/composables/useInvestigation'
 import { ruleTitle } from '@/lib/alert-text'
 
@@ -15,17 +14,16 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
 </script>
 
 <template>
-  <PageHeader :title="`${title} · 조사 제안서`">
+  <PageHeader :step="2" :title="`${title} · 조사 제안서`">
     <template #subtitle>
       <RouterLink to="/" class="crumb">이상 로그</RouterLink> / {{ detail?.alert.tool_id }} · {{ detail?.alert.chamber_id }} / {{ title }}
     </template>
   </PageHeader>
-  <StepBar :current="2" />
   <div v-if="live.error" class="t-notice" role="alert">{{ live.error }}</div>
   <p v-if="!detail" class="t-empty" role="status">조사를 불러오는 중…</p>
   <template v-else-if="parsed">
     <AlarmHeader :investigation="detail" :head="head" />
-    <div class="t-split">
+    <div class="t-split t-fill t-cols">
       <div class="t-stack" data-testid="current-candidates">
         <div class="t-card warning">
           <strong class="t-danger">선제 확인 · 조치 지시 아님</strong>

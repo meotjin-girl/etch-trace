@@ -1,4 +1,4 @@
-"""Field action records: only after approval, once, attributed to the signed account."""
+"""Field action records and choice cancel: action only after approval, once, by the signed account."""
 
 from uuid import UUID
 
@@ -79,3 +79,31 @@ def test_action_requires_a_valid_access_token(client: TestClient) -> None:
     thread_id = approve(client)
     response = client.post(f"{API}/{thread_id}/action", json=ACTION)
     assert response.status_code == 401
+
+
+def test_choice_can_be_cleared_and_rechosen_before_the_action(client: TestClient) -> None:
+    # Given an investigation approved with its first candidate.
+    thread_id = approve(client)
+    # When the choice is cleared.
+    response = client.delete(f"{API}/{thread_id}/approval", headers=headers())
+    # Then nothing is approved and another candidate can be chosen.
+    assert response.status_code == 204, response.text
+    stored = detail(client, thread_id)
+    assert stored.approval is None
+    review = ApprovalInput(candidate_id=stored.candidates[1].id, expected_revision=stored.revision)
+    again = client.post(
+        f"{API}/{thread_id}/approval", headers=headers(), json=review.model_dump(mode="json")
+    )
+    assert again.status_code == 200, again.text
+    assert detail(client, thread_id).approval.candidate.id == stored.candidates[1].id  # type: ignore[union-attr]
+
+
+def test_choice_cannot_be_cleared_without_approval_or_after_the_action(client: TestClient) -> None:
+    unapproved, _ = create(client)
+    assert client.delete(f"{API}/{unapproved}/approval", headers=headers()).status_code == 409
+    thread_id = approve(client)
+    assert client.post(f"{API}/{thread_id}/action", headers=headers(), json=ACTION).status_code == 200
+    approval = detail(client, thread_id).approval
+    assert client.delete(f"{API}/{thread_id}/approval", headers=headers()).status_code == 409
+    assert detail(client, thread_id).approval == approval
+    assert client.delete(f"{API}/{thread_id}/approval").status_code == 401

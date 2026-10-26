@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
-import StepBar from '@/components/StepBar.vue'
 import { useInvestigation } from '@/composables/useInvestigation'
 import { fixed, ruleTitle } from '@/lib/alert-text'
 
@@ -21,15 +20,14 @@ async function save() {
 </script>
 
 <template>
-  <PageHeader title="조치 기록">
+  <PageHeader :step="5" title="조치 기록">
     <template #subtitle>{{ detail?.alert.tool_id }}/{{ detail?.alert.chamber_id }} / 현장에서 수행한 조치만 입력합니다</template>
   </PageHeader>
-  <StepBar :current="5" />
   <div v-if="live.error" class="t-notice" role="alert">{{ live.error }}</div>
   <p v-if="!detail" class="t-empty" role="status">조사를 불러오는 중…</p>
   <p v-else-if="!chosen" class="t-empty">원인을 먼저 선택해야 조치를 기록할 수 있습니다.
     <RouterLink class="t-link" :to="`/investigations/${encodeURIComponent(detail.id)}`">제안서로 이동</RouterLink></p>
-  <div v-else class="record-grid">
+  <div v-else class="record-grid t-fill t-scroll">
     <section class="t-card">
       <h2>알람 정보</h2>
       <p class="t-danger tool">{{ detail.alert.tool_id }} / {{ detail.alert.chamber_id }}</p>
@@ -62,7 +60,7 @@ async function save() {
           <textarea v-model="result" rows="3" required maxlength="10000" placeholder="측정값·관찰 결과·미확인 항목 입력"></textarea>
         </label>
         <p class="t-sub">저장 후에만 조사 기록에 표시됩니다. 저장한 내용은 수정할 수 없습니다.</p>
-        <div class="t-actions"><button type="submit" class="t-btn" :disabled="!ready">기록 저장 →</button></div>
+        <div class="t-actions"><RouterLink class="t-btn ghost" :to="`/investigations/${encodeURIComponent(detail.id)}/action`">← 조치 검토로</RouterLink><button type="submit" class="t-btn" :disabled="!ready">기록 저장 →</button></div>
       </form>
     </section>
   </div>

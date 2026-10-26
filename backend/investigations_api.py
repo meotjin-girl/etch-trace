@@ -37,6 +37,14 @@ def router(dependencies: Dependencies) -> APIRouter:
     ) -> Approval:
         return dependencies.current().investigations.approve(thread_id, body, actor)
 
+    @api.delete(
+        "/api/investigations/{thread_id}/approval",
+        status_code=204,
+        dependencies=[Depends(dependencies.actor)],
+    )
+    def cancel_approval(thread_id: UUID) -> None:
+        dependencies.current().investigations.cancel_approval(thread_id)
+
     @api.post("/api/investigations/{thread_id}/action")
     def record_action(
         thread_id: UUID,

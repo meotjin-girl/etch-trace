@@ -13,7 +13,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import TypeAdapter
 
 from trace_agent.graph import build_graph
-from trace_agent.models import Approval, Proposal, Request
+from trace_agent.models import ActionRecord, Approval, Proposal, Request
 from trace_agent.state import State
 
 from .conftest import ALERT, Business, ScriptedModel, draft
@@ -98,8 +98,9 @@ async def test_followup_updates_same_record_and_preserves_existing_candidate_id(
     ]
 
 
+@pytest.mark.parametrize("recorded", [False, True])
 async def test_general_question_reads_approval_without_replacing_candidates(
-    evidence: MCPEvidence, business: Business
+    evidence: MCPEvidence, business: Business, *, recorded: bool
 ) -> None:
     # Given: an externally approved investigation.
     identity = uuid4()
@@ -116,7 +117,20 @@ async def test_general_question_reads_approval_without_replacing_candidates(
         approved_at="2026-10-23T00:00:00Z",
         comment="Reviewed",
     )
-    business.records[identity] = original.model_copy(update={"approval": approval})
+    business.records[identity] = original.model_copy(
+        update={
+            "approval": approval,
+            "action": ActionRecord(
+                content="Checked RF",
+                result="Restored",
+                recorded_by_id="reviewer-2",
+                recorded_by="Reviewer",
+                recorded_at="2026-10-23T00:00:00Z",
+            )
+            if recorded
+            else None,
+        }
+    )
     model.proposal = Proposal(summary="No replacement", candidates=None)
 
     # When: standard message input continues the approved conversation.

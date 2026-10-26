@@ -89,6 +89,7 @@ export function mockApi(): Plugin {
             if (!id && method === 'GET') return send(res, 200, live.list())
             if (id && !action && method === 'GET') return send(res, 200, live.detail(id))
             if (id && action === 'approval' && method === 'POST') return send(res, 200, live.approve(id, await body(req)))
+            if (id && action === 'approval' && method === 'DELETE') { live.cancelApproval(id); res.statusCode = 204; return res.end() }
             if (id && action === 'action' && method === 'POST') return send(res, 200, live.recordAction(id, await body(req)))
             throw new MockError(404, 'Not Found')
           }
