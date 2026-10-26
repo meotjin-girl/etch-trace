@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Model(BaseModel):
@@ -162,10 +162,14 @@ class PhysicsRateInterval(Model):
 
 
 class PhysicsRateSeriesInputs(Model):
+    """Explicit etch-rate intervals supplied to the Level 1 integrator."""
+
     intervals: list[PhysicsRateInterval] = Field(default_factory=list)
 
 
 class PhysicsMetrologyComparisonInputs(Model):
+    """Measured and expected values plus an optional approved control limit."""
+
     measured_value: float | None = None
     expected_value: float | None = None
     unit: str = "nm"
@@ -177,6 +181,8 @@ class PhysicsMetrologyComparisonInputs(Model):
 
 
 class PhysicsReferenceObservation(Model):
+    """One comparable prior normal Run measurement."""
+
     run_id: str
     equipment: str
     chamber: str
@@ -190,6 +196,8 @@ class PhysicsReferenceObservation(Model):
 
 
 class PhysicsReferenceComparisonInputs(Model):
+    """Target Run and eligible prior observations for quantitative comparison."""
+
     target_run_id: str
     equipment: str
     chamber: str
@@ -206,6 +214,8 @@ class PhysicsReferenceComparisonInputs(Model):
 
 
 class PhysicsQuantitativeInputs(Model):
+    """Inputs for the combined v2 quantitative analysis."""
+
     measured_etch_depth_nm: float | None = None
     target_etch_depth_nm: float | None = None
     depth_control_limit: PhysicsControlLimit | None = None
@@ -213,6 +223,8 @@ class PhysicsQuantitativeInputs(Model):
 
 
 class PhysicsProcessConditionPoint(Model):
+    """One time-aligned process point and its non-zero reference values."""
+
     offset_sec: float
     source_rf_w: float
     source_rf_reference_w: float
@@ -230,6 +242,8 @@ class PhysicsProcessConditionPoint(Model):
 
 
 class PhysicsSensitivityCoefficient(Model):
+    """One uncalibrated educational Level 2 sensitivity coefficient."""
+
     variable: Literal["source_rf", "bias_rf", "pressure", "sf6", "o2", "esc_temp"]
     value: float
     unit: Literal["per_relative_change"] | None = None
@@ -238,6 +252,8 @@ class PhysicsSensitivityCoefficient(Model):
 
 
 class PhysicsEducationalSimulationInputs(Model):
+    """Direct Physics MCP inputs for an educational Level 1~3 simulation."""
+
     base_etch_rate_nm_min: float | None = None
     feature_width_nm: float | None = None
     arde_coefficient: float | None = None
@@ -245,6 +261,101 @@ class PhysicsEducationalSimulationInputs(Model):
     process_points: list[PhysicsProcessConditionPoint] | None = None
     coefficients: list[PhysicsSensitivityCoefficient] | None = None
     source_run_id: str | None = None
+
+
+class SensorRunQuery(Model):
+    """Exact Mock Fab identity requested from Sensor MCP."""
+
+    equipment: str
+    chamber: str
+    lot_id: str
+    wafer_id: str
+    recipe: str
+    step: str | None = None
+    target_run_id: str | None = None
+
+
+class SensorAnalysisResult(Model):
+    """Sensor MCP result fields required for deterministic Physics handoff."""
+
+    version: str = "2.0"
+    problem: str = ""
+    status: Literal["CALCULATED", "INSUFFICIENT_DATA", "INVALID_INPUT"]
+    target_run_id: str | None = None
+    equipment: str | None = None
+    chamber: str | None = None
+    lot_id: str | None = None
+    wafer_id: str | None = None
+    recipe: str | None = None
+    step: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    snapshot_id: str | None = None
+    snapshot_start_offset_sec: float | None = None
+    snapshot_end_offset_sec: float | None = None
+    signals: list[dict[str, JsonValue]] = Field(default_factory=list)
+    process_series: list[PhysicsProcessConditionPoint] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    causal_conclusion: Literal[False] = False
+
+
+class MockFabEducationalSimulationInputs(SensorRunQuery):
+    """One immutable Sensor snapshot evaluated at one or more feature widths."""
+
+    base_etch_rate_nm_min: float
+    feature_widths_nm: list[float] = Field(min_length=1)
+    arde_coefficient: float = 0.10
+    expected_snapshot_id: str | None = None
+
+
+class PhysicsRelativeRatePoint(Model):
+    """One Level 2 simulated relative-rate sample."""
+
+    offset_sec: float
+    relative_rate: float
+    simulated_process_rate_nm_min: float
+    source: str
+
+
+class PhysicsProfileCoordinate(Model):
+    """One coordinate in the simplified educational removed-region polygon."""
+
+    x_nm: float
+    y_nm: float
+
+
+class PhysicsProfileFrame(Model):
+    """One Level 3 depth and fixed-width profile frame."""
+
+    offset_sec: float
+    depth_nm: float
+    opening_width_nm: float
+    aspect_ratio: float
+    simulated_arde_rate_nm_min: float
+    removed_region: list[PhysicsProfileCoordinate]
+
+
+class PhysicsEducationalSimulationResult(Model):
+    """Validated Physics MCP response for the educational Level 1~3 model."""
+
+    version: str
+    mode: Literal["EDUCATIONAL_ASSUMPTION"]
+    status: Literal["SIMULATED", "INSUFFICIENT_DATA", "INVALID_INPUT"]
+    validation_status: Literal["NOT_VALIDATED"]
+    completed_levels: list[int] = Field(default_factory=list)
+    source_run_id: str | None = None
+    arde_coefficient: float | None = None
+    arde_coefficient_source: str
+    arde_coefficient_calibrated: Literal[False]
+    formulas: list[str] = Field(default_factory=list)
+    coefficients: list[PhysicsSensitivityCoefficient] = Field(default_factory=list)
+    relative_rate_series: list[PhysicsRelativeRatePoint] = Field(default_factory=list)
+    profile_frames: list[PhysicsProfileFrame] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    causal_conclusion: Literal[False] = False
 
 
 class Case(BaseModel):

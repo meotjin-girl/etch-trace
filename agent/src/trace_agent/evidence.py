@@ -12,7 +12,7 @@ from .config import Settings
 from .errors import ContractError
 from .models import LiveInvestigation, Publication, Receipt
 
-type Service = Literal["business", "rag", "physics"]
+type Service = Literal["business", "rag", "physics", "sensor"]
 
 
 class Evidence(Protocol):
@@ -35,6 +35,7 @@ class MCPEvidence:
             "business": self.settings.business_mcp_url,
             "rag": self.settings.rag_mcp_url,
             "physics": self.settings.physics_mcp_url,
+            "sensor": self.settings.sensor_mcp_url,
         }
         base = urls[service].rstrip("/")
         url = base if base.endswith("/mcp") else f"{base}/mcp"

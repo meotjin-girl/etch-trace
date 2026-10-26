@@ -14,15 +14,16 @@ thread ID는 조사 ID와 같은 UUID입니다. Agent Server의 개발 체크포
 
 - Business MCP: `search_cases`, `analyze_metrics`, `list_investigations` 및 업무 조사 저장·조회
 - RAG MCP: `search_documents`, `search_sop`
-- Physics MCP: `evaluate_etch_physics`
+- Physics MCP: 기본 관계식, 정량 비교, R(t) 적분, 교육용 Level 1~3 시뮬레이션
+- Sensor MCP: `analyze_current_etch_run`을 통한 정확한 Mock Fab Run 시계열 조회
 
 각 도구는 실제 MCP 응답에 있는 근거를 사용합니다. 정량 계산은 결정론적 MCP 코드에서 수행하며, 모델이 없는 수치나 근거를 만들어내지 않도록 합니다.
 
-## 아직 연결하지 않은 Sensor MCP
+## Sensor MCP와 교육용 시뮬레이션
 
-`mcp/sensor.py`와 `mcp/sensor_models.py`에는 Mock Fab의 센서 시계열을 조회·분석하는 Sensor MCP가 구현되어 있고, `compose.yaml`에서 별도 `sensor-mcp` 서비스로 실행할 수 있습니다. 다만 현재 Agent의 `tools.py`, `evidence.py`, 설정과 실행 의존성에는 Sensor MCP 연결을 추가하지 않았습니다. 따라서 Sensor MCP가 실행 중이어도 Agent의 조사 결과에는 사용되지 않습니다. Agent 연동은 별도 변경 범위입니다.
+`simulate_mock_fab_etch`는 사용자가 교육용 시뮬레이션을 명시적으로 요청한 경우에만 정확히 일치하는 완료 Run을 Sensor MCP에서 한 번 조회합니다. 장비·챔버·Lot·Wafer·Recipe와 선택적 Step/Run ID가 일치하지 않거나 식별할 수 없으면 다른 Run을 대입하지 않습니다. 조회한 `process_series`와 `snapshot_id`는 요청한 모든 패턴 폭 계산에 그대로 재사용합니다.
 
-Sensor MCP의 수집기가 없거나 데이터가 일치하지 않으면 도구는 충분한 데이터가 없다고 응답합니다. 합성 Mock Fab 데이터는 실제 생산 장비의 원본 시계열이 아닙니다.
+결과는 항상 `SIMULATED / NOT_VALIDATED` 교육용 가정이며 일반 경보 조사, 원인 확정, OCAP 판정, Recipe 변경 또는 Lot Release 근거로 사용하지 않습니다. 수집기 연결 실패, Run 불일치, GOOD 샘플 부족이면 안전하게 `INSUFFICIENT_DATA`를 반환합니다. 합성 Mock Fab 데이터는 실제 생산 장비의 원본 시계열이 아닙니다.
 
 ## 실행과 검증
 
@@ -33,7 +34,7 @@ cp .env.example .env
 docker compose -f compose.yaml up -d --build
 ```
 
-Agent Server는 Compose 네트워크 안에서 backend, Business MCP, RAG MCP, Physics MCP와 통신합니다. Sensor MCP는 현재 Agent 의존성에 포함되지 않습니다.
+Agent Server는 Compose 네트워크 안에서 backend, Business MCP, RAG MCP, Physics MCP, Sensor MCP와 통신합니다. Sensor MCP는 `FAB_COLLECTOR_URL`로 별도 Mock Fab Collector를 조회합니다.
 
 Agent 테스트는 외부 모델 API를 호출하지 않고 모의 모델을 사용합니다.
 
@@ -47,4 +48,4 @@ uv run basedpyright
 
 ## 경계
 
-Agent가 제시하는 원인과 조치는 확인 가설입니다. 실제 MES, 생산 장비 센서, 정비 API에 접근한다고 간주하면 안 됩니다. Sensor MCP가 조회 가능한 범위는 Mock Fab의 합성 데이터이며, 이 MCP를 Agent에 연결하는 것은 아직 구현되지 않았습니다.
+Agent가 제시하는 원인과 조치는 확인 가설입니다. 실제 MES, 생산 장비 센서, 정비 API에 접근한다고 간주하면 안 됩니다. Sensor MCP가 조회 가능한 범위는 Mock Fab의 합성 데이터입니다.
