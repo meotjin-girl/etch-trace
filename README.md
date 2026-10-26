@@ -1,6 +1,10 @@
 # TRACE v1.0.0
 
-식각 장비 경보를 받아 원인 후보를 조사하고, 초기 분석을 조사 목록에 공개합니다.
+반도체 식각 공정 이상 탐지 AI Agent입니다. 모의 SECS/GEM 식각 장비의 센서 값을
+Prometheus FDC 규칙으로 감시하고, 경보가 나면 Agent가 근거가 붙은 원인 후보를 미리 조사해
+조사 목록에 공개합니다. 이상 대응 5단계 중 AI는 **②조사**와 **④조치 제안**(SOP·OCAP 근거)을
+맡고, ③원인 판정·조치 실행·⑤기록 입력은 엔지니어가 합니다.
+
 로그인한 팀원은 같은 조사에서 질문을 이어가고 후보를 보완·선택·승인합니다.
 승인 후에도 대화할 수 있으며, 승인은 물리적 원인의 확정이 아니라
 **근거를 검토한 가설의 승인**입니다.
@@ -14,7 +18,7 @@
 
 ```bash
 cp .env.example .env
-# .env의 OPENAI_API_KEY, OPENAI_MODEL 설정 및 내부 키·개발 비밀번호 변경
+# .env의 OPENAI_API_KEY, OPENAI_MODEL(기본 gpt-4.1-mini) 설정 및 내부 키·개발 비밀번호 변경
 docker compose -f compose.yaml up -d --build
 docker compose -f compose.yaml ps
 ```
@@ -22,8 +26,8 @@ docker compose -f compose.yaml ps
 `.env.example`의 `WEB_PORT=18080`을 사용하면 화면은 `http://localhost:18080`입니다.
 다른 실행과 겹치면 포트와 Compose 프로젝트명을 분리하세요.
 nginx가 정적 화면과 `/api`, `/agent`, `/auth` 경로를 나눠 제공합니다.
-Agent Server의 Studio용 포트는 localhost의 2024로 공개합니다.
-backend, MCP, PostgreSQL은 내부 네트워크에 둡니다.
+Agent Server의 Studio용 포트는 `.env`의 `AGENT_SERVER_PORT`(예시 2024, 미설정 시 8001)로
+localhost에만 공개합니다. backend, MCP, PostgreSQL, Prometheus는 내부 네트워크에 둡니다.
 
 새 환경에서는 기본 계정 **`test` / `test`**로 바로 로그인할 수 있습니다. Keycloak 관리자 화면은 같은 주소의 `/auth/admin/`이며, 추가 계정은 관리자가 `trace` realm에 만듭니다. 회원가입은 제공하지 않습니다. 기존 볼륨의 기본 계정 추가 방법은 [계정 생성·URL·영속성 안내](deploy/keycloak/README.md)를 참고하세요.
 
@@ -31,29 +35,40 @@ backend, MCP, PostgreSQL은 내부 네트워크에 둡니다.
 이 데이터는 시연용 샘플이며 PHM 실측 데이터가 아닙니다.
 새 Agent의 실제 분석에는 `OPENAI_API_KEY`가 필요합니다.
 RAG MCP는 문서 ID 정확 조회와 `sop-ocap/` SOP·OCAP 의미 검색을 제공합니다.
+SOP 검색은 절 단위 임베딩(`sop-postgres`, pgvector)으로 후보 20개를 찾고 LLM 재순위화로 조항 3개를 고릅니다.
+
+경보는 compose의 `prometheus` 서비스가 모의 장비 수집기(`backend/prometheus/targets.json`)를
+5초마다 수집해 `backend/prometheus/rules.yml` 규칙으로 판정합니다. backend가 이 경보를 읽어
+Agent Server에 조사를 요청합니다. 끄려면 `.env`에 `PROMETHEUS_URL=`을 둡니다.
+모의 장비는 별도 호스트에서 `docker compose -f fab/compose.yaml up -d`로 실행합니다. [모의 장비·FDC 안내](docs/mock-fab.md)
 
 ## 실행 구조
 
 ```text
+모의 장비(fab/, SECS/GEM) -> collector -> prometheus (FDC 규칙) -> backend 경보 수집 -> agent 조사 시작
+
 브라우저(Vue 3) -> nginx -> backend (조사 목록·현재 후보·승인·SOP)
+                       -> keycloak (/auth, OIDC·PKCE 로그인)
                        -> agent (Agent Server, thread·대화·실행)
                             -> business-mcp -> backend 조사 저장·사례 API
-                            -> rag-mcp -> 문서 / SOP·OCAP 색인
+                            -> rag-mcp -> 문서 / SOP·OCAP 색인 (pgvector + LLM 재순위화)
                             -> physics-mcp -> 결정론적 식각 관계식 계산
                             -> sensor-mcp -> Mock Fab Run 시계열·계산 입력 스냅샷
 ```
 
 | 경로 | 책임 |
 |---|---|
-| `frontend/` | Vue 3 + TypeScript 화면(Vite). 질문·재질문·채팅 판별·조사 기록·SOP. [docs/frontend.md](docs/frontend.md) |
-| `backend/main.py`, `backend/investigations_api.py`, `backend/investigations_store.py` | 신규 조사 API·JWT 검증·현재 후보·승인 저장; `backend/v1_*.py`는 레거시 호환 |
+| `frontend/` | Vue 3 + TypeScript 화면(Vite). 이상 로그 → 조사 제안서·채팅 → 원인 후보 → 조치 검토 → 조치 기록, 조사 기록, SOP·OCAP. [docs/frontend.md](docs/frontend.md) |
+| `backend/main.py`, `backend/investigations_api.py`, `backend/investigations_store.py` | 신규 조사 API·JWT 검증·현재 후보·승인·조치 기록 저장, Prometheus 경보 수집(`agent_server_alerts.py`); `backend/v1_*.py`는 레거시 호환 |
 | `agent/src/trace_agent/` | 표준 Agent Server, 단일 ReAct 조사, 구조화 후보·업무 저장 |
-| `mcp/` | Business·RAG 도구 구현, 사례·문서 조회와 통계 |
-| `mcp/physics.py`, `mcp/physics_models.py` | Agent가 연결해 사용하는 식각 깊이·평균 식각 속도·선택비 계산. [Physics v1](docs/physics.md) |
+| `mcp/` | Business(`search_cases`, `analyze_metrics`, 조사 저장)·RAG(`search_sop`, `search_documents`) 도구 구현 |
+| `mcp/physics.py`, `mcp/physics_models.py` | 식각 깊이·평균 식각 속도·선택비 계산, 정상 Run 비교, R(t) 적분, 계측 Spec 비교, 교육용 Level 2/3 시뮬레이션(`NOT_VALIDATED`). [Physics v1](docs/physics.md) |
 | `mcp/sensor.py`, `mcp/sensor_models.py` | 정확한 장비·챔버·Lot·Wafer·Recipe 식별자 기반 Mock Fab 시계열 분석 |
 | `sop-ocap/` | SOP 3종·OCAP 19종 원문. SOP 화면과 SOP 의미 검색의 출처 |
 | `db/` | 샘플 사례·문서와 적재 스크립트 |
-| `compose.yaml`, `deploy/` | 서비스 구성, nginx 프록시 |
+| `fab/`, `backend/prometheus/` | 모의 SECS/GEM 식각 장비·수집기와 Prometheus FDC 규칙. [docs/mock-fab.md](docs/mock-fab.md) |
+| `compose.yaml`, `deploy/` | 서비스 구성, nginx 프록시, Keycloak realm·로그인 테마 |
+| `.github/workflows/ci.yml` | PR 단계 프런트 빌드·Python 문법 검사. develop 병합 후 Jenkins(EC2) 배포는 [docs/deploy.md](docs/deploy.md) |
 
 숫자는 코드가 계산하며 단위와 근거 사례 ID를 보존합니다. 보고서는 `demo:true`이고 문서 ID·제목·본문, 누락 근거, 검토 의견을 포함합니다. 분류별 서브그래프나 담당 엔지니어 자동 배정은 v1 계약이 아닙니다.
 
@@ -68,7 +83,8 @@ thread에서 초기 후보 제안과 Business MCP 저장이 끝나면 목록에 
 
 화면 흐름은 이상 로그 → AI 조사(제안서·대화) → 원인 확인 → 조치 검토 → 조치 기록입니다.
 상태는 이상 탐지(승인 전) / 조치 중(원인 선택) / 조치 완료(조치 기록)이며, 조치 기록은
-`POST /api/investigations/{id}/action`으로 한 번만 저장됩니다. 화면 색은 기기의 라이트·다크
+`POST /api/investigations/{id}/action`으로 한 번만 저장됩니다. 조치 기록 전에는
+`DELETE /api/investigations/{id}/approval`로 원인 선택을 취소하고 다시 고를 수 있습니다. 화면 색은 기기의 라이트·다크
 설정을 따릅니다. 로그인 화면은 `deploy/keycloak/themes/trace` 테마입니다.
 
 ## 기존 v1 요청과 검토 (호환 경로)
@@ -95,6 +111,9 @@ uv sync --group dev
 (cd agent && uv sync --group dev && uv run pytest)
 (cd backend && uv sync --group dev && uv run pytest)
 uv run --project mcp python -m unittest discover -s tests -p 'test_evidence.py' -v
+uv run --project mcp --with pytest python -m pytest tests/test_physics.py -q
+(cd fab && uv sync --group dev && uv run pytest)
+(cd backend/prometheus && docker run --rm -v "$PWD":/w -w /w --entrypoint promtool prom/prometheus:v2.53.0 test rules rules_test.yml)
 (cd frontend && npm ci && npm run type-check && npm test)   # npm run dev:mock 으로 backend 없이 화면 확인
 uv run --project mcp --group rag-experiment python -m unittest discover -s tests -p 'test_sop_*.py' -v
 ```
@@ -111,4 +130,4 @@ uv run --project mcp --group rag-experiment python -m unittest discover -s tests
 
 Keycloak은 개발용 Compose 서비스로 포함합니다. 실제 검증 범위는 [인증 이식 검증 기록](docs/keycloak-validation.md)을 참고하세요.
 
-문서: [목차](docs/README.md), [계약](docs/v1-contract.md), [API](docs/api.md), [에이전트](docs/agent.md), [아키텍처](docs/architecture.md).
+문서: [목차](docs/README.md), [Agent Server](docs/agent-server.md), [화면](docs/frontend.md), [Physics](docs/physics.md), [모의 장비·FDC](docs/mock-fab.md), [배포](docs/deploy.md), [계약](docs/v1-contract.md), [API](docs/api.md), [에이전트](docs/agent.md), [아키텍처](docs/architecture.md).
