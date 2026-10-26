@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
@@ -50,7 +51,7 @@ async function save() {
         <div class="t-field"><span>조치 내용</span><p class="t-inner saved">{{ detail.action.content }}</p></div>
         <div class="t-field"><span>확인 결과</span><p class="t-inner saved">{{ detail.action.result }}</p></div>
         <p class="t-faint">{{ detail.action.recorded_by }} · {{ new Date(detail.action.recorded_at).toLocaleString('ko-KR') }} 저장됨</p>
-        <div class="t-actions"><RouterLink class="t-btn" :to="`/records/${encodeURIComponent(detail.id)}`">조사 기록 보기 →</RouterLink></div>
+        <div class="t-actions"><RouterLink class="t-btn" :to="`/records/${encodeURIComponent(detail.id)}`">조사 기록 보기 <TraceIcon name="forward" /></RouterLink></div>
       </template>
       <form v-else data-testid="action-form" @submit.prevent="save">
         <label class="t-field"><span>조치 내용 *</span>
@@ -60,7 +61,7 @@ async function save() {
           <textarea v-model="result" rows="3" required maxlength="10000" placeholder="측정값·관찰 결과·미확인 항목 입력"></textarea>
         </label>
         <p class="t-sub">저장 후에만 조사 기록에 표시됩니다. 저장한 내용은 수정할 수 없습니다.</p>
-        <div class="t-actions"><RouterLink class="t-btn ghost" :to="`/investigations/${encodeURIComponent(detail.id)}/action`">← 조치 검토로</RouterLink><button type="submit" class="t-btn" :disabled="!ready">기록 저장 →</button></div>
+        <div class="t-actions"><RouterLink class="t-btn ghost" :to="`/investigations/${encodeURIComponent(detail.id)}/action`"><TraceIcon name="back" /> 조치 검토로</RouterLink><button type="submit" class="t-btn" :disabled="!ready">기록 저장 <TraceIcon name="forward" /></button></div>
       </form>
     </section>
   </div>

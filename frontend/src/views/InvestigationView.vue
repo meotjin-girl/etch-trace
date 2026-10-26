@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { nextTick, ref, watch } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ReportView from '@/components/ReportView.vue'
@@ -84,7 +85,7 @@ watch(() => investigation.draft, () => nextTick(resize), {immediate:true})
     <textarea id="questionInput" ref="input" v-model="investigation.draft" rows="1" required
       :placeholder="investigation.placeholder" :disabled="investigation.inputBlocked"
       @keydown="onKeydown"></textarea>
-    <button class="send-button" type="submit" aria-label="질문 보내기" :disabled="investigation.inputBlocked"><i class="fi-rr-paper-plane" aria-hidden="true"></i></button>
+    <button class="send-button" type="submit" aria-label="질문 보내기" :disabled="investigation.inputBlocked"><TraceIcon name="send" /></button>
     <p>Enter로 전송 · Shift + Enter로 줄바꿈</p>
   </form>
 </template>

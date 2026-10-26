@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
@@ -43,9 +44,9 @@ const items = computed(() => [
     </ol>
     <div class="t-actions">
       <button v-if="!detail.action" type="button" class="t-btn ghost" data-testid="rechoose"
-        :disabled="live.approving" @click="rechoose">← 원인 다시 선택</button>
+        :disabled="live.approving" @click="rechoose"><TraceIcon name="back" /> 원인 다시 선택</button>
       <RouterLink class="t-btn" :to="`/investigations/${encodeURIComponent(detail.id)}/record`">
-        {{ detail.action ? '기록 보기' : '수행한 조치 기록하기' }} →
+        {{ detail.action ? '기록 보기' : '수행한 조치 기록하기' }} <TraceIcon name="forward" />
       </RouterLink>
     </div>
   </div>

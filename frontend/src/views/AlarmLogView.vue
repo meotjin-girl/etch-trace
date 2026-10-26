@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
@@ -75,7 +76,7 @@ const occurred = (id: string, fallback: string) => {
 
   <div class="t-split t-fill t-cols">
     <section class="t-card" aria-labelledby="alarmListHeading" :aria-busy="live.loadingList">
-      <h2 id="alarmListHeading">▦ 장비 알람 이벤트</h2>
+      <h2 id="alarmListHeading" class="t-icon-heading"><TraceIcon name="events" />장비 알람 이벤트</h2>
       <p class="t-sub">Prometheus 경보 · 장비 알람과 FDC 경보를 Lot 단위로 묶음 · {{ inTab.length }}건</p>
       <hr class="t-rule">
       <p v-if="live.loadingList && !live.records.length" class="t-empty" role="status">알람을 불러오는 중…</p>
@@ -85,7 +86,7 @@ const occurred = (id: string, fallback: string) => {
           :class="{selected: item.id === selectedId}" :data-investigation-id="item.id"
           :aria-pressed="item.id === selectedId" @click="select(item.id)">
           <header>
-            <span class="t-bang" aria-hidden="true">!</span>
+            <span class="t-bang" aria-hidden="true"><TraceIcon name="warning" /></span>
             <strong>{{ item.tool_id }} / {{ item.chamber_id }}</strong>
             <span class="t-pill" :class="stageOf(item)">{{ stageLabels[stageOf(item)] }}</span>
           </header>
@@ -109,14 +110,14 @@ const occurred = (id: string, fallback: string) => {
     </section>
 
     <aside class="t-card t-stack" aria-labelledby="selectedHeading">
-      <h2 id="selectedHeading">◉ 현재 선택한 알람</h2>
+      <h2 id="selectedHeading" class="t-icon-heading"><TraceIcon name="selected" />현재 선택한 알람</h2>
       <p v-if="!selected" class="t-empty">목록에서 알람을 선택해 주세요.</p>
       <template v-else>
         <div class="t-inner picked">
           <header><span class="t-danger">{{ selected.tool_id }} · {{ selected.chamber_id }}</span></header>
           <div class="picked-title">
             <h3>{{ selectedPreview?.head ? ruleTitle(selectedPreview.head.alarm.rule) : selected.summary }}</h3>
-            <span class="t-bang" aria-hidden="true">!</span>
+            <span class="t-bang" aria-hidden="true"><TraceIcon name="warning" /></span>
           </div>
           <p v-if="selectedPreview?.head" class="t-faint">
             {{ selectedPreview.head.alarm.rule }} · {{ selectedPreview.head.alarm.source === 'equipment' ? '장비 알람' : 'FDC 경보' }}
@@ -130,7 +131,7 @@ const occurred = (id: string, fallback: string) => {
           </p>
         </div>
         <div class="t-inner">
-          <h3 class="small">▤ 이벤트 정보</h3>
+          <h3 class="small t-icon-heading"><TraceIcon name="info" />이벤트 정보</h3>
           <hr class="t-rule">
           <dl class="t-kv">
             <dt>LOT</dt><dd>{{ selected.lot_id }}</dd>
@@ -140,7 +141,7 @@ const occurred = (id: string, fallback: string) => {
           </dl>
         </div>
         <RouterLink class="t-btn block" :to="`/investigations/${encodeURIComponent(selected.id)}`" data-testid="open-investigation">
-          조사하기
+          조사하기 <TraceIcon name="forward" />
         </RouterLink>
       </template>
     </aside>

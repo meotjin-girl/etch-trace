@@ -190,3 +190,16 @@ a { color: inherit; }
   .t-card { padding: 15px; }
 }
 .t-nav-item i { font-size: 12px; opacity: .8; }
+
+/* Shared Flaticon UIcons rhythm across navigation, headings and inline actions. */
+.t-nav-item .trace-icon { font-size: 18px; }
+.t-search .trace-icon, .t-user button .trace-icon { font-size: 16px; }
+.t-icon-heading { display: flex; align-items: center; gap: 9px; }
+.t-icon-heading > .trace-icon { color: var(--accent); }
+.t-link .trace-icon { font-size: 14px; }
+.t-link .trace-icon:first-child { margin-right: 3px; }
+.t-link .trace-icon:last-child { margin-left: 3px; }
+.t-btn .trace-icon { font-size: 17px; }
+.t-bang { width: 22px; height: 22px; font-size: 14px; }
+.t-icon-credit { margin-top: 10px; text-align: center; color: var(--text-muted); font-size: 10px; text-decoration: none; }
+.t-icon-credit:hover { color: var(--accent); text-decoration: underline; }

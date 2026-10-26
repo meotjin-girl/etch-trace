@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
@@ -76,7 +77,7 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
       <section class="t-card">
         <h3>02&nbsp; 문서 근거</h3>
         <p class="docs">
-          <RouterLink v-for="doc in candidate.doc_ids" :key="doc" class="t-link" :to="docLink(doc)">{{ doc }} ↗</RouterLink>
+          <RouterLink v-for="doc in candidate.doc_ids" :key="doc" class="t-link" :to="docLink(doc)"><TraceIcon name="document" /> {{ doc }} <TraceIcon name="chevron" /></RouterLink>
           <span v-if="!candidate.doc_ids.length" class="t-faint">연결된 문서 없음</span>
         </p>
         <hr class="t-rule">
@@ -90,13 +91,13 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
     </div>
 
     <div class="t-actions">
-      <RouterLink class="t-btn ghost" :to="`/investigations/${encodeURIComponent(detail.id)}`">← 제안서로</RouterLink>
+      <RouterLink class="t-btn ghost" :to="`/investigations/${encodeURIComponent(detail.id)}`"><TraceIcon name="back" /> 제안서로</RouterLink>
       <RouterLink v-if="approved" class="t-btn" :to="`/investigations/${encodeURIComponent(detail.id)}/action`">
-        {{ approved.candidate.id === candidate.id ? '선택한 원인' : '이미 다른 원인 선택됨' }} · 조치 검토 →
+        {{ approved.candidate.id === candidate.id ? '선택한 원인' : '이미 다른 원인 선택됨' }} · 조치 검토 <TraceIcon name="forward" />
       </RouterLink>
       <button v-if="!approved || (approved.candidate.id !== candidate.id && !detail.action)" type="button" class="t-btn"
         :data-approve-candidate="candidate.id" :disabled="live.approving || live.busy || live.loading"
-        @click="choose">{{ approved ? '이 원인으로 변경 →' : '원인 선택 →' }}</button>
+        @click="choose">{{ approved ? '이 원인으로 변경' : '원인 선택' }} <TraceIcon name="forward" /></button>
     </div>
   </div>
 </template>

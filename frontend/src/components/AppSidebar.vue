@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useIdentityStore } from '@/stores/identity'
@@ -9,10 +10,10 @@ const ui = useUiStore()
 const route = useRoute()
 const section = computed(() => String(route.meta.section ?? ''))
 const nav = [
-  {to:'/', section:'alarms', icon:'fi-rr-apps', label:'이상 로그'},
-  {to:'/records', section:'records', icon:'fi-rr-document', label:'조사 기록'},
-  {to:'/sop', section:'sop', icon:'fi-rr-book-alt', label:'SOP · OCAP'},
-]
+  {to:'/', section:'alarms', icon:'alarms', label:'이상 로그'},
+  {to:'/records', section:'records', icon:'records', label:'조사 기록'},
+  {to:'/sop', section:'sop', icon:'book', label:'SOP · OCAP'},
+] as const
 // Two-letter badge from the account name (Latin initials, or the first two Hangul syllables).
 const initials = computed(() => {
   const name = identity.name.trim()
@@ -34,7 +35,7 @@ const roleLabel = computed(() => identity.role === 'engineer' ? '엔지니어' :
     <p class="t-brand-sub">식각 공정 이상 조사</p>
 
     <label class="t-search">
-      <i class="fi-rr-search" aria-hidden="true"></i>
+      <TraceIcon name="search" />
       <span class="sr-only">알람·장비 검색</span>
       <input v-model="ui.search" type="search" placeholder="알람·장비 검색" autocomplete="off">
     </label>
@@ -43,16 +44,17 @@ const roleLabel = computed(() => identity.role === 'engineer' ? '엔지니어' :
     <nav aria-label="조사 메뉴">
       <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="t-nav-item"
         :class="{active: section === item.section}" :aria-current="section === item.section ? 'page' : undefined">
-        <i :class="item.icon" aria-hidden="true"></i>{{ item.label }}
+        <TraceIcon :name="item.icon" />{{ item.label }}
       </RouterLink>
     </nav>
     <hr class="t-divider">
-    <button type="button" class="t-nav-item t-settings" disabled title="준비 중">설정</button>
+    <button type="button" class="t-nav-item t-settings" disabled title="준비 중"><TraceIcon name="settings" />설정</button>
 
     <div class="t-user">
       <b aria-hidden="true">{{ initials }}</b>
       <span>{{ identity.name }} · {{ roleLabel }}</span>
-      <button type="button" title="로그아웃" aria-label="로그아웃" @click="identity.logout()"><i class="fi-rr-sign-out-alt" aria-hidden="true"></i></button>
+      <button type="button" title="로그아웃" aria-label="로그아웃" @click="identity.logout()"><TraceIcon name="logout" /></button>
     </div>
+    <a class="t-icon-credit" href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>
   </aside>
 </template>
