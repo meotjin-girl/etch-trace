@@ -30,6 +30,10 @@ export function createLiveApi(auth: SessionAuth, transport: Transport = {}) {
         method:'POST', body:JSON.stringify(selection), signal,
       }))
     },
+    /** Clears the chosen candidate so another can be chosen; refused once an action is recorded. */
+    async cancelApproval(id: string, signal?: AbortSignal) {
+      await http.response(`${path(id)}/approval`, {method:'DELETE', signal})
+    },
     async recordAction(id: string, input: ActionInput, signal?: AbortSignal) {
       return actionRecord(await http.json(`${path(id)}/action`, {
         method:'POST', body:JSON.stringify(input), signal,

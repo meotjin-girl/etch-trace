@@ -1,4 +1,4 @@
-"""Revision-checked live writes and one immutable approval on the shared pool."""
+"""Revision-checked live writes and one approval, cancelable until an action is recorded."""
 
 from datetime import UTC, datetime
 from pathlib import Path
@@ -121,6 +121,25 @@ class InvestigationsStore:
                 (Jsonb(approval.model_dump(mode="json")), thread_id),
             )
             return approval
+
+    def cancel_approval(self, thread_id: UUID) -> None:
+        """Clear the chosen candidate so it can be re-chosen, until an action is recorded."""
+        with self.pool.connection() as conn:
+            row = conn.execute(
+                "SELECT approval, action FROM v1_live_investigations WHERE id=%s FOR UPDATE",
+                (thread_id,),
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, "Investigation not found")
+            if row["approval"] is None:
+                raise HTTPException(409, "Investigation is not approved")
+            if row["action"] is not None:
+                raise HTTPException(409, "Action already recorded")
+            _ = conn.execute(
+                """UPDATE v1_live_investigations SET approval=NULL,
+                   updated_at=clock_timestamp() WHERE id=%s""",
+                (thread_id,),
+            )
 
     def record_action(self, thread_id: UUID, body: ActionInput, actor: Actor) -> ActionRecord:
         """Record the field action once, only after a candidate was approved."""

@@ -11,7 +11,7 @@ LangGraph 실행은 별도 `agent/` Agent Server가 담당한다.
 
 | Task | Location | Notes |
 |------|----------|-------|
-| 새 조사·후보·승인 | `investigations_api.py`, `investigations_models.py`, `investigations_store.py` | `/api/investigations`; 초기 제안 후 생성, thread와 같은 UUID. 승인 후 `/action`으로 조치 기록 1회 |
+| 새 조사·후보·승인 | `investigations_api.py`, `investigations_models.py`, `investigations_store.py` | `/api/investigations`; 초기 제안 후 생성, thread와 같은 UUID. 조치 기록 전 승인 취소(`DELETE …/approval`) 가능, 승인 후 `/action`으로 조치 기록 1회 |
 | 새 조사 DB | `investigations_schema.sql` | 현재 후보 갱신과 승인 사본 보존 |
 | Agent Server 경보 전달 | `agent_server_alerts.py` | `AGENT_SERVER_URL` 설정 시 thread/run 생성, 레거시 task 생성 안 함 |
 | 레거시 요청·SSE·승인 | `legacy_api.py` | 기존 `/api/ai/*` 계약 보존 |

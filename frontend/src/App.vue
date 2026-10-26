@@ -52,7 +52,7 @@ onUnmounted(() => window.removeEventListener('pagehide', leave))
 </template>
 
 <style scoped>
-.legacy-area { display: grid; grid-template-columns: minmax(0, 1fr) 330px; min-width: 0; }
+.legacy-area { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr) 330px; min-width: 0; }
 .legacy-area.evidence-closed { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 1100px) { .legacy-area { grid-template-columns: minmax(0, 1fr); } }
 </style>

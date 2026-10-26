@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
-import StepBar from '@/components/StepBar.vue'
 import { useInvestigation } from '@/composables/useInvestigation'
 import { fixed, readingAt, sensorLabel, signed } from '@/lib/alert-text'
 
@@ -29,25 +28,26 @@ const rows = computed(() => {
   return ranked.slice(0, 4)
 })
 const approved = computed(() => detail.value?.approval ?? null)
+// Choosing a different candidate first clears the current choice (allowed until an action is recorded).
 async function choose() {
   if (!candidate.value) return
+  if (approved.value && !await live.cancelApproval()) return
   if (await live.approve(candidate.value.id)) await router.push(`/investigations/${encodeURIComponent(detail.value!.id)}/action`)
 }
 const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}`
 </script>
 
 <template>
-  <PageHeader title="원인 후보 상세 분석">
+  <PageHeader :step="3" title="원인 후보 상세 분석">
     <template #subtitle>
       {{ detail?.alert.tool_id }}/{{ detail?.alert.chamber_id }} / {{ label }} · 실측과 문서의 일치·부족 항목을 확인합니다
     </template>
   </PageHeader>
-  <StepBar :current="3" />
   <div v-if="live.error" class="t-notice" role="alert">{{ live.error }}</div>
   <p v-if="!detail" class="t-empty" role="status">조사를 불러오는 중…</p>
   <p v-else-if="!candidate" class="t-empty">이 후보는 현재 조사에 없습니다. 후보가 갱신됐을 수 있습니다.
     <RouterLink class="t-link" :to="`/investigations/${encodeURIComponent(detail.id)}`">제안서로 돌아가기</RouterLink></p>
-  <template v-else>
+  <div v-else class="t-fill t-scroll">
     <section class="t-card summary">
       <header><span class="t-chip">{{ label }}</span><h2>{{ candidate.cause }}</h2></header>
       <p class="t-accent strong">분석 요약</p>
@@ -90,13 +90,15 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
     </div>
 
     <div class="t-actions">
+      <RouterLink class="t-btn ghost" :to="`/investigations/${encodeURIComponent(detail.id)}`">← 제안서로</RouterLink>
       <RouterLink v-if="approved" class="t-btn" :to="`/investigations/${encodeURIComponent(detail.id)}/action`">
         {{ approved.candidate.id === candidate.id ? '선택한 원인' : '이미 다른 원인 선택됨' }} · 조치 검토 →
       </RouterLink>
-      <button v-else type="button" class="t-btn" :data-approve-candidate="candidate.id" :disabled="live.approving || live.busy || live.loading"
-        @click="choose">원인 선택 →</button>
+      <button v-if="!approved || (approved.candidate.id !== candidate.id && !detail.action)" type="button" class="t-btn"
+        :data-approve-candidate="candidate.id" :disabled="live.approving || live.busy || live.loading"
+        @click="choose">{{ approved ? '이 원인으로 변경 →' : '원인 선택 →' }}</button>
     </div>
-  </template>
+  </div>
 </template>
 
 <style scoped>

@@ -13,7 +13,7 @@ MCP는 에이전트 전용 도구다. 이전 v1 task API `/api/ai/*`는 레거�
 - 경보 → thread 생성 → 초기 원인 후보 완성 → Business MCP로 업무 조사 신규 저장.
 - 조사 ID와 thread ID는 1:1이며 동일 UUID다. 후속 후보는 같은 조사를 갱신한다.
 - backend의 live 조사 모델·store·router는 `investigations_*` 모듈에 있다.
-- 승인 시 검증된 로그인 사용자와 선택 후보 사본을 저장한다. 승인 뒤에도 대화는 계속된다.
+- 승인 시 검증된 로그인 사용자와 선택 후보 사본을 저장한다. 승인 뒤에도 대화는 계속된다. 조치 기록 전에는 선택을 취소하고 다시 고를 수 있다.
 - Agent Server는 dev 로컬 체크포인트 볼륨, backend는 PostgreSQL 업무 데이터를 저장한다.
 - 공개 대화 요청은 Keycloak Bearer, emitter 내부 요청은 내부 키를 사용한다.
 - 새 경로는 레거시 `WAITING_INPUT`, `WAITING_APPROVAL`, command ID 계약을 따르지 않는다.

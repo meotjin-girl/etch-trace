@@ -124,6 +124,12 @@ export function createLiveMock() {
       touch(item)
       return item.approval
     },
+    cancelApproval(id: string) {
+      const item = find(id)
+      if (!item.approval || item.action) throw new LiveError(409, 'Not approved or action already recorded')
+      item.approval = null
+      touch(item)
+    },
     recordAction(id: string, body: Row) {
       const item = find(id)
       if (!item.approval || item.action) throw new LiveError(409, 'Approve first or already recorded')

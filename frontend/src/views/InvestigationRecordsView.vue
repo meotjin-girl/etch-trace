@@ -27,7 +27,7 @@ const when = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleStr
   <PageHeader title="조사 기록" subtitle="저장된 조사 결과를 다시 확인하는 메뉴 · 조치 기록까지 마친 조사만 표시" ruled />
   <div v-if="live.listError" class="t-notice" role="alert">{{ live.listError }}
     <button type="button" @click="live.refreshList()">다시 연결</button></div>
-  <div class="records">
+  <div class="records t-fill t-cols">
     <section class="t-card" aria-labelledby="recordListHeading">
       <h2 id="recordListHeading">기록 목록</h2>
       <label class="t-search inline"><i class="fi-rr-search" aria-hidden="true"></i>
@@ -66,7 +66,7 @@ const when = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleStr
 </template>
 
 <style scoped>
-.records { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; align-items: stretch; min-height: 70vh; }
+.records { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; align-items: stretch; }
 .inline { margin-top: 20px; }
 .empty-strong { font-size: 14px; font-weight: 800; }
 .record-item { display: grid; gap: 6px; margin-bottom: 10px; color: var(--text); text-decoration: none; }

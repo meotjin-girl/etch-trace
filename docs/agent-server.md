@@ -52,6 +52,7 @@ Web → /agent/threads/…    → 대화 조회·추가 질문·실행 스트림
 | `GET /api/investigations` | 초기 후보가 저장된 조사 목록 |
 | `GET /api/investigations/{id}` | 요약·현재 후보·원본 경보·승인 사본 |
 | `POST /api/investigations/{id}/approval` | 현재 후보 선택·승인 |
+| `DELETE /api/investigations/{id}/approval` | 원인 선택 취소(재선택용) 204. 승인이 없거나 조치가 이미 기록됐으면 409 |
 | `POST /api/investigations/{id}/action` | 승인 후 현장 조치 기록 `{content,result}` 1회. 승인 전·중복은 409, 기록자는 검증된 `sub` |
 
 graph 입력은 다음 봉투를 사용한다. 경보의 `system`은 출처를 구분하는

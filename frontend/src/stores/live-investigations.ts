@@ -11,6 +11,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
   const detail = ref<LiveInvestigation | null>(null)
   const messages = ref<ThreadMessage[]>([])
   const draft = ref('')
+  const pending = ref('')
   const listError = ref(''), error = ref('')
   const loadingList = ref(false), loading = ref(false), busy = ref(false), approving = ref(false), recording = ref(false)
   // List cards need the alert text, which only the detail endpoint returns.
@@ -42,9 +43,15 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     const result = await useIdentityStore().liveApi.detail(id, request.signal)
     if (current(request)) detail.value = result
   }
+  let messagesBeforeSend = new Set<string>()
   function stream(request: AbortController) {
     return {signal:request.signal, onMessages(value: ThreadMessage[]) {
-      if (current(request)) messages.value = value
+      if (current(request)) {
+        messages.value = value
+        // An initial values event can still contain only the previous history.
+        if (pending.value && value.some(item => item.role === 'user' &&
+          item.text === pending.value && !messagesBeforeSend.has(item.id))) pending.value = ''
+      }
     }}
   }
   async function syncThread(request: AbortController) {
@@ -75,6 +82,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
       draft.value = ''
     }
     error.value = ''
+    pending.value = ''
     loading.value = true
     busy.value = false
     approving.value = false
@@ -105,6 +113,8 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     const content = draft.value.trim(), selected = detail.value, request = controller
     if (!content || !canSend.value || !selected || !request) return
     busy.value = true
+    pending.value = content
+    messagesBeforeSend = new Set(messages.value.map(item => item.id))
     error.value = ''
     const api = useIdentityStore().agentApi
     try {
@@ -112,6 +122,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
       if (!current(request)) return
       const run = activeRun(runs)
       if (run) {
+        pending.value = ''
         await api.join(selected.thread_id, run.run_id, stream(request))
       } else {
         try {
@@ -122,6 +133,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
           if (!(cause instanceof ApiError) || cause.status !== 409) throw cause
           const running = activeRun(await api.runs(selected.thread_id, request.signal))
           if (!running) throw cause
+          pending.value = ''
           await api.join(selected.thread_id, running.run_id, stream(request))
         }
       }
@@ -130,7 +142,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     } finally {
       try { await finishRun(request) }
       catch (cause) { if (current(request)) error.value = message(cause) }
-      if (current(request)) busy.value = false
+      if (current(request)) { busy.value = false; pending.value = '' }
     }
   }
   async function approve(candidateId: string) {
@@ -172,6 +184,26 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     loaded.forEach(result => { if (result.status === 'fulfilled') next[result.value.id] = result.value })
     previews.value = next
   }
+  async function cancelApproval() {
+    const selected = detail.value, request = controller
+    if (!selected || !request || !selected.approval || selected.action || approving.value) return false
+    approving.value = true
+    error.value = ''
+    try {
+      await useIdentityStore().liveApi.cancelApproval(selected.id, request.signal)
+      if (current(request) && detail.value) detail.value = {...detail.value, approval:null}
+      const {[selected.id]: _stale, ...rest} = previews.value
+      previews.value = rest
+      return true
+    } catch (cause) {
+      if (!current(request)) return false
+      error.value = cause instanceof ApiError && cause.status === 409
+        ? '이미 조치가 기록됐거나 선택이 바뀌었습니다. 최신 내용을 확인해 주세요.'
+        : message(cause)
+      try { await refreshDetail(request) } catch { /* keep the first error */ }
+      return false
+    } finally { if (current(request)) approving.value = false }
+  }
   async function recordAction(content: string, result: string) {
     const selected = detail.value, request = controller
     if (!selected || !request || !selected.approval || selected.action || recording.value) return false
@@ -198,6 +230,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     detail.value = null
     messages.value = []
     draft.value = ''
+    pending.value = ''
     error.value = ''
     loading.value = busy.value = approving.value = recording.value = false
   }
@@ -210,7 +243,7 @@ export const useLiveInvestigationsStore = defineStore('live-investigations', () 
     loadingList.value = false
     listError.value = ''
   }
-  return {records, detail, messages, draft, listError, error, loadingList, loading,
+  return {records, detail, messages, draft, pending, listError, error, loadingList, loading,
     busy, approving, recording, previews, canSend, refreshList, loadPreviews, reload, open, send, approve,
-    recordAction, close, reset}
+    cancelApproval, recordAction, close, reset}
 })

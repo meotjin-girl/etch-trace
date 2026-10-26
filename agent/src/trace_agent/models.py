@@ -74,6 +74,16 @@ class Approval(Model):
     comment: str
 
 
+class ActionRecord(Model):
+    """Backend-owned record of the engineer's completed action."""
+
+    content: str
+    result: str
+    recorded_by_id: str
+    recorded_by: str
+    recorded_at: datetime
+
+
 class LiveInvestigation(Model):
     """Business MCP readback, including independent approval history."""
 
@@ -84,6 +94,7 @@ class LiveInvestigation(Model):
     candidates: list[Candidate]
     revision: int = Field(ge=1)
     approval: Approval | None
+    action: ActionRecord | None = None
     created_at: str
     updated_at: str
     demo: Literal[True]
