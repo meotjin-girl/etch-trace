@@ -90,7 +90,7 @@ services:
       prometheus:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
+      test: ["CMD", "uv", "run", "--no-sync", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json',timeout=2).close()"]
       interval: 3s
       timeout: 5s
       retries: 20
@@ -198,7 +198,7 @@ services:
       physics-mcp:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2024/ok',timeout=2).close()"] 
+      test: ["CMD", "uv", "run", "--no-sync", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2024/ok',timeout=2).close()"] 
       interval: 3s
       timeout: 5s
       retries: 20
