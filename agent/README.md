@@ -93,9 +93,14 @@ Use one active run per thread (`multitask_strategy=reject`).
 ## Investigation lifecycle
 
 `prepare -> agent <-> ToolNode -> reason -> publish` retains the original single
-ReAct domain behavior. Evidence tools are `search_cases`, `analyze_metrics`,
-`search_documents`, `search_sop`, `evaluate_etch_physics`, `list_investigations`.
-The last retains the existing MCP `user_name/user_role` argument signature using
+ReAct domain behavior. Evidence tools are Business `search_cases`,
+`analyze_metrics`, `list_investigations`; RAG `search_documents`, `search_sop`;
+Physics `evaluate_etch_physics`, `compare_reference_runs`,
+`integrate_etch_rate_series`, `compare_metrology_to_spec`,
+`analyze_etch_quantitatively`, `simulate_educational_etch`; and Sensor
+`analyze_mock_fab_run`, `simulate_mock_fab_etch` (exact Mock Fab run identity;
+educational simulation only when explicitly requested). `list_investigations`
+retains the existing MCP `user_name/user_role` argument signature using
 shared service attribution; it does not install an ownership filter.
 
 `reason` uses ChatOpenAI's schema-constrained output, not prose parsing. Each

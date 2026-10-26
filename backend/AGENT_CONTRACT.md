@@ -1,5 +1,12 @@
 # Backend v1 integration notes
 
+> **Legacy contract.** This describes the `/api/ai/*` task path kept for
+> compatibility. The current service path is the standard Agent Server and
+> `/api/investigations` ([agent-server.md](../docs/agent-server.md), [api.md](../docs/api.md)).
+> The task-running agent (`POST /internal/tasks/{id}/run`) was removed; the
+> Compose `agent` service now runs only the Agent Server, so new tasks fail
+> dispatch and become `FAILED`.
+
 Public routes and simple `/internal/tasks/{id}/run` bodies follow
 `docs/v1-contract.md`. All internal requests use `X-Internal-Key`.
 
@@ -35,6 +42,8 @@ event_time/lot_id only when an approved command subsequently reaches DONE.
 
 Defaults: DATABASE_URL=postgresql://trace:trace@localhost:5432/trace,
 AGENT_URL=http://agent:8001, INTERNAL_API_KEY=dev-internal-key.
+Compose sets `AGENT_URL=http://agent:8000` (no listener) and
+`AGENT_SERVER_URL=http://agent:2024` for the current alert path.
 
 Run `cd backend && uv sync && uv run pytest tests -q`.
 Tests use real PostgreSQL, an isolated schema per test and a local HTTP agent

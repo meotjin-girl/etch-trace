@@ -1,84 +1,85 @@
-# 구조 점검: 경로 지도와 수정 제안
+# 구조 점검: 경로 지도와 과거 점검 기록
 
-기준: develop `d2be127`(PR #31 머지 시점). 2장의 세 가지 수정은 `feature/backend-integration`에서 반영했고, 공용 문서(`architecture.md`, `api.md`, `v1-contract.md`, `README.md`, `AGENTS.md`)도 같은 브랜치에서 갱신했다. 1장의 ⚠️·➕·➖는 수정 전 상태 기준 표기다.
+1장은 현재 develop 코드 기준 경로 지도다. 2~4장은 develop `d2be127`(PR #31 머지 시점)의 구조 점검 기록이며 `feature/backend-integration`에서 반영을 마쳤다. 그 뒤 이전 다단계 agent는 표준 Agent Server(단일 ReAct)로 대체되었다.
 
-backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 프레임워크 요구가 없고, 레퍼런스 아키텍처는 구성 요소별 역할과 금지 사항을 본다(52쪽 표 5-4: "평가에서는 금지 사항을 어긴 코드가 없는지 본다"). 현재 backend는 업무 서버 역할(업무 API, 작업 상태 저장, SSE 중계, 내부 API)을 하고 LLM을 호출하지 않는다.
-
-표기: ⚠️ 문제, ➕ 추가 제안, ➖ 제거 제안. PDF 쪽수는 인쇄 쪽수(뷰어 페이지 번호는 +1).
+backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 프레임워크 요구가 없고, 레퍼런스 아키텍처는 구성 요소별 역할과 금지 사항을 본다(52쪽 표 5-4). backend는 업무 서버 역할(업무 API, 조사 저장, 경보 전달, 내부 API)을 하고 LLM을 호출하지 않는다.
 
 ## 1. 전체 경로 지도
 
 ### 공개 경로 (브라우저 → nginx `web`, 호스트 `WEB_PORT`)
 
-| 경로 | 현재 | 제안 |
+| 경로 | 대상 | 비고 |
 |---|---|---|
-| `/`, `/records/*`, `/sop/*`, `/assets/*` | web 정적 `dist` + SPA fallback | 유지 |
-| `/api/ai/investigations`, `/api/ai/investigations/{id}` | ⚠️ business-mcp:8000 직접 (PR #34) | ➖ nginx 블록 삭제 → `/api/` 규칙으로 backend 응답 |
-| `/api/**` | backend:8000 (SSE 버퍼링 off) | 유지 |
+| `/`, `/investigations/*`, `/records/*`, `/sop/*`, `/legacy*`, `/assets/*` | web 정적 `dist` + SPA fallback | |
+| `/api/**` | backend:8000 | 버퍼링 off(SSE) |
+| `/agent/threads…` (state, runs, runs/{id}/stream·join, runs/stream·wait) | agent:2024 | GET·POST만, thread·state 변경 POST는 405. 내부 키·Studio 헤더 제거. 나머지 `/agent/`는 404 |
+| `/auth/**` | keycloak:8080 | |
 
-### backend 공개 API (REST·SSE 모두 Keycloak Bearer; 익명 설정은 `/api/auth/config`)
+### backend 공개 API (Keycloak Bearer; 익명 설정은 `/api/auth/config`)
 
-| 메서드·경로 | 호출자 | 상태 |
+| 메서드·경로 | 호출자 | 비고 |
 |---|---|---|
-| `POST /api/ai/tasks` | 프론트 | 구현됨 |
-| `GET /api/ai/tasks` | 프론트 | 구현됨 |
-| `GET /api/ai/tasks/{id}` | 프론트 | 구현됨 |
-| `POST /api/ai/tasks/{id}/messages` | 프론트 | 구현됨 |
-| `POST /api/ai/tasks/{id}/approval` | 프론트 | 구현됨 |
-| `GET /api/ai/tasks/{id}/events?after=` | 프론트 | 구현됨 |
-| `GET /api/ai/tasks/{id}/stream?user_name&user_role&after` | 프론트(SSE) | 구현됨 |
-| `GET /api/ai/investigations`, `/{id}` | (프론트 미사용) | ➕ backend에 추가, 기존 `Store.investigations` 재사용 |
-| `GET /api/sops`, `/api/sops/{id}` | 프론트 SOP 화면 | ⚠️ 없음(404) → ➕ `sop-ocap/` 문서로 추가 |
+| `GET /api/investigations`, `/{id}` | 프론트 | 조사 목록·상세 |
+| `POST`·`DELETE /api/investigations/{id}/approval` | 프론트 | 원인 선택·선택 취소(조치 기록 전) |
+| `POST /api/investigations/{id}/action` | 프론트 | 조치 기록 1회 |
+| `GET /api/sops`, `/api/sops/{id}` | 프론트 SOP 화면 | `sop-ocap/` 문서 |
+| `GET·POST /api/ai/tasks…`, `GET /api/ai/investigations…` | 프론트 `/legacy` | 레거시. 새 작업 실행기는 없음 |
 
 ### backend 내부 API (`X-Internal-Key`)
 
 | 메서드·경로 | 호출자 | 용도 |
 |---|---|---|
-| `POST /internal/tasks/{id}/events` (+`X-Command-ID`) | agent | 진행·QUESTION·APPROVAL_REQUIRED·FAILED 콜백 |
-| `POST /internal/tasks/{id}/investigation` (+`X-Command-ID`) | business-mcp `save_investigation` | DONE 저장(승인 스냅샷 검증) |
+| `GET`·`PUT /internal/investigations/live/{thread_id}` | business-mcp `get_live_investigation`·`upsert_live_investigation` | live 조사 조회·후보 전체 교체 |
 | `GET /internal/cases` | business-mcp `search_cases` | 데모 사례 |
-| `GET /internal/investigations?user_name&user_role` | business-mcp `list_investigations` (⚠️ + `history_http`) | 승인 이력 목록 |
-| `GET /internal/investigations/{id}?…` | business-mcp `get_investigation` (⚠️ + `history_http`) | 승인 이력 상세 |
+| `GET /internal/investigations`, `/{id}` | business-mcp `list_investigations`·`get_investigation` | 승인 이력 |
+| `POST /internal/tasks/{id}/events`, `/investigation` | (레거시 agent, 현재 없음) | 레거시 콜백 |
 
-### agent (agent:8000, 비공개)
+### backend → 외부 서비스
 
-| 경로 | 호출자 | 비고 |
-|---|---|---|
-| `POST /internal/tasks/{id}/run` | backend 디스패치 | `X-Internal-Key`, `X-Command-ID`, `X-Requester-Name`, `X-Requester-Role`. 그래프가 끝날 때까지 응답을 붙잡는 동기 호출(backend 타임아웃 30초) |
-
-| 에이전트 노드 | MCP 도구 |
+| 호출 | 용도 |
 |---|---|
-| 범위 조사 | business `search_cases`, `list_investigations`(요청자 신원) |
-| 과거 Run 비교 | business `analyze_metrics` |
-| 센서, 정비 | 없음(미연결) |
-| 원인 후보·점검 추천 | rag `search_documents`, `search_sop` |
-| 완료(DONE) | business `save_investigation` → backend `/internal/tasks/{id}/investigation` |
-| (선택) | OpenAI, `OPENAI_API_KEY`가 있을 때만 |
+| `GET {PROMETHEUS_URL}/api/v1/alerts`, `query`, `query_range` | 경보 폴링·Lot 확인·센서 구간 조회 |
+| `POST {AGENT_SERVER_URL}/threads`, `/threads/{id}/runs` | 경보 묶음마다 조사 시작(내부 키) |
+
+### agent (Agent Server, agent:2024, localhost에만 `AGENT_SERVER_PORT` 공개)
+
+| 그래프 노드 | 역할 |
+|---|---|
+| `prepare` | 요청 봉투 소비, 경보 파싱, 기존 조사 다시 읽기(`get_live_investigation`) |
+| `agent` ↔ `tools` | ReAct 순환. 모델에 바인딩된 조회 도구만 호출 |
+| `reason` | 구조화 출력으로 후보 구성 |
+| `publish` | 후보 변경 시 `upsert_live_investigation` |
+
+| 도구 | MCP |
+|---|---|
+| `search_cases`, `analyze_metrics`, `list_investigations` | business |
+| `search_documents`, `search_sop` | rag |
+| `evaluate_etch_physics`, `compare_reference_runs`, `integrate_etch_rate_series`, `compare_metrology_to_spec`, `analyze_etch_quantitatively`, `simulate_educational_etch` | physics |
+| `analyze_mock_fab_run`, `simulate_mock_fab_etch` (→ `analyze_current_etch_run`) | sensor |
 
 ### MCP 서버 (`/mcp`, 비공개)
 
-| 서버 | 도구·경로 | 데이터 |
-|---|---|---|
-| business-mcp | `search_cases`, `analyze_metrics`, `save_investigation`, `list_investigations`, `get_investigation` | 모두 backend `/internal/**` 경유, DB 직접 접근 없음 |
-| business-mcp | ⚠️ HTTP `GET /api/ai/investigations(/{id})` (`history_http`) | ➖ 삭제 제안 |
-| rag-mcp | `search_documents(document_ids)` | postgres `etch_documents` |
-| rag-mcp | `search_sop(query)` | sop-postgres(pgvector) + OpenAI 임베딩·재순위화, 문서 `/sop` |
+| 서버 | 데이터 |
+|---|---|
+| business-mcp | 모두 backend `/internal/**` 경유, DB 직접 접근 없음 |
+| rag-mcp | postgres `etch_documents`, sop-postgres(pgvector) + OpenAI 임베딩·재순위화, 문서 `/sop`(=`sop-ocap/`) |
+| physics-mcp | 입력값만, 외부 DB·LLM 없음 |
+| sensor-mcp | `FAB_COLLECTOR_URL`의 collector `/api/runs` |
 
 ### 파일·데이터 경로
 
-| 경로 | 사용처 | 상태 |
-|---|---|---|
-| `sop-ocap/` (SOP 3종 + OCAP 19종) | 없음 | ⚠️ PR #31로 새로 생긴 실제 문서 위치 |
-| `sop/` | rag-mcp 마운트(`./sop:/sop`), `tests/test_sop_retrieval.py` | ⚠️ 비어 있음 → ➕ `./sop-ocap`으로 변경 |
-| `mcp/sop_chunks.py` | rag-mcp SOP 파서 | ⚠️ 새 머리 표를 못 읽고 `OCAP-` 파일 제외 → 수정 |
-| `mcp/sop_questions*.json` | SOP 검색 평가셋 | ⚠️ 옛 문서 ID 기준, 작성자 확인 필요 |
-| `db/cases.json`, `documents.json` → `etch_cases`, `etch_documents` | seed → `/internal/cases`, `search_documents` | 정상 |
-| postgres `trace` `v1_*` | backend 전용 | 정상 |
-| postgres `trace` LangGraph 체크포인트 | agent 전용 | 정상 |
-| sop-postgres `trace_sop` | rag-mcp 전용 | 정상 |
-| `fab/` 수집기 `/`, `/api/current`, `/metrics` (AWS :80, 공개 GET) | compose `prometheus` 서비스(`backend/prometheus/`), 브라우저 | ➕ 합성 모의 장비. backend가 `prometheus:9090` 경보를 폴링해 agent에 전달 ([agent-request.md](agent-request.md)) |
+| 경로 | 사용처 |
+|---|---|
+| `sop-ocap/` (SOP 3종 + OCAP 19종) | backend `/api/sops`, rag-mcp `search_sop` (`./sop-ocap:/sop:ro`) |
+| `db/cases.json`, `documents.json` → `etch_cases`, `etch_documents` | seed → `/internal/cases`, `search_documents` |
+| postgres `trace` `v1_live_investigations` | 신규 조사·후보·승인·조치 |
+| postgres `trace` `v1_*` 나머지 | 레거시 작업·이벤트·승인 이력 |
+| 볼륨 `agent_dev_state` | Agent Server 체크포인트 |
+| sop-postgres `trace_sop` | rag-mcp 전용 |
+| `fab/` collector `/`, `/api/current`, `/metrics`, `/api/runs` (AWS :80) | prometheus 수집(`backend/prometheus/targets.json`), sensor-mcp, 브라우저 확인 |
+| `backend/prometheus/rules.yml` | FDC 규칙(`rules_test.yml`로 promtool 검사) |
 
-## 2. 문제와 변경안
+## 2. 문제와 변경안 (2026-10-21 점검 기록, 반영 완료)
 
 ### 2.1 SOP RAG가 실제 문서를 찾지 못한다
 
@@ -134,7 +135,7 @@ backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 �
   - 필드는 첫 줄 `# <ID> <제목>`, 머리 표(담당 팀·버전·최근 개정), 첫 문단 설명, 분류(`SOP`/`OCAP`), 원문 `markdown`, `demo: true`다.
 - 영향: SOP 화면에 22개 문서가 표시된다.
 
-## 3. 그대로 두는 것
+## 3. 그대로 둔 것 (당시)
 
 - agent 전체: 노드, MCP 호출, `/internal/tasks/{id}/run`
 - MCP 도구 5개
@@ -142,7 +143,7 @@ backend는 FastAPI를 유지한다. 캡스톤 평가표(73쪽 표 6-14)에는 �
 - 프론트 코드
 - `db/documents.json`의 시연용 조항 5건: 사례 데이터와 연결돼 있어 이번 범위에서 제외
 
-## 4. 작성자에게 확인할 점
+## 4. 작성자에게 확인할 점 (당시)
 
 - PR #31(SOP·OCAP 문서): `sop-ocap/` 머리 표 형식을 RAG 파서와 SOP 화면의 기준 형식으로 삼아도 되는지
 - PR #34(이력 조회): ③(backend 직접 응답)으로 되돌리는 데 다른 이유(예: 시연에서 MCP 경유를 보여 주려는 의도)가 있었는지

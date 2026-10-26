@@ -19,13 +19,13 @@ docker compose -p trace-experiment -f compose.yaml up -d --build
 ```
 
 웹 로그인은 새 개발 realm의 `test` / `test` 계정을 사용한다.
-기존 `agent/`는 참조·레거시용으로 보존하며 기본 실행은 `agent/`다.
-레거시 컨테이너는 `--profile legacy`로 추가 실행할 수 있다.
+Compose의 `agent` 서비스는 `agent/src/trace_agent/`의 Agent Server만 실행한다.
+이전 task 실행 agent는 제거되었다.
 
 ## 데이터 책임
 
 ```text
-Emitter → Agent Server thread/run → 근거 조회·원인 후보 생성
+backend 경보 수집 → Agent Server thread/run → 근거 조회·원인 후보 생성
                                   → Business MCP → backend 조사 신규 저장
 
 Web → /api/investigations → 조사 목록·현재 후보·승인
@@ -38,14 +38,14 @@ Web → /agent/threads/…    → 대화 조회·추가 질문·실행 스트림
 승인 시 backend가 검증한 사용자와 선택 후보의 사본을 기록한다.
 승인 후 대화와 후보 보완은 계속 가능하며, 승인 당시 사본은 변경하지 않는다.
 
-기존 `/api/ai/*`의 작업·이벤트·승인된 이력 API는 호환 경로로 남는다.
+기존 `/api/ai/*`의 작업·이벤트·승인된 이력 API는 조회 호환 경로로 남는다.
 새 화면은 이 경로의 `WAITING_INPUT`·`WAITING_APPROVAL` 조건을 사용하지 않는다.
 
 ## API와 저장 시점
 
 | 호출 | 용도 |
 |---|---|
-| `POST /threads` | Emitter가 Agent Server에 thread 생성 |
+| `POST /threads` | backend 경보 수집기가 Agent Server에 thread 생성 |
 | `POST /threads/{id}/runs` | `trace` 그래프로 초기 경보 조사 시작 |
 | `GET /agent/threads/{id}/state` | 웹이 같은 thread의 대화 복원 |
 | `POST /agent/threads/{id}/runs/stream` | 웹이 후속 질문 실행, `values` 스트림 수신 |
@@ -82,7 +82,8 @@ Agent의 `publish` 노드는 최초 후보 생성 후 `upsert_live_investigation
 승인 본문은 `candidate_id`, `expected_revision`, `comment`다.
 본문에 사용자 이름·ID·승인 시각을 넣지 않는다. backend가 현재 revision과
 후보를 잠금 안에서 검증하고 토큰의 사용자를 기록한다. revision은 동일 조사
-내의 갱신 번호이지 새 조사 ID가 아니다. 재승인과 승인 취소는 이번 범위가 아니다.
+내의 갱신 번호이지 새 조사 ID가 아니다. 조치 기록 전에는 `DELETE …/approval`로
+선택을 취소하고 현재 후보 중 다시 고를 수 있다. 조치 기록 후에는 바꿀 수 없다.
 
 ## 인증과 nginx
 
@@ -92,7 +93,7 @@ nginx는 `/api/`를 backend로, `/agent/`의 대화 경로를 Agent Server로 �
 로그인 사용자들은 같은 조사를 함께 읽고 대화하고 승인할 수 있다.
 nginx 라우팅 자체가 인증을 대신하지 않는다.
 
-Emitter는 서버 간 내부 키로 Agent Server를 호출한다. nginx 공개 경로에서는
+경보 수집기(emitter)는 서버 간 내부 키로 Agent Server를 호출한다. nginx 공개 경로에서는
 내부 키와 LangSmith 인증 우회 헤더를 제거한다. thread 삭제와 임의 state
 수정 API는 공개하지 않는다.
 
@@ -154,7 +155,7 @@ backend PostgreSQL에 남는다. 두 저장소는 함께 보존해야 한다.
 
 - 동일 경보의 새 조사 중복 생성 방지
 - 저장 실패 재시도·복구 정책
-- 승인 취소와 재승인
+- 조치 기록 후 선택 변경
 - 프로덕션 Agent Server 배포
 
 실제 실행·테스트 증거는 `docs/agent-server-validation.md`에 기록한다.

@@ -166,11 +166,11 @@ Prometheus 규칙(`backend/prometheus/rules.yml`)은 장비가 보지 못하는 
 ## TRACE 연결
 
 Collector는 `/api/runs`에 최근 200개 합성 Run과 5초 샘플을 메모리로 보존한다.
-`mcp/sensor.py`는 이 읽기 전용 API를 사용해 TRACE Sensor Agent에 정량 결과를 전달한다.
+`mcp/sensor.py`(Sensor MCP)는 이 읽기 전용 API를 사용해 Agent의 `analyze_mock_fab_run`·`simulate_mock_fab_etch` 도구에 Run 시계열과 정량 결과를 전달한다.
 collector를 재시작하면 이 이력은 사라진다. `FAB_COLLECTOR_URL`이 없거나 범위가 맞지
 않으면 `INSUFFICIENT_DATA`를 반환한다.
 
-backend가 Prometheus `GET /api/v1/alerts`를 폴링해 장비 알람과 FDC 경보를 (장비, 챔버, Lot) 단위로 묶는다. 묶음은 `{"role":"system","content":<고정 형식 텍스트>}`로 agent에 보낸다. 형식·묶음 규칙과 agent 쪽 할 일은 [agent-request.md](agent-request.md)에 있다.
+backend가 Prometheus `GET /api/v1/alerts`를 폴링해 장비 알람과 FDC 경보를 (장비, 챔버, Lot) 단위로 묶는다. 묶음마다 Agent Server에 thread를 만들고 `{"request":{"role":"system","content":<고정 형식 텍스트>}}`로 run을 시작한다. 형식·묶음 규칙과 agent 쪽 할 일은 [agent-request.md](agent-request.md)에 있다.
 
 장비 알람 메트릭 `etch_alarm_active`에는 `sensor`·`limit` label이 있다. backend는 이 label로 알람 시각의 센서값과 한계를 적는다.
 
@@ -210,7 +210,7 @@ rsync -az --delete --exclude .venv --exclude __pycache__ --exclude .env -e "ssh 
 ssh -i skala-key.pem ubuntu@32.236.188.208 'cd fab && sudo docker compose up -d --build'
 ```
 
-- 서버 설정은 EC2의 `~/fab/.env`에 있으며 git에는 없다. 현재 값은 `FAB_PORT=80`, `FAULT_RATE=0.2`이다. 값을 바꾸면 `sudo docker compose up -d`로 반영한다.
+- 서버 설정은 EC2의 `~/fab/.env`에 있으며 git에는 없다. 현재 값은 `FAB_PORT=80`, `FAULT_RATE=0.01`이다. 값을 바꾸면 `sudo docker compose up -d`로 반영한다.
 - 위 rsync는 `--exclude .env`로 서버 설정을 보존한다. 이 옵션이 없으면 `--delete`가 서버의 `.env`를 지운다.
 - 메트릭 label(예: `ocap`)과 규칙을 함께 바꿀 때는 **Prometheus를 먼저 재시작하고, 그다음 장비를 재배포**한다.
   - 순서가 반대면 재시작 전에 수집된 옛 label 시계열이 만료 표시 없이 최대 5분 남는다.

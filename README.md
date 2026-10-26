@@ -87,20 +87,16 @@ thread에서 초기 후보 제안과 Business MCP 저장이 끝나면 목록에 
 `DELETE /api/investigations/{id}/approval`로 원인 선택을 취소하고 다시 고를 수 있습니다. 화면 색은 기기의 라이트·다크
 설정을 따릅니다. 로그인 화면은 `deploy/keycloak/themes/trace` 테마입니다.
 
-## 기존 v1 요청과 검토 (호환 경로)
+## 인증과 레거시 경로
 
-공개 데이터 API는 `Authorization: Bearer <access token>`이 필수입니다. backend가 Keycloak 서명·issuer·audience·만료를 검증합니다. 로그인한 사용자는 모두 조회·추가 답변·검토할 수 있고, 역할·소유자별 제한은 후속 범위입니다. 토큰은 브라우저 메모리에만 보관합니다.
+공개 API와 Agent Server 대화 경로는 `Authorization: Bearer <access token>`이 필수입니다. backend와 Agent Server가 Keycloak 서명·issuer·audience·만료를 검증합니다. 로그인한 사용자는 모두 조회·대화·선택·조치 기록을 할 수 있고, 역할·소유자별 제한은 후속 범위입니다. 토큰은 브라우저 메모리에만 보관합니다.
 
 ```bash
-curl -sS http://localhost:18080/api/ai/tasks \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TRACE_ACCESS_TOKEN" \
-  -d '{"question":"ETCH-07 CH-B OX-120 endpoint 지연 118초, RF reflected power 상승 29W"}'
+curl -sS http://localhost:18080/api/investigations \
+  -H "Authorization: Bearer $TRACE_ACCESS_TOKEN"
 ```
 
-반환된 `taskId`로 상세·이력을 조회합니다. 정보가 부족하면 `WAITING_INPUT`에서 `/messages`에 `{text}`를 보냅니다. `WAITING_APPROVAL`에서는 `/approval`에 `{action:"revise",comment:"..."}` 또는 `{action:"approve",comment:"..."}`를 보냅니다. 검토자 신원은 본문이 아니라 검증된 토큰에서 결정됩니다.
-
-SSE는 `/api/ai/tasks/{id}/stream?after=0`에 Bearer 헤더를 보내는 fetch 스트림입니다. 이벤트 `seq`로 복원·중복 제거하고, 토큰 만료로 닫히면 갱신된 토큰으로 이어받습니다. `DONE`, `INCOMPLETE`, `FAILED`에서 종료합니다. 목록에는 미완료 작업도 포함되고 상세에는 메시지·검토·이벤트·승인 스냅샷이 복원됩니다.
+이전 질문 화면(`/legacy`)의 `/api/ai/*` 작업·SSE·승인 이력 API는 호환용으로 남아 있습니다. 이전 task 실행 agent는 제거되어 새 작업은 실행되지 않고 `FAILED`가 됩니다. 계약은 [API 문서](docs/api.md#레거시-v1-작업-api)를 참고하세요.
 
 ## 개발과 검증
 
@@ -124,7 +120,7 @@ uv run --project mcp --group rag-experiment python -m unittest discover -s tests
 
 - `docker-compose.yml`, `docker-compose.prod.yml`은 `compose.yaml`을 포함하는 호환 진입점입니다. Compose 2.20.3 이상을 사용하며, 각각 단독 `-f`로 실행합니다. wrapper와 원본을 여러 `-f`로 합치지 마세요. 별도 운영 아키텍처나 볼륨을 정의하지 않습니다.
 - 기존 DB 볼륨을 v1 데이터로 간주하지 않습니다. v1은 `compose.yaml`의 `v1_pgdata`를 사용하고 샘플 데이터를 적재합니다. 기존 볼륨 삭제나 자동 마이그레이션은 수행하지 않습니다. 기존 POC와 병행할 때는 포트 외에 Compose 프로젝트 이름도 분리하세요.
-- 이전 CLI 패키지, CLI JSON 입력 예제, CLI 전용 테스트는 제거했습니다. 질문·재질문·검토는 HTTP API를 사용합니다. 셸 입력, Markdown 파일 출력, 답변 후 기록 생성 여부 선택은 v1 기능이 아닙니다.
+- 이전 CLI 패키지, CLI JSON 입력 예제, CLI 전용 테스트는 제거했습니다. 조사·대화·승인은 HTTP API를 사용합니다. 셸 입력, Markdown 파일 출력, 답변 후 기록 생성 여부 선택은 v1 기능이 아닙니다.
 - 기존 브라우저 `localStorage` 기록은 **로컬 읽기 전용 과거 기록**입니다. 서버 승인 기록으로 이관하거나 새 조사 근거로 사용하지 않습니다.
 - 중복 백엔드 그래프·도구와 PHM 전용 적재·점검 스크립트는 제거했습니다. 이전 구현은 Git 이력에서 확인할 수 있습니다.
 

@@ -1,8 +1,9 @@
 # SOP 화면 데이터 연동
 
-SOP 화면은 API 8·9번(`docs/frontend.md` 필요 API)을 호출합니다. 실제 backend에는 아직
-없으므로 `npm run dev:mock`의 목업(`frontend/mock/fixtures.ts` 샘플)으로 확인합니다.
-샘플은 실제 작업 지침이 아니라고 목록과 본문에 표시합니다.
+SOP 화면은 `GET /api/sops`, `GET /api/sops/{id}`(`docs/api.md`)를 호출합니다. backend가
+`sop-ocap/`의 SOP 3종·OCAP 19종 머리 표와 원문을 읽어 응답합니다(`backend/v1_sop.py`).
+`npm run dev:mock`에서는 `frontend/mock/fixtures.ts` 샘플로 확인합니다.
+문서는 교육용 데모이며 실제 작업 지침이 아니라고 `demo` 값으로 표시합니다.
 
 ## 교체할 경계
 
@@ -31,8 +32,8 @@ SOP 화면은 API 8·9번(`docs/frontend.md` 필요 API)을 호출합니다. 실
 `src/views/SopView.vue`가 검색·선택·상세 로딩을 담당합니다. 연속 선택 시 이전 요청의 응답이
 최신 선택을 덮어쓰지 않습니다. 현재 검색은 내려받은 요약 정보에 적용되며,
 향후 문서 수가 늘어나면 검색어와 페이지를 서버에 전달하도록 확장합니다.
-인증과 최종 문서 권한 검사는 실제 API 연동 시 백엔드에서 적용해야 합니다.
-서버 데이터로 교체할 때는 고정된 샘플 안내와 배지도 실제 `demo` 값에 맞게 바꿉니다.
+요청에는 Bearer 토큰이 붙고 인증은 backend가 검사합니다. 조사 화면의 문서 근거 링크는
+`?related=…&from=<조사 ID>`로 열려 관련 문서를 함께 보여 줍니다.
 
 ## 마크다운 표시
 

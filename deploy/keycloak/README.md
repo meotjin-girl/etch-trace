@@ -17,9 +17,10 @@ backend JWT 검증 구조다. 자체 비밀번호 입력·회원가입·서버 �
    비밀번호를 바로 사용할 경우 Temporary를 끈다.
 5. 관리자 계정과 앱 계정은 별개다.
 
-`test`는 개발·시연용 공용 계정이다. 현재는 로그인한 모든 사용자가 모든 작업을
-조회하고 대기 중 답변·승인·수정을 할 수 있다. 역할·소유자별 분리는 후속 범위다.
-`WAITING_INPUT`·`WAITING_APPROVAL` 조건과 승인 경쟁 제어는 유지한다.
+`test`는 개발·시연용 공용 계정이다. 현재는 로그인한 모든 사용자가 모든 조사를
+조회하고 대화·원인 선택·조치 기록을 할 수 있다. 역할·소유자별 분리는 후속 범위다.
+승인은 revision 검사로 경쟁을 막고, 승인자·기록자는 토큰의 사용자로 남는다.
+로그인 화면은 `themes/trace` 테마이며 compose의 `KC_SPI_THEME__DEFAULT=trace`로 기본 적용된다.
 
 ## URL과 프록시
 
@@ -62,17 +63,17 @@ nullable ID 열을 추가하고 예전 역할·표시 이름은 보존한다. �
 
 ## 세션 경계
 
-- REST·SSE 모두 Bearer 헤더를 사용한다. 토큰을 URL이나 local/sessionStorage에
+- REST·SSE(Agent Server 대화 스트림 포함) 모두 Bearer 헤더를 사용한다. 토큰을 URL이나 local/sessionStorage에
   저장하지 않는다. PKCE 콜백의 임시 상태는 어댑터가 관리한다.
-- backend는 RS256/JWKS, issuer, audience, 만료, `sub`, Bearer 타입을 검증한다.
+- backend와 Agent Server는 RS256/JWKS, issuer, audience, 만료, `sub`, Bearer 타입을 검증한다.
   JWKS 장애는 503, 잘못된 토큰은 401이다.
-- SSE는 JWT 만료 시 닫힌다. 갱신된 다른 토큰으로 마지막 seq부터 이어받고,
-  같은 토큰의 조기 EOF·네트워크 오류는 명시적으로 다시 연결한다.
+- 레거시 `/api/ai/*` SSE는 JWT 만료 시 닫힌다. 갱신된 다른 토큰으로 마지막 seq부터
+  이어받고, 같은 토큰의 조기 EOF·네트워크 오류는 명시적으로 다시 연결한다.
 - 로그아웃은 먼저 화면·진행 요청·조사 상태를 정리하고 Keycloak POST logout을
   실행한다. backend는 stateless JWT 검증이며 토큰 블랙리스트는 없다.
   이미 발급된 access token 자체는 만료 전까지 유효하다.
-- Agent와 MCP 내부 호출은 기존 내부 키·command ID 경계를 유지한다.
-  저장된 요청자 정보는 로그인 토큰이나 만료 정보를 대체하지 않는다.
+- 경보 전달(backend → Agent Server)과 MCP → backend 내부 호출은 내부 키를 쓴다.
+  nginx 공개 경로에서는 내부 키 헤더를 제거하므로 브라우저가 이를 대신할 수 없다.
 
 이 구성은 로컬 개발용이다. 운영용 Keycloak DB·TLS·프록시 신뢰 정책은 별도 구성이다.
 검증한 범위는 `docs/keycloak-validation.md`를 참고한다.

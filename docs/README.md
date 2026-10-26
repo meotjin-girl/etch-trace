@@ -1,45 +1,49 @@
 # TRACE v1.0.0 문서
 
-현재 기준은 **샘플 사례 기반 단일 조사 그래프**다. 브라우저는 backend HTTP API만 사용하고 agent는 MCP로 근거를 읽는다. 수치와 문서 근거를 보존한 확인 가설을 엔지니어가 검토한다.
+현재 기준은 **경보 기반 표준 Agent Server 조사**다. 모의 장비 경보가 Prometheus FDC 규칙에 걸리면 backend가 Agent Server에 thread를 만들고, 단일 ReAct Agent가 MCP 도구로 근거를 모아 원인 후보를 backend 업무 조사에 저장한다. 엔지니어는 화면에서 후보를 검증·대화·선택하고 실제 조치를 기록한다. 원인과 조치는 수치와 문서 근거를 보존한 확인 가설이다.
 
 | 문서 | 내용 |
 |---|---|
 | [../README.md](../README.md) | 실행, 환경, 검증 명령, 이전 구성에서 이동 |
-| [v1-contract.md](v1-contract.md) | 서비스 간 통합 계약 |
-| [api.md](api.md) | Bearer 인증, 공동 재질문·검토·이력·fetch SSE |
+| [agent-server.md](agent-server.md) | Agent Server 실행·데이터 책임·API·Studio (현재 주 경로) |
+| [agent.md](agent.md) | ReAct 그래프, 연결된 MCP 도구, Sensor·교육용 시뮬레이션 경계 |
+| [agent-request.md](agent-request.md) | 경보 묶음 규칙, Agent 입력 봉투 `{role,content}`, 경보 텍스트 문법 |
+| [architecture.md](architecture.md) | 서비스 구성, 저장 책임, 경보부터 조치 기록까지 |
+| [api.md](api.md) | 신규 조사 API, Bearer 인증, 레거시 `/api/ai/*` 계약 |
+| [frontend.md](frontend.md) | Vue 화면 구조, 호출 API, 목업 서버, 테스트 |
+| [physics.md](physics.md) | Physics 계산·정량 분석·교육용 시뮬레이션 계약 |
+| [mock-fab.md](mock-fab.md) | 합성 SECS/GEM 모의 장비, 수집기, Prometheus FDC 규칙 |
+| [deploy.md](deploy.md) | develop 병합 후 Jenkins(EC2) 자동 배포 |
+| [structure-review.md](structure-review.md) | 전체 경로 지도와 과거 구조 점검 기록 |
+| [agent-experiments.md](agent-experiments.md) | LangSmith 추적·실험 가이드 |
+| [sop-rag-retrieval-decision.md](sop-rag-retrieval-decision.md) | SOP 검색 방식(재순위화) 결정 기록 |
 | [../deploy/keycloak/README.md](../deploy/keycloak/README.md) | Keycloak 계정 생성·URL·영속성 |
-| [keycloak-validation.md](keycloak-validation.md) | Vue·최신 backend 인증 이식 검증 |
-| [agent.md](agent.md) | 실제 그래프, 중단·재개, MCP, 보고서 |
-| [physics.md](physics.md) | Physics v1 계산 계약, 데이터 경계, 향후 확장 백로그 |
-| [architecture.md](architecture.md) | 단일 v1 구조, 저장 책임, 배포·데이터 |
-| [frontend.md](frontend.md) | Vue 화면 구조, 필요 API와 예시, 대화형 계약 제안, 목업 서버 |
-| [structure-review.md](structure-review.md) | 전체 경로 지도, 구조 점검 결과와 근거 |
-| [v1-validation.md](v1-validation.md) | 통합 검증 기록; 실제 실행 여부·범위 확인 |
-| [agent-request.md](agent-request.md) | backend→agent 요청 형식 `{role,content}`, 경보 묶음 텍스트 문법, agent 할 일 |
-| [mock-fab.md](mock-fab.md) | 합성 SECS/GEM 모의 장비, 수집기, 로컬 Prometheus FDC 규칙 |
+| [keycloak-validation.md](keycloak-validation.md) | Vue·backend 인증 이식 검증 기록 |
+| [agent-server-validation.md](agent-server-validation.md) | Agent Server 실제 실행 검증 기록 |
+| [v1-contract.md](v1-contract.md), [v1-validation.md](v1-validation.md), [v1-report.md](v1-report.md) | 레거시 v1 task 계약·검증·보고서 기록 |
 | [idea_brief.html](idea_brief.html) | 과거 초기 기획 참고 자료; 현재 API 계약 아님 |
 
 ```text
-compose.yaml                유일한 서비스 구성
+compose.yaml                서비스 구성(keycloak, postgres, sop-postgres, seed, backend, MCP 4종, agent, web, prometheus)
 frontend/                   Vue 3 + TS 화면(Vite), 목업 API(mock/)
-sop-ocap/                   SOP·OCAP 원문(SOP 화면·의미 검색 출처)
-backend/main.py, v1_*.py     작업·권한·메시지·검토·이력·SSE·SOP
-agent/                      유일한 LangGraph, 체크포인트, MCP 어댑터
-mcp/                        business/rag/physics 서버와 결정론적 계산
+backend/investigations_*.py 신규 조사·후보·승인·조치 기록 API
+backend/agent_server_alerts.py  Prometheus 경보 → Agent Server thread·run 생성
+backend/legacy_api.py, v1_*.py  레거시 /api/ai/* 작업·SSE·승인 이력, SOP 화면 API
+agent/src/trace_agent/      표준 Agent Server(단일 ReAct 그래프, MCP 어댑터)
+mcp/                        business/rag/physics/sensor MCP와 결정론적 계산
+sop-ocap/                   SOP 3종·OCAP 19종 원문(SOP 화면·의미 검색 출처)
 db/                         샘플 사례·문서·적재
-agent/tests/                추출·재질문·보고서·검토·재시작
-backend/tests/              HTTP 권한·상태·스냅샷·이벤트·경쟁
-tests/test_evidence.py       샘플·계산·MCP 경계
-tests/test_physics.py        물리 관계식·부족 데이터·유효성 검증
-tests/test_sop_*.py          SOP 파서·색인·검색 실험
-frontend/tests/              API 계약·스토어·렌더·목업
-deploy/nginx.conf           빌드된 화면과 /api(backend) 프록시
-fab/                        합성 SECS/GEM 모의 장비·수집기(AWS 배포, 별도 compose)
-backend/prometheus/         Prometheus 설정·FDC 규칙·규칙 테스트(루트 compose의 prometheus가 마운트)
+fab/                        합성 SECS/GEM 모의 장비·수집기(별도 호스트, 별도 compose)
+backend/prometheus/         Prometheus 수집 대상·FDC 규칙·규칙 테스트
+deploy/                     nginx 프록시, Keycloak realm·로그인 테마
+agent/tests/                ReAct 순환, thread 대화, 인증·후보·MCP 경계
+backend/tests/              실제 PostgreSQL·HTTP 권한·승인·조치·경보 전달
+tests/                      MCP 근거·물리·센서·시뮬레이션·SOP 검색
+frontend/tests/             API 계약·스토어·렌더·목업
 ```
 
-구형 `docker-compose*.yml`은 `compose.yaml` include wrapper이며 별도 DB/agent 구성을 시작하지 않는다. 이전 CLI·JSON 요청 예제·CLI 테스트는 서비스 커버리지 확인 후 제거했다. 이전 localStorage 기록은 **로컬 읽기 전용**이며 서버 승인 이력으로 자동 전환하지 않는다.
+구형 `docker-compose*.yml`은 `compose.yaml` include wrapper다. 이전 다단계 agent와 CLI는 제거했다. 이전 localStorage 기록은 **로컬 읽기 전용**이며 서버 승인 이력으로 자동 전환하지 않는다.
 
-샘플 데이터는 PHM이 아니다. 문서 조회는 정확한 문서 ID 조회와 `sop-ocap/` SOP·OCAP 의미 검색 두 가지다. Keycloak 로그인 사용자는 공동 작업하며 세부 역할·소유자별 인가는 후속 범위다. 분류별 서브그래프와 담당자 자동 배정을 현재 구현으로 읽지 않는다.
+샘플 데이터는 PHM이 아니다. 문서 조회는 정확한 문서 ID 조회와 `sop-ocap/` SOP·OCAP 의미 검색 두 가지다. Keycloak 로그인 사용자는 공동 작업하며 세부 역할·소유자별 인가는 후속 범위다.
 
-문서 정리는 서비스 테스트 통과를 의미하지 않는다. 내부 신원·명령 ID 경계는 [API 문서](api.md#내부-http-경계), 검증 실행 조건은 루트 README를 참고한다.
+문서 정리는 서비스 테스트 통과를 의미하지 않는다. 검증 실행 조건은 루트 README를 참고한다.

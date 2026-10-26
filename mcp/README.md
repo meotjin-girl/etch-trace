@@ -1,4 +1,18 @@
-# v1 demo evidence MCP servers
+# TRACE MCP servers
+
+Four FastMCP servers used only by the Agent Server: Business (`business.py`),
+RAG (`rag.py`), Physics (`physics.py`) and Sensor (`sensor.py`).
+
+| Server | Tools |
+|---|---|
+| Business | `search_cases`, `analyze_metrics`, `list_investigations`, `get_investigation`, `upsert_live_investigation`, `get_live_investigation`, legacy `save_investigation` |
+| RAG | `search_documents` (exact IDs), `search_sop` (pgvector top 20 → LLM rerank to 3) |
+| Physics | `evaluate_etch_physics`, `compare_reference_runs`, `integrate_etch_rate_series`, `compare_metrology_to_spec`, `analyze_etch_quantitatively`, `simulate_educational_etch` |
+| Sensor | `analyze_sensor_timeseries`, `analyze_current_etch_run` (Mock Fab collector `/api/runs`) |
+
+The agent binds read tools to the model; `upsert_live_investigation` is called
+only by its `publish` node. Tool contracts beyond this file: [Physics](../docs/physics.md),
+[Agent Server](../docs/agent-server.md).
 
 Standalone SOP embedding/retrieval trial: [SOP_EXPERIMENT.md](SOP_EXPERIMENT.md).
 
@@ -111,9 +125,18 @@ seed twice there. Without that variable, they are skipped.
 The remaining tests exercise real MCP dispatch, backend HTTP authentication,
 frontend numeric parity, case/document links and missing-data behavior.
 
-## Approved investigation storage
+## Live investigation storage
 
-`save_investigation(task_id, command_id, event_id, payload)` forwards a DONE
+`upsert_live_investigation(thread_id, payload)` forwards the full candidate
+replacement to `PUT /internal/investigations/live/{thread_id}` with the internal
+key; `payload.base_revision` must match the stored revision (409 otherwise).
+`get_live_investigation(thread_id)` reads the current candidates, revision and
+approval back through `GET /internal/investigations/live/{thread_id}`.
+
+## Legacy approved investigation storage
+
+`save_investigation(task_id, command_id, event_id, payload)` is kept for the
+legacy `/api/ai/*` task path. It forwards a DONE
 callback to `POST /internal/tasks/{task_id}/investigation` with the internal key
 and command ID. The agent calls it after approval. Payload is the original DONE
 payload, including the reviewed report. Replays must preserve both IDs.
@@ -123,15 +146,9 @@ lot and event time come from the backend review. Duplicate requests do not
 create another investigation. HTTP/auth/validation failures propagate as tool
 errors. MCP has no investigation database write access.
 
-## History panel reads
+## Approved history reads
 
-The browser calls `GET /api/ai/investigations` and
-`GET /api/ai/investigations/{task_id}`. Nginx forwards only these history paths
-directly to custom HTTP routes on Business MCP. These are ordinary HTTP routes,
-not MCP protocol calls. They validate the mock identity headers and UUID, then
-reuse the tools' read helper to call the corresponding backend
-`/internal/investigations` endpoint with the internal key and forwarded identity.
-Backend no longer proxies history requests to MCP. The internal API
-filters to saved approved investigations and enforces worker ownership;
-engineers/admins can read all. Detail contains only the approved report and existing storage metadata;
-conversation, progress events and review timelines are excluded. Upstream failures surface as 502, never as an empty history list; access and validation errors retain 401/403/404/422.
+Business MCP exposes no browser HTTP routes. The backend serves
+`GET /api/ai/investigations(/{id})` directly. The agent's `list_investigations`
+and `get_investigation` tools call the backend `/internal/investigations`
+endpoints with the internal key; all saved approved records are shared.

@@ -17,4 +17,4 @@ develop 브랜치에 PR이 머지되면 GitHub Webhook → Jenkins(EC2) → depl
 ## 주의
 - 서버의 etch-trace-develop 폴더에서 브랜치 변경/파일 수정 금지 (배포 실패 원인)
 - 배포 결과는 Jenkins 콘솔 출력에서 확인
-- `prometheus` 서비스도 함께 배포된다(호스트 포트 없음). 수집 대상은 `backend/prometheus/targets.json`(모의 장비 EC2 collector)이며, backend는 `prometheus:9090` 경보로 FAB-ALERT 작업을 만든다. 끄려면 운영 `.env`에 `PROMETHEUS_URL=`
+- `prometheus` 서비스도 함께 배포된다(호스트 포트 없음). 수집 대상은 `backend/prometheus/targets.json`(모의 장비 EC2 collector)이며, backend는 `prometheus:9090` 경보로 Agent Server 조사(thread·run)를 시작한다. 끄려면 운영 `.env`에 `PROMETHEUS_URL=`

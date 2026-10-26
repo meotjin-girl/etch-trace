@@ -1,20 +1,39 @@
 # TRACE v1.0.0 HTTP API
 
-기준: `backend/main.py`, `backend/v1_models.py`, `v1_auth.py`, `v1_commands.py`, `v1_store.py`와 [통합 계약](v1-contract.md). 공개 경로는 nginx의 `/api`다. `.env.example` 사용 시 로컬 기준 주소는 `http://localhost:18080`이다.
+기준: `backend/investigations_api.py`, `investigations_models.py`, `legacy_api.py`, `v1_auth.py`. 공개 경로는 nginx의 `/api`와 `/agent`다. Agent Server 대화 경로는 [agent-server.md](agent-server.md)를 따른다. `.env.example` 사용 시 로컬 기준 주소는 `http://localhost:18080`이다.
 
 ## 인증과 공동 작업 인가
 
-공개 데이터 REST·SSE에는 `Authorization: Bearer <access token>`이 필수다. backend는 Keycloak JWKS를 통해 RS256 서명, issuer, audience(`trace-api`), 만료, `sub`, Bearer 타입을 검증한다. 로그인 사용자는 모두 전체 조회·답변·검토가 가능하다. 역할·소유자별 제한과 담당자 배정은 후속 범위다.
+공개 데이터 REST·SSE에는 `Authorization: Bearer <access token>`이 필수다. backend는 Keycloak JWKS를 통해 RS256 서명, issuer, audience(`trace-api`), 만료, `sub`, Bearer 타입을 검증한다. 로그인 사용자는 모두 전체 조회·대화·승인·조치 기록이 가능하다. 역할·소유자별 제한과 담당자 배정은 후속 범위다.
 
 `X-User-Name`, `X-User-Role`, SSE 신원 쿼리와 URL 토큰은 인증하지 않는다. 잘못된 토큰은 401, JWKS 연결 장애는 503, 없는 자료는 404, 잘못된 상태·중복 경쟁 명령은 409, 본문·커서 검증 실패는 422다. 오류는 `detail` 필드로 반환한다. 내부 API는 사용자 토큰 대신 내부 키를 검증한다.
 
-## 공개 경로
+## 신규 조사 API (현재 화면)
+
+조사 ID와 Agent Server thread ID는 같은 UUID다. 조사는 경보 run의 첫 후보 저장 때 생긴다.
+
+| 메서드 | 경로 | 요청·응답 |
+|---|---|---|
+| GET | `/api/auth/config` | 익명 초기화; `{url,realm,clientId}` |
+| GET | `/api/investigations` | 200 조사 요약 배열(`id`, `thread_id`, `revision`, `tool_id`, `chamber_id`, `lot_id`, `summary`, `candidate_count`, `approved_at`, `action_recorded_at`, 시각, `demo`) |
+| GET | `/api/investigations/{id}` | 200 `alert`(원본 경보 텍스트 포함), `summary`, 현재 `candidates`, `revision`, `approval`, `action` |
+| POST | `/api/investigations/{id}/approval` | `{candidate_id, expected_revision, comment}` → 200 승인 사본. revision 불일치·이미 승인은 409 |
+| DELETE | `/api/investigations/{id}/approval` | 204 선택 취소. 승인이 없거나 조치가 이미 기록됐으면 409 |
+| POST | `/api/investigations/{id}/action` | `{content, result}`(각 1~10,000자) → 200 조치 기록. 승인 전·중복은 409 |
+| GET | `/api/sops`, `/api/sops/{id}` | SOP·OCAP 요약 배열 / 요약 + `markdown` 원문 |
+
+후보는 `id`, `cause`, `action`, `rationale`, `checks`, `case_ids`, `doc_ids`, `unknowns`를 가진다. 승인 사본은 `revision`, 선택 `candidate` 사본, `approved_by_id`(검증된 `sub`), `approved_by`, `approved_at`, `comment`이고, 조치 기록은 `content`, `result`, `recorded_by_id`, `recorded_by`, `recorded_at`이다. 본문에 사용자 이름·ID·시각을 넣지 않는다. 승인 뒤 후보가 갱신돼도 승인 사본은 바뀌지 않는다.
+
+내부 경로 `GET`/`PUT /internal/investigations/live/{thread_id}`는 Business MCP 전용이며 `X-Internal-Key`가 필요하다. `PUT` 본문은 `{base_revision, alert, summary, candidates, demo:true}`이고 후보 목록 전체를 교체한다.
+
+## 레거시 v1 작업 API
+
+이전 질문 화면(`/legacy`)이 쓰던 호환 경로다. 이전 task 실행 agent(`POST /internal/tasks/{id}/run`)는 제거되었고 compose의 `agent`는 Agent Server만 실행한다. 따라서 새 `POST /api/ai/tasks` 작업은 실행 전달에 실패해 `FAILED`가 된다. 저장된 작업·승인 이력 조회용으로만 남아 있다.
 
 모든 `{id}`는 UUID다. JSON은 UTF-8, 시각은 ISO 8601이다.
 
 | 메서드 | 경로 | 요청·응답 |
 |---|---|---|
-| GET | `/api/auth/config` | 익명 초기화; `{url,realm,clientId}` |
 | POST | `/api/ai/tasks` | `{question}` -> 202 `{taskId}` |
 | GET | `/api/ai/tasks` | 200 접근 가능한 작업 배열, 최신순; 미완료 포함 |
 | GET | `/api/ai/tasks/{id}` | 200 작업과 메시지·이벤트·검토·승인 스냅샷 |
@@ -24,10 +43,8 @@
 | GET | `/api/ai/tasks/{id}/stream` | Bearer fetch SSE; after 커서 사용 |
 | GET | `/api/ai/investigations` | 200 저장된 승인 조사 배열(승인 최신순); 로그인 사용자 전체 조회 |
 | GET | `/api/ai/investigations/{id}` | 200 승인 조사 하나; 저장 전이거나 볼 수 없으면 404 |
-| GET | `/api/sops` | 200 `sop-ocap/` SOP·OCAP 요약 배열(`markdown` 제외) |
-| GET | `/api/sops/{id}` | 200 요약 + `markdown` 원문; 없으면 404 `{"detail":"문서를 찾을 수 없습니다."}` |
 
-승인 이력 응답은 `id`, `user_name`, `user_role`, `question`, `status:"DONE"`, `report`, `approved_by`, `approved_role`, `event_time`, `lot_id`, `approved_at`, `created_at`, `updated_at`이며 대화·이벤트·검토 이력은 포함하지 않는다. SOP 응답 필드는 `id`, `title`, `category`(`SOP`/`OCAP`), `version`, `updatedAt`, `owner`, `description`, `tags`, `demo`이며 문서 머리 표(`| 담당 팀 | 버전 | 최근 개정 |`)에서 읽는다.
+승인 이력 응답은 `id`, `user_name`, `user_role`, `question`, `status:"DONE"`, `report`, `approved_by`, `approved_role`, `event_time`, `lot_id`, `approved_at`, `created_at`, `updated_at`이며 대화·이벤트·검토 이력은 포함하지 않는다. SOP 응답(`/api/sops`, 없으면 404 `{"detail":"문서를 찾을 수 없습니다."}`) 필드는 `id`, `title`, `category`(`SOP`/`OCAP`), `version`, `updatedAt`, `owner`, `description`, `tags`, `demo`이며 문서 머리 표(`| 담당 팀 | 버전 | 최근 개정 |`)에서 읽는다.
 
 ### 생성과 재질문
 
@@ -68,7 +85,7 @@
 
 초안·메시지·이벤트는 승인 전에도 영속 저장된다. 현재 report와 승인 당시 스냅샷은 서로 다를 수 있다. 이력 조회는 제공하지만 승인 기록을 다음 조사의 검색 근거로 사용하는 기능은 미래 범위다. 과거 브라우저 localStorage 기록은 로컬 읽기 전용이며 이 API의 서버 이력과 다르다.
 
-## 상태와 SSE
+### 상태와 SSE
 
 상태는 `QUEUED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `DONE`, `INCOMPLETE`, `FAILED`다. 답변·검토는 대기 상태를 RUNNING으로 되돌린다. 뒤의 세 상태는 종료 상태다.
 
@@ -103,9 +120,9 @@ const response = await fetch(`/api/ai/tasks/${id}/stream?after=${lastSeq}`, {
 
 보고서는 `context`, `scored`, `metrics`, `causeCases`, `docIds`, `documents`, `summary`, `unknowns`, `feedback`, `demo:true`를 포함한다. `documents`는 `{id,title,text}` 배열이다. 수치 항목은 단위와 근거 사례 ID를 보존한다. 현재 RAG는 샘플 문서 ID 조회이며 실제 원인을 확정하지 않는다.
 
-## 내부 HTTP 경계
+### 레거시 내부 HTTP 경계
 
-공개 브라우저에서 호출하지 않는다. backend 내부 API와 agent 실행에는 `X-Internal-Key`가 필수다.
+공개 브라우저에서 호출하지 않는다. backend의 레거시 디스패치 코드는 아래 agent 경로를 호출하지만 현재 받는 서비스가 없다. backend 내부 API와 agent 실행에는 `X-Internal-Key`가 필수다.
 
 | 호출 | 경로 | 본문·용도 |
 |---|---|---|
@@ -113,9 +130,17 @@ const response = await fetch(`/api/ai/tasks/${id}/stream?after=${lastSeq}`, {
 | agent -> backend | POST `/internal/tasks/{id}/events` | `{event_id,type,payload}` |
 | business MCP -> backend | GET `/internal/cases` | 샘플 사례 배열 |
 
-agent 실행에는 `X-Command-ID`가 필수이며 agent는 현재 명령 ID를 실행 config에 넣어 이벤트 콜백으로 전달한다. backend는 동일 command ID 헤더를 요구한다. 명령별 event ID 중복은 재반영하지 않고, 이전 명령의 지연 콜백은 409로 거절한다. 이 문서 정리에서는 서비스 코드를 수정하거나 테스트 통과를 확인하지 않았다.
+agent 실행에는 `X-Command-ID`가 필수이며 agent는 현재 명령 ID를 실행 config에 넣어 이벤트 콜백으로 전달한다. backend는 동일 command ID 헤더를 요구한다. 명령별 event ID 중복은 재반영하지 않고, 이전 명령의 지연 콜백은 409로 거절한다. 
 
-## curl
+### curl
+
+신규 조사 조회:
+
+```bash
+curl -sS http://localhost:18080/api/investigations -H "Authorization: Bearer $TRACE_ACCESS_TOKEN"
+```
+
+레거시 작업:
 
 ```bash
 curl -sS http://localhost:18080/api/ai/tasks \

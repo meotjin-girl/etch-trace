@@ -2,7 +2,7 @@
 
 Physics v1은 TCAD에서 영감을 받은 **0차 물리 관계식 검증 계층**이다. RAG나
 엔지니어 판단을 대체하지 않는다. 사용자가 명시한 계측값만 사용해 계산값,
-입력값, 단위, 출처, 가정과 부족 데이터를 보고서에 보존한다.
+입력값, 단위, 출처, 가정과 부족 데이터를 결과에 보존한다.
 
 ## 구현 범위
 
@@ -13,9 +13,9 @@ Physics v1은 TCAD에서 영감을 받은 **0차 물리 관계식 검증 계층*
 | 선택비 | `S = R_target / R_mask` | `target_etch_rate_nm_min`, `mask_etch_rate_nm_min` | `selectivity_ratio` |
 
 `mcp/physics_models.py`가 순수 계산과 검증을 소유하고 `mcp/physics.py`가
-`evaluate_etch_physics` MCP 도구를 공개한다. Agent의 `physics_agent`는 모든 모델을
-한 번 평가하고 `calculated`, `needs_more_data`, `invalid_input`을 구분한다. 계산 불가는
-기존 사례·문서 조사를 중단시키지 않는다.
+`evaluate_etch_physics` MCP 도구를 공개한다. 단일 ReAct Agent는 필요할 때 이 도구를
+호출하고 결과의 `calculated`, `needs_more_data`, `invalid_input`을 구분해 인용한다.
+계산 불가는 사례·문서 조사를 중단시키지 않는다.
 
 `endpoint_sec`는 전체 식각 시간이 아니므로 `etch_time_sec`로 재사용하지 않는다.
 계산 예상 깊이는 실측 깊이로 표시하지 않는다. 계산 결과만으로 고장 원인 확정,
@@ -23,8 +23,8 @@ Recipe 변경 또는 Lot hold/release를 수행하지 않는다.
 
 ## 데이터 경계
 
-현재 질문 파서는 명시적인 `nm`, `nm/min`, 초·분 단위가 있는 물리 입력만 추출한다.
-모든 입력 출처는 현재 `user_input`이며, 향후 설비 로그 연결 시 `equipment_log`,
+Agent는 사용자가 명시한 `nm`, `nm/min`, 초·분 단위 물리 입력만 도구 인자로 넘긴다.
+사용자 입력의 출처는 `user_input`이며, 향후 설비 로그 연결 시 `equipment_log`,
 계측 시스템 연결 시 `metrology`처럼 원본 출처를 보존해야 한다.
 
 `fab/`의 합성 장비는 120초 run, `sample_offset_s`, RF·가스·압력·온도 센서를
@@ -33,8 +33,10 @@ Recipe 변경 또는 Lot hold/release를 수행하지 않는다.
 시작·종료 이벤트로 확인한 시간만 `equipment_log` 출처로 사용하며 샘플 offset을
 임의로 완료 시간으로 간주하지 않는다.
 
-보고서 `physicsResults`는 모델·버전·수식·입력·출처·결과·가정·부족 항목·경고를
-승인 스냅샷에 그대로 저장한다. 기존 보고서는 빈 배열 기본값으로 읽는다.
+도구 결과는 모델·버전·수식·입력·출처·결과·가정·부족 항목·경고를 담는다. 현재 Agent
+Server 경로에서는 결과가 thread 대화에 남고, 후보의 근거 설명(`rationale`)에 인용된다.
+업무 조사에는 계산 결과 전용 필드가 없다. 레거시 v1 보고서는 `physicsResults` 등
+별도 필드로 저장했다(`backend/v1_models.py`).
 
 ## 향후 확장 백로그
 
@@ -50,7 +52,6 @@ Recipe 변경 또는 Lot hold/release를 수행하지 않는다.
 - 다중 Recipe Step 시간 적분
 - 측정·모델 불확실성 전파
 - 사례가 없는 조사에서 센서·물리 근거의 신뢰도에 따라 탐색 범위를 확장하는 정책
-- 같은 조사에서 추가 계측값을 받아 Physics 노드를 재실행하는 상태 전이
 - 자동 Recipe 변경과 자동 Lot hold/release
 
 Physics v1은 인과 모델이나 고장 분류기가 아니다. 계산된 일관성 또는 편차는 원인
@@ -59,9 +60,8 @@ Physics v1은 인과 모델이나 고장 분류기가 아니다. 계산된 일�
 
 ## Physics v2 정량 분석
 
-v1 계약과 기존 승인 보고서는 그대로 유지한다. v2는 `quantitativeResults`와
-`sensorAnalysis`를 별도 필드로 추가하며 계산 성공 여부, 값의 출처, 현장 검증 상태를
-다음처럼 분리한다.
+v1 도구 계약은 그대로 유지한다. v2 결과(레거시 보고서의 `quantitativeResults`,
+`sensorAnalysis`)는 계산 성공 여부, 값의 출처, 현장 검증 상태를 다음처럼 분리한다.
 
 - `status`: `CALCULATED`, `INSUFFICIENT_DATA`, `INVALID_INPUT`
 - `value_origin`: `MEASURED`, `CALCULATED`, `SIMULATED`
@@ -73,7 +73,7 @@ v1 계약과 기존 승인 보고서는 그대로 유지한다. v2는 `quantitat
 | `compare_reference_runs` | 이전 동일 조건 정상 Run의 평균·표준편차·편차·z-score | 미래/비교 불가 Run 사용, 무승인 합격 판정 |
 | `integrate_etch_rate_series` | 명시된 구간별 `R(t)`의 누적 제거 깊이 | 센서값으로 식각률 생성 |
 | `compare_metrology_to_spec` | 실측값과 목표·승인 규격의 절대/상대 오차 | 계측 또는 승인 규격이 없을 때 판정 |
-| `analyze_sensor_timeseries` | 최초 이상, 범위, setpoint 편차, 지속시간, 동반 센서, 알람·OCAP | 동시 변화만으로 인과관계 확정 |
+| `analyze_sensor_timeseries` (Sensor MCP) | 최초 이상, 범위, setpoint 편차, 지속시간, 동반 센서, 알람·OCAP | 동시 변화만으로 인과관계 확정 |
 | `simulate_educational_etch` | 가정 계수 기반 상대 식각률·ARDE 깊이·직사각형 2D 도식 | 검증 예측, Bowing·Taper·원인 판정 |
 
 Mock Fab collector는 메모리 내 최근 200개 Run을 `/api/runs`로 제공한다. Run에는
@@ -88,8 +88,9 @@ Mock Fab의 ±3σ와 장비 알람 임계값은 합성 기준이다. 승인된 �
 
 ## Level 1~3 교육용 시뮬레이션
 
-실제 조사 계산인 `physicsResults`, `quantitativeResults`, `sensorAnalysis`와 교육용
-시뮬레이션인 `educationalSimulation`을 별도 보고서 필드로 저장한다. 교육용 결과는
+실제 조사 계산과 교육용 시뮬레이션은 구분한다(레거시 보고서에서는
+`educationalSimulation` 별도 필드). Agent는 사용자가 명시적으로 요청한 경우에만
+`simulate_educational_etch` 또는 Mock Fab Run 기반 `simulate_mock_fab_etch`를 호출한다. 교육용 결과는
 항상 `SIMULATED`, `NOT_VALIDATED`, `EDUCATIONAL_ASSUMPTION`으로 표시하며 원인 후보의
 지지 근거나 OCAP 합격·불합격 판정에 사용하지 않는다.
 

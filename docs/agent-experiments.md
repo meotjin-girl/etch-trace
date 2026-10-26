@@ -30,7 +30,7 @@ LANGSMITH_WORKSPACE_ID=
 - 공통 비교 실험은 같은 데이터셋을 사용한다. 프로젝트 분리는 데이터셋 분리와 다르다.
 - EU 워크스페이스라면 endpoint를 `https://eu.api.smith.langchain.com`으로 바꾼다.
 - 키가 특정 workspace 지정을 요구하면 해당 `LANGSMITH_WORKSPACE_ID`를 입력한다.
-- 추적을 켜면 질문·근거·보고서 같은 실행 데이터가 LangSmith로 전송된다. 처음에는 샘플 질문으로 확인한다.
+- 추적을 켜면 경보·질문·근거·후보 같은 실행 데이터가 LangSmith로 전송된다. 처음에는 합성 경보로 확인한다.
 
 이하 명령은 저장소 루트에서 기본 Compose 프로젝트로 실행하는 경우를 기준으로 한다.
 이미 `-p <프로젝트명>`으로 스택을 실행했다면 모든 명령에 같은 `-p` 값을 사용한다.
@@ -48,144 +48,136 @@ docker compose -f compose.yaml up -d --no-deps --wait agent
 docker compose -f compose.yaml up -d --build --wait
 ```
 
-`.env`의 `WEB_PORT`에 해당하는 화면(예제 설정은 `http://localhost:18080`)에서
-샘플 질문을 한 번 보낸 뒤 LangSmith의 위 프로젝트에서
-그래프와 노드 실행이 나타나는지 확인한다. 검토 대기에서 실행이 끝나 보이는 것은
-정상이다. 추가 답변·수정 요청·승인은 같은 checkpoint thread의 별도 실행이다.
-DB 작업 ID와 run 입력의 `task_id`, `thread_id`로 관련 실행을 찾을 수 있다.
+경보 run이 하나 생기거나(모의 장비 경보, 또는 Studio에서 경보 입력) `.env`의 `WEB_PORT`
+화면(예제 설정은 `http://localhost:18080`)의 조사에서 질문을 한 번 보낸 뒤 LangSmith의 위
+프로젝트에서 `prepare → agent ↔ tools → reason → publish` 노드 실행이 나타나는지 확인한다.
+후속 질문은 같은 thread의 별도 run이다. 조사 ID와 `thread_id`가 같으므로 이 값으로 관련
+실행을 찾는다. Studio 연결은 [agent-server.md](agent-server.md#studio와-저장소)를 따른다.
 
 키를 출력하지 않고 컨테이너 설정 여부만 확인하려면:
 
 ```sh
-docker compose -f compose.yaml exec -T agent python -c \
+docker compose -f compose.yaml exec -T agent uv run --no-sync python -c \
   "import os; print('tracing:', os.getenv('LANGSMITH_TRACING')); print('key configured:', bool(os.getenv('LANGSMITH_API_KEY'))); print('project:', os.getenv('LANGSMITH_PROJECT'))"
 ```
 
 LangSmith 키는 OpenAI 키가 아니다. LLM 없이도 그래프 실행 추적은 가능하다.
 `LANGSMITH_TRACING=false`는 일반 실행의 자동 추적을 끄는 설정이다.
 뒤의 `Client.evaluate(...)`를 명시적으로 실행하면 실험 결과 업로드는 별도로 수행된다.
-현재 `agent/prose.py`는 고정된 안전 문구 중 하나를 선택하는 제한된 모델 호출이다.
+현재 Agent는 `OPENAI_MODEL`(기본 `gpt-4.1-mini`)로 도구 선택·후보 구성·질의응답을 한다.
 OpenAI 변수를 설정한다고 자유로운 조사·보고서 작성 Agent로 바뀌지는 않는다.
 직접 HTTP로 호출하는 모델의 토큰·비용 세부 추적, 별도 MCP 서버 내부의 분산 추적은
 아직 구현하지 않았다. 우선 Agent 노드와 MCP 반환 결과를 추적한다.
 
 ## 3. 보통의 개발·실험 순서
 
-1. **목표를 하나 정한다.** 예: “장비 없이 레시피만 있는 질문에서도 불필요한 재질문을 줄인다.”
-2. **10~20개의 고정 질문을 만든다.** 정상 입력만 넣지 말고 재질문·근거 부족·숫자 변경·수정 요청을 넣는다.
+1. **목표를 하나 정한다.** 예: “압력 경보에서 OCAP-ETCH-PRS 근거가 앞 3개 후보에 들어가게 한다.”
+2. **10~20개의 고정 입력을 만든다.** 정상 경보만 넣지 말고 맞는 조항이 없는 경보·복합 경보·후속 질문을 넣는다.
 3. **현재 코드로 baseline을 실행한다.** 결과를 남기지 않고 코드를 먼저 바꾸지 않는다.
-4. **한 요소를 바꾼다.** 파서, 프롬프트, 모델, 검색 도구 중 하나를 먼저 바꾼다.
+4. **한 요소를 바꾼다.** 프롬프트, 모델, 도구 설명, 검색 방식 중 하나를 먼저 바꾼다.
 5. **같은 문제집으로 candidate를 실행한다.**
-6. **실패한 질문의 trace를 본다.** 점수만 보지 말고 어느 노드·근거에서 차이가 났는지 확인한다.
+6. **실패한 입력의 trace를 본다.** 점수만 보지 말고 어느 노드·도구 결과에서 차이가 났는지 확인한다.
 7. **회귀 테스트를 통과시키고 PR에 비교 결과를 적는다.**
 
-팀원이 작업할 경계:
+팀원이 작업할 경계(`agent/src/trace_agent/`):
 
 | 개선 대상 | 파일 |
 |---|---|
-| 질문 추출·재질문 | `agent/query.py` |
-| 조사 순서·중단·재개 | `agent/graph.py` |
-| 모델 문장 생성 | `agent/prose.py` |
-| MCP 결과 변환 | `agent/evidence.py` |
-| 보고서·상태 계약 | `agent/models.py` |
-| 사례 유사도·수치 계산 | `mcp/evidence.py` |
+| 경보 텍스트 파싱 | `alert_text.py` |
+| 그래프 구성 | `graph.py` |
+| 노드(준비·ReAct·후보·저장) | `nodes.py` |
+| 시스템 지시문 | `prompts.py` |
+| 모델 호출·구조화 출력 | `model.py` |
+| 도구 선언 | `tools.py` |
+| MCP 전송 | `evidence.py` |
+| 후보·입력 계약 | `models.py`, `state.py` |
+| 사례 유사도·수치 계산 | `mcp/evidence.py`, `mcp/physics_models.py` |
 
-보고서 필드와 이벤트 계약을 유지하면 보통 프론트·백엔드를 바꿀 필요가 없다.
-모델이 수치를 다시 계산하게 만들지 않는다. 단위·값·사례 ID는 결정론적 도구 결과를 유지한다.
+후보 필드와 저장 계약을 유지하면 보통 프론트·백엔드를 바꿀 필요가 없다.
+모델이 수치를 다시 계산하게 만들지 않는다. 단위·값·사례·문서 ID는 결정론적 도구 결과를 유지한다.
 
 ## 4. 첫 Dataset과 평가 기준
 
-LangSmith에서 `etch-trace-agent-v1` 데이터셋을 만들고 다음 두 예시부터 추가한다.
-각 예시의 inputs와 reference outputs를 JSON으로 입력한다.
+LangSmith에서 `etch-trace-agent-v1` 데이터셋을 만들고 다음 예시부터 추가한다.
+inputs는 graph 입력 봉투 그대로이고, reference outputs는 기대 문서 ID다.
 
 | inputs | reference outputs |
 |---|---|
-| `{"question":"ETCH-07 CH-B OX-120 endpoint가 118초로 지연됐어"}` | `{"stage":"WAITING_APPROVAL"}` |
-| `{"question":"endpoint가 118초로 지연됐어"}` | `{"stage":"WAITING_INPUT"}` |
+| `{"request":{"role":"system","content":"[경보] ETCH-02 / CH-A / Lot DEMO-LOT / Wafer W01 / RCP-OX-ETCH-EDU-01\n- 15:15:36 장비 RF_REFLECT_HIGH source_rf_reflected_w=39.4 W (한계 37 W) (OCAP-ETCH-RF)"}}` | `{"expected_doc":"OCAP-ETCH-RF"}` |
 
-이후 RF 상승, etch rate 저하, 레시피만 있는 입력, 다른 장비, 근거 없는 입력을 추가한다.
-여러 턴의 답변·수정 요청은 단일 질문 평가와 분리한 시나리오 데이터셋으로 만든다.
+경보 텍스트 문법은 [agent-request.md](agent-request.md)를 따른다. 압력·가스·온도 경보, 맞는 조항이 없는 경보를 추가한다.
+후속 질문은 같은 thread가 필요하므로 단일 경보 평가와 분리한 시나리오 데이터셋으로 만든다.
 
 처음부터 LLM judge 하나로 모든 결과를 평가하지 않는다.
 
 | 기준 | 추천 검사 |
 |---|---|
-| 필요한 재질문을 했는가 | 기대 stage와 실제 stage 비교 |
-| 입력한 118 sec가 보존됐는가 | 수치·단위 비교 |
+| 경보 조사가 후보를 만들었는가 | 후보 수 ≥ 1 |
+| 기대 OCAP 문서가 앞 3개 후보에 있는가 | `doc_ids` 접두사 비교(hit@3) |
 | 존재하는 사례·문서만 인용했는가 | ID 집합 검사 |
-| 통계가 정확한가 | 도구의 단위 테스트 |
-| 승인 전에 저장하지 않는가 | API·상태 통합 테스트 |
-| 보고서가 이해하기 쉬운가 | 사람의 rubric 평가, 이후 보조 LLM judge |
+| 통계·물리 수치가 정확한가 | 도구의 단위 테스트 |
+| 승인 전에 조치를 기록하지 않는가 | backend API 통합 테스트 |
+| 후보 설명이 이해하기 쉬운가 | 사람의 rubric 평가, 이후 보조 LLM judge |
 
 “정확한 원인을 맞췄는가”를 기본 정답으로 잡지 않는다.
-현재 데이터는 과거 사례에 기반한 확인 가설이지 현장 원인 확정 자료가 아니다.
+현재 데이터는 합성 경보와 문서에 기반한 확인 가설이지 현장 원인 확정 자료가 아니다.
 
-## 5. Docker 안에서 승인 전까지 안전하게 비교하기
+## 5. Docker 안에서 업무 저장 없이 비교하기
 
-다음 예시는 기존 MCP 서비스는 사용하지만, Agent의 메모리 체크포인터와
-비어 있는 이벤트 발행 함수를 사용한다. 업무 task API를 호출하지 않으므로
-실험마다 실제 조사 이력이나 승인 기록을 만들지 않는다.
-수치·검색 도구는 실제 샘플 서비스를 호출한다. 각 예시는 새로운 thread ID로 실행한다.
+다음 예시는 실제 MCP 조회 도구와 모델을 사용하지만, `upsert_live_investigation`만
+가로채 backend에 조사를 만들지 않는다. 체크포인터 없이 실행하므로 Agent Server의 thread도
+남지 않는다. 각 예시는 새 thread ID로 실행한다. 모델 호출 비용이 발생한다.
 
 먼저 위 데이터셋과 키를 준비한 뒤 저장소 루트에서 실행한다.
 이 코드는 실험 실행 예시이며 별도 운영 evaluator 서비스가 설치된 것은 아니다.
 
 ```sh
-docker compose -f compose.yaml exec -T agent python - <<'PY'
-import os
+docker compose -f compose.yaml exec -T agent uv run --no-sync python - <<'PY'
+import asyncio
 from uuid import uuid4
 from langsmith import Client
-from langgraph.checkpoint.memory import InMemorySaver
-from agent.evidence import MCPEvidenceProvider
-from agent.graph import build_graph
+from trace_agent.config import Settings
+from trace_agent.evidence import MCPEvidence
+from trace_agent.graph import build_graph
+
+class DryRun:
+    """Real MCP reads; the business write returns the receipt without saving."""
+    def __init__(self):
+        self.real = MCPEvidence(Settings())
+    async def call(self, service, name, arguments):
+        if name == "upsert_live_investigation":
+            tid = arguments["thread_id"]
+            return {"id": tid, "thread_id": tid,
+                    "revision": arguments["payload"]["base_revision"] + 1}
+        return await self.real.call(service, name, arguments)
+
+graph = build_graph(DryRun())
 
 def target(inputs):
-    task_id = str(uuid4())
-    graph = build_graph(
-        InMemorySaver(),
-        MCPEvidenceProvider(
-            os.environ["BUSINESS_MCP_URL"],
-            os.environ["RAG_MCP_URL"],
-        ),
-        lambda task_id, event: None,
-    )
-    result = graph.invoke(
-        {"task_id": task_id, "question": inputs["question"]},
-        config={"configurable": {
-            "thread_id": task_id,
-            "command_id": str(uuid4()),
-        }},
-    )
-    report = result.get("report")
-    stage = (
-        "WAITING_APPROVAL" if report is not None else
-        "WAITING_INPUT" if result.get("__interrupt__") else
-        "INCOMPLETE"
-    )
-    return {
-        "stage": stage,
-        "report": report.model_dump(mode="json") if report is not None else None,
-    }
+    result = asyncio.run(graph.ainvoke(
+        {"request": inputs["request"]},
+        config={"configurable": {"thread_id": str(uuid4())}},
+    ))
+    return {"candidates": [c.model_dump(mode="json") for c in result.get("candidates", [])]}
 
-def stage_match(outputs, reference_outputs):
-    return {
-        "key": "stage_match",
-        "score": int(outputs["stage"] == reference_outputs["stage"]),
-    }
+def hit_at_3(outputs, reference_outputs):
+    docs = [d for c in outputs["candidates"][:3] for d in c["doc_ids"]]
+    return {"key": "hit_at_3",
+            "score": int(any(d.startswith(reference_outputs["expected_doc"]) for d in docs))}
 
 results = Client().evaluate(
     target,
     data="etch-trace-agent-v1",
-    evaluators=[stage_match],
+    evaluators=[hit_at_3],
     experiment_prefix="baseline",
-    metadata={"change": "current deterministic agent"},
+    metadata={"change": "current ReAct agent"},
     max_concurrency=1,
 )
 results.wait()
 PY
 ```
 
-변경 후에는 `experiment_prefix="candidate-query-v2"`처럼 이름을 바꾼다.
+변경 후에는 `experiment_prefix="candidate-prompt-v2"`처럼 이름을 바꾼다.
 `metadata`에 변경 내용·Git commit·모델명·데이터 버전을 남긴다.
 미커밋 변경을 비교했다면 그 차분도 PR에 제시한다.
 모델 출력에 변동이 있다면 `num_repetitions`로 같은 입력의 반복 평가도 검토한다.
@@ -193,14 +185,13 @@ PY
 LangSmith UI에서는 다음 순서로 비교한다.
 
 1. **Datasets & Experiments**에서 사용한 데이터셋을 연다.
-2. baseline 실험을 연다. 입력·기대 출력·실제 출력과 `stage_match` 점수를 확인한다.
+2. baseline 실험을 연다. 입력·기대 출력·실제 출력과 `hit_at_3` 점수를 확인한다.
 3. **Compare**에서 candidate 실험을 추가한다.
-4. **Comparing 2 Experiments** 화면에서 같은 질문의 두 출력과 점수를 나란히 확인한다.
+4. **Comparing 2 Experiments** 화면에서 같은 입력의 두 출력과 점수를 나란히 확인한다.
 5. 실패한 행의 실행 상세나 **View tracing**으로 노드별 원인을 조사한다.
 
-로컬 PC에서 Agent를 실행하려면 호스트에서 접근 가능한 MCP URL이 필요하다.
-기본 Compose는 내부 포트를 공개하지 않으므로 처음에는 컨테이너 안에서 실험하는 편이 간단하다.
-브라우저는 전체 사용자 흐름 확인, 데이터셋 실험은 Agent 변경 비교에 사용한다.
+기본 Compose는 MCP 포트를 공개하지 않으므로 처음에는 컨테이너 안에서 실험하는 편이 간단하다.
+브라우저와 Studio는 전체 사용자 흐름 확인, 데이터셋 실험은 Agent 변경 비교에 사용한다.
 
 ## 6. 팀원에게 요청할 PR 항목
 
@@ -209,9 +200,11 @@ LangSmith UI에서는 다음 순서로 비교한다.
 - 자동 평가 점수 변화와 사람이 확인한 실패 예시
 - 모델을 사용했다면 모델명·설정·호출 횟수
 - `cd agent && uv run pytest -q` 결과
-- 상태·API 계약을 바꿨다면 `tests/check_stack.py`와 Aside 확인 결과
+- 조사·대화 계약을 바꿨다면 `tests/check_agent_server.mjs` 확인 결과
 
-## 7. 검증 기록과 한계
+## 7. 검증 기록과 한계 (이전 그래프 기준)
+
+아래는 제거된 이전 다단계 그래프와 `stage_match` 평가로 확인한 기록이다. 현재 ReAct Agent의 5장 예시는 아직 같은 방식으로 기록하지 않았다.
 
 2026-10-20, 분리된 Docker 테스트 스택과 실제 LangSmith 워크스페이스에서 확인했다.
 실제 키는 Git에 포함하거나 로그로 출력하지 않았다.

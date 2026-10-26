@@ -1,5 +1,12 @@
 # v1.0.0 integration contract
 
+> **Legacy contract.** This describes the `/api/ai/*` task path kept for
+> compatibility. The current service path is the standard Agent Server and
+> `/api/investigations` ([agent-server.md](agent-server.md), [api.md](api.md)).
+> The task-running agent (`POST /internal/tasks/{id}/run`) was removed; the
+> Compose `agent` service now runs only the Agent Server, so new tasks fail
+> dispatch and become `FAILED`.
+
 ## Ownership
 
 - The browser calls only the public backend.
