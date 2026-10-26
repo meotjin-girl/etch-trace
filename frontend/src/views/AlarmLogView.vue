@@ -150,22 +150,22 @@ const occurred = (id: string, fallback: string) => {
 </template>
 
 <style scoped>
-.alarm-list { display: grid; gap: 22px; }
-.alarm-card { display: block; width: 100%; padding: 22px 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text); text-align: left; }
+.alarm-list { display: grid; gap: 16px; }
+.alarm-card { display: block; width: 100%; padding: 16px 18px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text); text-align: left; }
 .alarm-card:hover { border-color: var(--border-strong); }
 .alarm-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.alarm-card header { display: flex; align-items: center; gap: 14px; }
-.alarm-card header strong { font-size: 18px; }
+.alarm-card header { display: flex; align-items: center; gap: 10px; }
+.alarm-card header strong { font-size: 14px; }
 .alarm-card header .t-pill { margin-left: auto; }
-.alarm-card h3 { margin: 18px 0 14px; font-size: 21px; font-weight: 800; overflow-wrap: anywhere; }
-.alarm-card p { margin: 0; color: var(--text-muted); font-size: 16px; }
-.more { margin-top: 22px; }
-.picked { border-left: 3px solid var(--danger); }
-.picked header { font-size: 14px; font-weight: 800; text-align: right; }
-.picked-title { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; }
-.picked-title h3 { font-size: 26px; }
-.big { margin: 12px 0 10px; font-size: 40px; font-weight: 800; }
-.big b { margin-left: 18px; font-size: 18px; }
+.alarm-card h3 { margin: 14px 0 10px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+.alarm-card p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.more { margin-top: 16px; }
+.picked { border-left: 2px solid var(--danger); }
+.picked header { font-size: 12px; font-weight: 800; text-align: right; }
+.picked-title { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; }
+.picked-title h3 { font-size: 20px; }
+.big { margin: 9px 0 8px; font-size: 30px; font-weight: 800; }
+.big b { margin-left: 14px; font-size: 14px; }
 .strong { font-weight: 800; color: var(--text-muted); }
-.small { font-size: 17px; }
+.small { font-size: 13px; }
 </style>

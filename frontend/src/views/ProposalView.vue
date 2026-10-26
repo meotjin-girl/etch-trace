@@ -57,8 +57,8 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
 <style scoped>
 .crumb { color: inherit; text-decoration: none; }
 .crumb:hover { text-decoration: underline; }
-.warning strong { font-size: 18px; }
-.section-title { margin: 12px 0 0; font-size: 24px; font-weight: 800; }
-.candidate header { display: flex; align-items: center; gap: 18px; }
-.candidate footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 22px; }
+.warning strong { font-size: 14px; }
+.section-title { margin: 9px 0 0; font-size: 18px; font-weight: 800; }
+.candidate header { display: flex; align-items: center; gap: 14px; }
+.candidate footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; font-size: 14px; }
 </style>

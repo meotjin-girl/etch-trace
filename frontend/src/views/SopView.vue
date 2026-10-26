@@ -95,10 +95,10 @@ watch(selected, id => { if (id) load(id) })
 </template>
 
 <style scoped>
-.sop-grid { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 32px; align-items: start; }
-.sop-item { display: grid; gap: 10px; margin-top: 18px; color: var(--text); text-decoration: none; }
+.sop-grid { display: grid; grid-template-columns: minmax(0, 345px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.sop-item { display: grid; gap: 8px; margin-top: 14px; color: var(--text); text-decoration: none; }
 .sop-item.active { border-color: var(--border-strong); }
-.sop-item strong { font-size: 17px; }
+.sop-item strong { font-size: 13px; }
 .sop-doc :deep(.sop-markdown) { color: var(--text); }
 .sop-doc :deep(.sop-markdown pre), .sop-doc :deep(.sop-markdown th), .sop-doc :deep(.sop-markdown :not(pre) > code) { background: var(--surface-2); }
 @media (max-width: 1080px) { .sop-grid { grid-template-columns: minmax(0, 1fr); } }

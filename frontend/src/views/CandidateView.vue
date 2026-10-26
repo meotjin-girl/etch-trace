@@ -100,16 +100,16 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
 </template>
 
 <style scoped>
-.summary header { display: flex; align-items: center; gap: 20px; }
-.summary h2 { font-size: 27px; }
-.strong { margin: 22px 0 8px; font-weight: 800; }
-.body { margin: 0 0 12px; font-size: 17px; line-height: 1.8; white-space: pre-wrap; }
-.evidence { margin-top: 26px; }
-.readings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px 20px; margin: 0; }
-.readings dt { font-size: 17px; font-weight: 800; }
-.readings dd { margin: 0; font-size: 18px; font-weight: 800; }
-.readings small { display: block; margin-top: 10px; color: var(--text-muted); font-size: 14px; font-weight: 400; }
-.source { margin-top: 30px; }
-.docs { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0 0; }
-.check { margin: 0 0 10px; font-size: 16px; line-height: 1.7; }
+.summary header { display: flex; align-items: center; gap: 15px; }
+.summary h2 { font-size: 20px; }
+.strong { margin: 16px 0 6px; font-weight: 800; }
+.body { margin: 0 0 9px; font-size: 13px; line-height: 1.8; white-space: pre-wrap; }
+.evidence { margin-top: 20px; }
+.readings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px 15px; margin: 0; }
+.readings dt { font-size: 13px; font-weight: 800; }
+.readings dd { margin: 0; font-size: 14px; font-weight: 800; }
+.readings small { display: block; margin-top: 8px; color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.source { margin-top: 22px; }
+.docs { display: flex; flex-wrap: wrap; gap: 10px; margin: 9px 0 0; }
+.check { margin: 0 0 8px; font-size: 12px; line-height: 1.7; }
 </style>

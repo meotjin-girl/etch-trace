@@ -66,13 +66,13 @@ const when = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleStr
 </template>
 
 <style scoped>
-.records { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 32px; align-items: stretch; min-height: 70vh; }
-.inline { margin-top: 26px; }
-.empty-strong { font-size: 18px; font-weight: 800; }
-.record-item { display: grid; gap: 8px; margin-bottom: 14px; color: var(--text); text-decoration: none; }
+.records { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; align-items: stretch; min-height: 70vh; }
+.inline { margin-top: 20px; }
+.empty-strong { font-size: 14px; font-weight: 800; }
+.record-item { display: grid; gap: 6px; margin-bottom: 10px; color: var(--text); text-decoration: none; }
 .record-item.active { border-color: var(--accent); }
 .record-detail { display: flex; flex-direction: column; }
-.wide { grid-template-columns: 110px 1fr; font-size: 16px; }
+.wide { grid-template-columns: 82px 1fr; font-size: 12px; }
 .pre { white-space: pre-wrap; line-height: 1.7; }
 .bottom { margin-top: auto; }
 @media (max-width: 1080px) { .records { grid-template-columns: minmax(0, 1fr); } }

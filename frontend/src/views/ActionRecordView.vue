@@ -69,11 +69,11 @@ async function save() {
 </template>
 
 <style scoped>
-.record-grid { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 30px; align-items: start; }
-.tool { margin: 28px 0 14px; font-size: 20px; font-weight: 800; }
-.line { margin: 0 0 12px; font-size: 19px; }
-.cause { margin: 10px 0 18px; font-size: 21px; font-weight: 800; }
-.doc { display: block; margin-bottom: 6px; font-weight: 500; }
-.saved { margin: 0; white-space: pre-wrap; font-size: 16px; line-height: 1.7; }
+.record-grid { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.tool { margin: 21px 0 10px; font-size: 15px; font-weight: 800; }
+.line { margin: 0 0 9px; font-size: 14px; }
+.cause { margin: 8px 0 14px; font-size: 16px; font-weight: 800; }
+.doc { display: block; margin-bottom: 4px; font-weight: 500; }
+.saved { margin: 0; white-space: pre-wrap; font-size: 12px; line-height: 1.7; }
 @media (max-width: 1080px) { .record-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>

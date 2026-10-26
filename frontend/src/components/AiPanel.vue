@@ -81,23 +81,23 @@ function keydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.ai-panel { display: flex; flex-direction: column; gap: 22px; min-height: 640px; }
-.ai-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px 14px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-2); }
-.ai-tabs button { padding: 12px 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-size: 15px; }
+.ai-panel { display: flex; flex-direction: column; gap: 16px; min-height: 480px; }
+.ai-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); }
+.ai-tabs button { padding: 9px 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-size: 12px; }
 .ai-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
-.ai-body { flex: 1; display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow-y: auto; }
-.bubble { padding: 18px 20px; border-radius: 10px; font-size: 16px; line-height: 1.7; }
-.bubble p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bubble small { font-size: 13px; font-weight: 700; }
+.ai-body { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
+.bubble { padding: 14px 15px; border-radius: 8px; font-size: 12px; line-height: 1.7; }
+.bubble p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble small { font-size: 12px; font-weight: 700; }
 .bubble.user { align-self: flex-end; width: 88%; background: var(--bubble); color: var(--bubble-text); }
 .bubble.user small { opacity: .8; }
 .bubble.ai { border: 1px solid var(--border); background: var(--surface-2); }
-.sensor-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-.sensor-table th, .sensor-table td { padding: 10px 6px; border-bottom: 1px solid var(--border); text-align: left; }
+.sensor-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sensor-table th, .sensor-table td { padding: 8px 4px; border-bottom: 1px solid var(--border); text-align: left; }
 .sensor-table td { text-align: right; }
 .sensor-table tr.hot th, .sensor-table tr.hot td:nth-child(2) { color: var(--danger); }
 .doc-link { display: block; text-decoration: none; }
-.composer-row { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
-.composer-row textarea { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font-size: 15px; }
-.send { min-height: 48px; padding: 0 22px; font-size: 16px; }
+.composer-row { display: flex; align-items: center; gap: 9px; padding: 9px 9px 9px 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
+.composer-row textarea { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font-size: 12px; }
+.send { min-height: 36px; padding: 0 16px; font-size: 12px; }
 </style>

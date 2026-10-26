@@ -22,7 +22,7 @@ defineProps<{ investigation: LiveInvestigation, head: ReturnType<typeof headline
 </template>
 
 <style scoped>
-.alarm-header { display: grid; gap: 18px; margin-bottom: 28px; }
-.row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.row strong { font-size: 21px; font-weight: 800; }
+.alarm-header { display: grid; gap: 14px; margin-bottom: 21px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; }
+.row strong { font-size: 16px; font-weight: 800; }
 </style>

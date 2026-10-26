@@ -45,9 +45,9 @@ const items = computed(() => [
 </template>
 
 <style scoped>
-.chosen header { display: flex; align-items: center; gap: 20px; }
-.section-title { margin: 44px 0 0; font-size: 24px; font-weight: 800; }
-.checks { display: grid; gap: 22px; margin: 26px 0 0; padding: 0; list-style: none; }
-.checks li { display: flex; gap: 24px; align-items: flex-start; }
-.checks strong { font-size: 20px; }
+.chosen header { display: flex; align-items: center; gap: 15px; }
+.section-title { margin: 33px 0 0; font-size: 18px; font-weight: 800; }
+.checks { display: grid; gap: 16px; margin: 20px 0 0; padding: 0; list-style: none; }
+.checks li { display: flex; gap: 18px; align-items: flex-start; }
+.checks strong { font-size: 15px; }
 </style>

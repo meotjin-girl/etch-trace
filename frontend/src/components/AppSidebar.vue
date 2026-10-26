@@ -26,7 +26,7 @@ const roleLabel = computed(() => identity.role === 'engineer' ? '엔지니어' :
 <template>
   <aside class="t-sidebar" aria-label="서비스 탐색">
     <RouterLink to="/" class="t-brand" aria-label="TRACE 홈">
-      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 34 34" aria-hidden="true">
         <rect x="7" y="7" width="20" height="20" transform="rotate(45 17 17)" fill="none" stroke="currentColor" stroke-width="2.4" />
       </svg>
       <strong>TRACE</strong>
