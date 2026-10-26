@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     business_mcp_url: str = "http://localhost:8002/mcp"
     rag_mcp_url: str = "http://localhost:8003/mcp"
     physics_mcp_url: str = "http://localhost:8004/mcp"
+    sensor_mcp_url: str = "http://localhost:8005/mcp"
     keycloak_issuer: str = ""
     keycloak_url: str = ""
     keycloak_realm: str = "trace"

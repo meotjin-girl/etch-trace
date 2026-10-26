@@ -19,7 +19,7 @@ MCP는 에이전트 전용 도구다. 이전 v1 task API `/api/ai/*`는 레거�
 - 새 경로는 레거시 `WAITING_INPUT`, `WAITING_APPROVAL`, command ID 계약을 따르지 않는다.
 - 동일 경보 중복 방지와 저장 실패 재시도는 현재 요청 범위에서 제외한다.
 - 아래 v1 상태·이벤트·스냅샷 규칙은 레거시 경로에 적용된다.
-- 현재 Agent Server의 MCP 도구는 Business, RAG, Physics를 사용한다. Sensor MCP는 구현됐지만 Agent 연결은 별도 작업으로 남아 있다.
+- 현재 Agent Server는 Business, RAG, Physics, Sensor MCP를 사용한다. Sensor 조회와 교육용 시뮬레이션은 사용자가 명시적으로 요청한 경우에만 결합한다.
 
 ## WHERE TO LOOK
 
@@ -27,11 +27,11 @@ MCP는 에이전트 전용 도구다. 이전 v1 task API `/api/ai/*`는 레거�
 |---|---|---|
 | 신규 조사·승인 API | `backend/investigations_api.py`, `investigations_models.py`, `investigations_store.py` | live 조사·후보·승인 사본 |
 | Agent Server 그래프 | `agent/src/trace_agent/graph.py`, `nodes.py`, `tools.py`, `models.py` | 단일 ReAct agent↔ToolNode 순환, thread 기반 대화 |
-| Agent MCP 어댑터 | `agent/src/trace_agent/evidence.py` | Business/RAG/Physics MCP, 업무 DB 직접 조회 금지 |
+| Agent MCP 어댑터 | `agent/src/trace_agent/evidence.py` | Business/RAG/Physics/Sensor MCP, 업무 DB 직접 조회 금지 |
 | 레거시 공개 REST/SSE | `backend/legacy_api.py`, `backend/v1_*.py` | `/api/ai/tasks`, 질문 본문 `{question}` |
 | 사례·통계 | `mcp/business.py`, `mcp/evidence.py` | backend 내부 사례 조회, 결정론적 계산 |
 | 물리 계산 | `mcp/physics.py`, `mcp/physics_models.py` | 식각 깊이·평균 속도·선택비 계산 |
-| Sensor MCP | `mcp/sensor.py`, `mcp/sensor_models.py` | Mock Fab 시계열 도구 구현. 현재 Agent Server에는 연결 안 됨 |
+| Sensor MCP | `mcp/sensor.py`, `mcp/sensor_models.py` | 정확한 Run 식별자 기반 Mock Fab 시계열·불변 스냅샷 생성 |
 | 정량·교육 시뮬레이션 | `mcp/quantitative_models.py`, `mcp/simulation_models.py` | 정상 Run 비교·R(t) 적분·미보정 Level 2/3 교육 모델 |
 | 문서 | `mcp/rag.py` | exact-ID 문서 및 SOP/OCAP 의미 검색; 색인에는 `OPENAI_API_KEY` 필요 |
 | 샘플 적재 | `db/seed.py`, `db/cases.json`, `db/documents.json` | PHM 아님, demo/source 표시 보존 |
@@ -50,7 +50,7 @@ MCP는 에이전트 전용 도구다. 이전 v1 task API `/api/ai/*`는 레거�
 - 수치는 코드에서 계산하고 단위·근거 ID를 보존한다. 원인과 조치는 확인 가설이며 현재 원인의 확정이 아니다.
 - Agent Server의 checkpoint는 `agent_dev_state` 볼륨, 업무 조사는 backend PostgreSQL에 저장된다.
 - 레거시 `/api/ai/*` 경로의 상태·이벤트·command ID 규칙은 새 Agent Server 대화 경로에 적용하지 않는다.
-- Sensor MCP 서비스가 실행되어도 Agent Server가 호출하지 않으면 조사 결과에는 반영되지 않는다.
+- 일반 경보 조사에는 Sensor 기반 교육용 시뮬레이션을 자동 실행하거나 원인 근거로 섞지 않는다.
 
 ## COMMANDS AND COVERAGE
 
@@ -77,4 +77,4 @@ uv run --project mcp --with pytest python -m pytest tests/test_physics.py -q
 
 이전 단일 조사 그래프는 `agent/` 루트의 구형 모듈이었으며 현재는 `agent/src/trace_agent/` 표준 Agent Server로 대체되었다.
 `/api/ai/*` 호환 경로는 남아 있으나 신규 화면과 조사 흐름의 주 경로가 아니다.
-장비·센서·정비 데이터에 대한 실제 조회 가능 범위는 연결된 MCP 구현과 도구에 한정한다. 새 MCP의 Agent 통합을 구현 완료로 문서화하지 않는다.
+장비·센서·정비 데이터에 대한 실제 조회 가능 범위는 연결된 MCP 구현과 도구에 한정한다.

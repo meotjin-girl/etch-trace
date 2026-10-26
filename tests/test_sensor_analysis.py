@@ -112,3 +112,7 @@ def test_sensor_analysis_exposes_good_process_points_for_education_only():
     assert result.process_series[0].source_rf_w == 1000
     assert result.process_series[0].source_rf_reference_w == 990
     assert result.process_series[0].source == "mock_fab_sensor"
+    assert result.snapshot_id is not None
+    assert result.snapshot_id.startswith("sha256:")
+    assert result.snapshot_start_offset_sec == 0
+    assert result.snapshot_end_offset_sec == 5

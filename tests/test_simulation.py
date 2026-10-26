@@ -110,3 +110,11 @@ def test_zero_reference_or_nonpositive_width_is_rejected():
     assert result.status == "INVALID_INPUT"
     assert any("non-zero" in warning for warning in result.warnings)
     assert any("positive" in warning for warning in result.warnings)
+
+
+def test_non_increasing_process_offsets_are_rejected_without_reordering():
+    result = simulate([point(10), point(5)])
+
+    assert result.status == "INVALID_INPUT"
+    assert result.profile_frames == []
+    assert any("strictly increasing" in warning for warning in result.warnings)

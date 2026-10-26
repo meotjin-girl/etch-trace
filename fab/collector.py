@@ -14,10 +14,9 @@ from urllib.parse import urlsplit
 import secsgem.common
 import secsgem.gem
 import secsgem.hsms
+import sensors
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
 from prometheus_client.core import GaugeMetricFamily
-
-import sensors
 
 log = logging.getLogger("collector")
 EVENTS_ENABLED_SVID, ALARMS_SET_SVID = 1003, 1005  # secsgem built-ins
@@ -138,6 +137,8 @@ class Link:
                     "run_id": run_id,
                     "equipment": self.tool_id,
                     "chamber": chamber,
+                    "lot_id": str(values["lot_id"]),
+                    "wafer_id": str(values["wafer_id"]),
                     "recipe": str(recipe),
                     "step": str(step),
                     "started_at": started_at.isoformat(),

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from datetime import datetime
 from itertools import pairwise
@@ -41,6 +43,8 @@ class SensorRun(Model):
     run_id: str
     equipment: str
     chamber: str
+    lot_id: str | None = None
+    wafer_id: str | None = None
     recipe: str
     step: str
     started_at: datetime
@@ -107,6 +111,17 @@ class SensorAnalysis(Model):
     problem: str = "센서 시계열에서 이상 시작·지속·동반 신호와 관련 OCAP 근거 확인"
     status: Literal["CALCULATED", "INSUFFICIENT_DATA", "INVALID_INPUT"]
     target_run_id: str | None = None
+    equipment: str | None = None
+    chamber: str | None = None
+    lot_id: str | None = None
+    wafer_id: str | None = None
+    recipe: str | None = None
+    step: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    snapshot_id: str | None = None
+    snapshot_start_offset_sec: float | None = None
+    snapshot_end_offset_sec: float | None = None
     signals: list[SensorSignalAnalysis] = Field(default_factory=list)
     process_series: list[SensorProcessPoint] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
@@ -141,12 +156,20 @@ def analyze_sensor_timeseries(data: SensorAnalysisInput) -> SensorAnalysis:
     if not target.samples:
         return SensorAnalysis(
             status="INSUFFICIENT_DATA", target_run_id=target.run_id,
+            equipment=target.equipment, chamber=target.chamber,
+            lot_id=target.lot_id, wafer_id=target.wafer_id,
+            recipe=target.recipe, step=target.step,
+            started_at=target.started_at, ended_at=target.ended_at,
             missing_fields=["target.samples"],
         )
     samples = sorted(target.samples, key=lambda item: item.offset_sec)
     if any(sample.offset_sec < 0 for sample in samples):
         return SensorAnalysis(
             status="INVALID_INPUT", target_run_id=target.run_id,
+            equipment=target.equipment, chamber=target.chamber,
+            lot_id=target.lot_id, wafer_id=target.wafer_id,
+            recipe=target.recipe, step=target.step,
+            started_at=target.started_at, ended_at=target.ended_at,
             warnings=["sample offsets must be non-negative"],
         )
     period = _sample_period(samples)
@@ -278,7 +301,29 @@ def analyze_sensor_timeseries(data: SensorAnalysisInput) -> SensorAnalysis:
     ]
     if any(sample.quality != "GOOD" for sample in samples):
         warnings.append("품질 상태가 GOOD이 아닌 샘플은 수치 분석에서 제외했습니다.")
+    snapshot_payload = {
+        "run_id": target.run_id,
+        "equipment": target.equipment,
+        "chamber": target.chamber,
+        "lot_id": target.lot_id,
+        "wafer_id": target.wafer_id,
+        "recipe": target.recipe,
+        "step": target.step,
+        "process_series": [item.model_dump(mode="json") for item in process_series],
+    }
+    snapshot_id = "sha256:" + hashlib.sha256(
+        json.dumps(
+            snapshot_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
     return SensorAnalysis(
         status="CALCULATED", target_run_id=target.run_id,
+        equipment=target.equipment, chamber=target.chamber,
+        lot_id=target.lot_id, wafer_id=target.wafer_id,
+        recipe=target.recipe, step=target.step,
+        started_at=target.started_at, ended_at=target.ended_at,
+        snapshot_id=snapshot_id,
+        snapshot_start_offset_sec=(process_series[0].offset_sec if process_series else None),
+        snapshot_end_offset_sec=(process_series[-1].offset_sec if process_series else None),
         signals=analyses, process_series=process_series, warnings=warnings,
     )

@@ -137,12 +137,13 @@ services:
       timeout: 5s
       retries: 20
 
-  # Standalone implementation for the separately planned Agent integration.
   sensor-mcp:
     build: ./mcp
     command: ["uv", "run", "python", "sensor.py"]
     environment:
-      FAB_COLLECTOR_URL: ${FAB_COLLECTOR_URL:-}
+      FAB_COLLECTOR_URL: ${FAB_COLLECTOR_URL:-http://host.docker.internal:8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "uv", "run", "python", "-c", "import socket; socket.create_connection(('localhost',8000),2).close()"]
       interval: 3s
@@ -170,6 +171,7 @@ services:
       BUSINESS_MCP_URL: http://business-mcp:8000/mcp
       RAG_MCP_URL: http://rag-mcp:8000/mcp
       PHYSICS_MCP_URL: http://physics-mcp:8000/mcp
+      SENSOR_MCP_URL: http://sensor-mcp:8000/mcp
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-trace-local-development}
       KEYCLOAK_URL: ${KEYCLOAK_URL:-http://localhost:${WEB_PORT:-8080}/auth}
       KEYCLOAK_REALM: trace
@@ -196,6 +198,8 @@ services:
       rag-mcp:
         condition: service_healthy
       physics-mcp:
+        condition: service_healthy
+      sensor-mcp:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "uv", "run", "--no-sync", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2024/ok',timeout=2).close()"] 

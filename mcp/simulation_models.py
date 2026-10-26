@@ -161,7 +161,7 @@ def simulate_educational_etch(
         )
     assert data.base_etch_rate_nm_min is not None
     assert data.feature_width_nm is not None
-    points = sorted(data.process_points, key=lambda item: item.offset_sec)
+    points = list(data.process_points)
     warnings: list[str] = []
     if data.base_etch_rate_nm_min < 0:
         warnings.append("base_etch_rate_nm_min must be non-negative")
