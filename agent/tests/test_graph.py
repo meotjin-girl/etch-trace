@@ -180,6 +180,44 @@ async def test_edit_after_approval_preserves_snapshot(
     assert business.records[identity].candidates[0].action == "New"
 
 
+async def test_failed_evidence_tool_returns_to_model_and_run_still_publishes(
+    evidence: MCPEvidence, business: Business
+) -> None:
+    # Given: an MCP evidence tool that fails remotely, as search_sop did after a bad rerank.
+    @business.server.tool
+    async def search_sop(query: str) -> list[str]:
+        del query
+        msg = "Reranker returned duplicate or unknown section IDs"
+        raise RuntimeError(msg)
+
+    model = ScriptedModel()
+    model.responses.append(
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "search_sop",
+                    "args": {"query": "RF reflected power"},
+                    "id": "call-sop",
+                    "type": "tool_call",
+                }
+            ],
+        )
+    )
+    identity = uuid4()
+    graph = build_graph(evidence, model, InMemorySaver())
+    config: RunnableConfig = {"configurable": {"thread_id": str(identity)}}
+
+    # When
+    _ = await graph.ainvoke({"request": Request(role="system", content=ALERT)}, config)
+
+    # Then: the model sees the failure as a tool result and the investigation is still saved.
+    failures = [m for m in model.seen[1] if isinstance(m, ToolMessage)]
+    assert [m.status for m in failures] == ["error"]
+    assert "Reranker returned duplicate" in str(failures[0].content)
+    assert business.records[identity].revision == 1
+
+
 async def test_publication_failure_fails_run_without_success_state(
     evidence: MCPEvidence, business: Business
 ) -> None:

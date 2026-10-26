@@ -1,10 +1,12 @@
 # Copyright 2026 TRACE contributors
 """Standard LangGraph Server entrypoints; the server owns checkpoint storage."""
 
+from fastmcp.exceptions import ToolError
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt.tool_node import ToolInvocationError
 
 from .config import Settings
 from .evidence import Evidence, MCPEvidence
@@ -12,6 +14,13 @@ from .model import OpenAIReasoner, Reasoner
 from .nodes import Nodes
 from .state import InputState, State
 from .tools import build_tools
+
+
+def tool_failure(error: ToolInvocationError | ToolError) -> str:
+    """Give bad arguments and failed MCP evidence back to the model; other errors fail the run."""
+    if isinstance(error, ToolInvocationError):
+        return error.message
+    return f"Evidence tool failed: {error}. Treat this evidence as unavailable; do not invent it."
 
 
 def build_graph(
@@ -25,7 +34,7 @@ def build_graph(
     builder = StateGraph(State, input_schema=InputState)
     _ = builder.add_node("prepare", nodes.prepare)
     _ = builder.add_node("agent", nodes.react)
-    _ = builder.add_node("tools", ToolNode(tools))
+    _ = builder.add_node("tools", ToolNode(tools, handle_tool_errors=tool_failure))
     _ = builder.add_node("reason", nodes.reason)
     _ = builder.add_node("publish", nodes.persist)
     _ = builder.add_edge(START, "prepare")
