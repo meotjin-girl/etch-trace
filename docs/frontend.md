@@ -17,10 +17,13 @@
 | `src/stores/identity.ts` | 검증된 로그인 상태·표시 이름·subject, 로그아웃 시 조사·기록·진행 요청 초기화 | `changeIdentity` |
 | `src/stores/investigation.ts` | 현재 조사, 이벤트·`after` 커서, SSE 연결, `epoch`/`syncVersion` 가드, 질문·추가 정보·검토 제출 | `app.js` state |
 | `src/stores/records.ts` | 서버 기록 목록·상세, 로컬 읽기 전용 기록(`etch-investigation-records-v1`) | `refreshRecords`, `selectRecord` |
-| `src/stores/ui.ts` | 근거 패널 열림·하이라이트, SOP 검색어, 네트워크 알림 | DOM 토글 |
-| `src/router/` | history 모드. `/` 이상 조사, `/records/:id?` 조사 기록, `/sop/:id?` SOP 목록 | `setPage()` |
-| `src/views/`, `src/components/` | 기존 마크업·클래스를 유지한 SFC | `index.html` |
-| `src/assets/styles.css` | 기존 전역 스타일 그대로 | `styles.css` |
+| `src/stores/ui.ts` | 근거 패널 열림·하이라이트, SOP·사이드바 검색어, 네트워크 알림 | DOM 토글 |
+| `src/stores/live-investigations.ts` | 경보 조사 목록·상세·대화·승인·조치 기록, 목록 카드용 상세 미리보기 | — |
+| `src/lib/alert-text.ts` | 경보 텍스트 파서(`docs/agent-request.md` 문법), rule·센서 한국어 이름, 상태(이상 탐지/조치 중/조치 완료) | — |
+| `src/router/` | `/` 이상 로그, `/investigations/:id` 조사 제안서, `…/candidates/:cid` 원인 확인, `…/action` 조치 검토, `…/record` 조치 기록, `/records/:id?` 조사 기록, `/sop/:id?` SOP·OCAP. 이전 질문 화면은 `/legacy`, `/legacy/records/:id?`(메뉴 없음) | `setPage()` |
+| `src/views/`, `src/components/` | 피그마 시안 화면(`AppSidebar`, `StepBar`, `PageHeader`, `AlarmHeader`, `AiPanel`)과 이전 화면 SFC | `index.html` |
+| `src/assets/trace.css` | 디자인 토큰. `prefers-color-scheme`로 라이트·다크 자동 전환. 다크 값은 시안에서 읽은 근사치라 피그마 값이 오면 토큰만 교체 | — |
+| `src/assets/styles.css` | 이전 화면 전역 스타일. 색은 `trace.css` 토큰으로 대체됨 | `styles.css` |
 
 ## 규칙
 

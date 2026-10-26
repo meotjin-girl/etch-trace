@@ -64,6 +64,26 @@ class Approval(Input):
     comment: str
 
 
+class ActionInput(Input):
+    content: str = Field(min_length=1, max_length=10000)
+    result: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("content", "result")
+    @classmethod
+    def nonblank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
+
+
+class ActionRecord(Input):
+    content: str
+    result: str
+    recorded_by_id: str
+    recorded_by: str
+    recorded_at: datetime
+
+
 class LiveResult(Input):
     id: UUID
     thread_id: UUID
@@ -75,6 +95,7 @@ class Investigation(LiveResult):
     summary: str
     candidates: tuple[Candidate, ...]
     approval: Approval | None
+    action: ActionRecord | None = None
     created_at: datetime
     updated_at: datetime
     demo: Literal[True] = True
@@ -87,6 +108,7 @@ class InvestigationSummary(LiveResult):
     summary: str
     candidate_count: int
     approved_at: datetime | None
+    action_recorded_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     demo: Literal[True] = True

@@ -1,72 +1,58 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { agentFlow } from '@/lib/format'
 import { useIdentityStore } from '@/stores/identity'
-import { useInvestigationStore } from '@/stores/investigation'
-import { useRecordsStore } from '@/stores/records'
+import { useUiStore } from '@/stores/ui'
 
-defineEmits<{ new: [] }>()
 const identity = useIdentityStore()
-const investigation = useInvestigationStore()
-const records = useRecordsStore()
+const ui = useUiStore()
 const route = useRoute()
-// Shown on the investigation page, and on records only once a record is opened.
-const flow = computed(() => {
-  if (route.name === 'investigation') return investigation.flow
-  const record = records.selected
-  if (route.name !== 'records' || !route.params.id || !record) return null
-  return agentFlow(record.events || [], record.report)
-})
+const section = computed(() => String(route.meta.section ?? ''))
 const nav = [
-  {to: '/', name: 'investigations', icon: 'fi-rr-pulse', label: '이상 조사'},
-  {to: '/legacy', name: 'investigation', icon: 'fi-rr-comment', label: '기존 작업 조사'},
-  {to: '/records', name: 'records', icon: 'fi-rr-time-past', label: '조사 기록'},
-  {to: '/sop', name: 'sop', icon: 'fi-rr-book-alt', label: 'SOP 목록'},
+  {to:'/', section:'alarms', icon:'fi-rr-apps', label:'이상 로그'},
+  {to:'/records', section:'records', icon:'fi-rr-document', label:'조사 기록'},
+  {to:'/sop', section:'sop', icon:'fi-rr-book-alt', label:'SOP · OCAP'},
 ]
+// Two-letter badge from the account name (Latin initials, or the first two Hangul syllables).
+const initials = computed(() => {
+  const name = identity.name.trim()
+  const words = name.split(/\s+/).filter(Boolean)
+  if (/^[A-Za-z]/.test(name)) return words.slice(0, 2).map(word => word[0]!.toUpperCase()).join('')
+  return name.slice(0, 2)
+})
+const roleLabel = computed(() => identity.role === 'engineer' ? '엔지니어' : identity.role === 'admin' ? '관리자' : '근무자')
 </script>
 
 <template>
-  <aside class="sidebar" aria-label="서비스 탐색">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
-      <div><strong>FAB Insight</strong><small>Etch Investigation</small></div>
-    </div>
+  <aside class="t-sidebar" aria-label="서비스 탐색">
+    <RouterLink to="/" class="t-brand" aria-label="TRACE 홈">
+      <svg width="26" height="26" viewBox="0 0 34 34" aria-hidden="true">
+        <rect x="7" y="7" width="20" height="20" transform="rotate(45 17 17)" fill="none" stroke="currentColor" stroke-width="2.4" />
+      </svg>
+      <strong>TRACE</strong>
+    </RouterLink>
+    <p class="t-brand-sub">식각 공정 이상 조사</p>
 
-    <button class="new-investigation" type="button" @click="$emit('new')">
-      <i class="fi-rr-plus" aria-hidden="true"></i> 새 조사
-    </button>
+    <label class="t-search">
+      <i class="fi-rr-search" aria-hidden="true"></i>
+      <span class="sr-only">알람·장비 검색</span>
+      <input v-model="ui.search" type="search" placeholder="알람·장비 검색" autocomplete="off">
+    </label>
 
-    <nav class="nav-section" aria-label="조사 메뉴">
-      <p class="nav-label">WORKSPACE</p>
-      <RouterLink v-for="item in nav" :key="item.name" v-slot="{ navigate }" :to="item.to" custom>
-        <button class="nav-item" :class="{active: $route.name === item.name || (item.name === 'investigations' && $route.name === 'live-investigation')}" type="button" @click="navigate">
-          <i class="nav-icon" :class="item.icon" aria-hidden="true"></i> {{ item.label }}
-          <em v-if="item.name === 'records'">{{ records.serverCount }}</em>
-        </button>
+    <p class="t-nav-label">WORKSPACE</p>
+    <nav aria-label="조사 메뉴">
+      <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="t-nav-item"
+        :class="{active: section === item.section}" :aria-current="section === item.section ? 'page' : undefined">
+        <i :class="item.icon" aria-hidden="true"></i>{{ item.label }}
       </RouterLink>
     </nav>
+    <hr class="t-divider">
+    <button type="button" class="t-nav-item t-settings" disabled title="준비 중">설정</button>
 
-    <div v-if="flow" class="process-card">
-      <p class="nav-label">에이전트 흐름</p>
-      <ol class="steps">
-        <li v-for="(step, index) in flow" :key="step.key" :class="step.state"
-          :aria-current="step.state === 'active' ? 'step' : undefined">
-          <span>{{ index + 1 }}</span>
-          <div>
-            <strong>{{ step.title }}</strong>
-            <small :title="step.result || step.hint">{{ step.state === 'stopped' ? '중단됨' : step.result || step.hint }}</small>
-          </div>
-        </li>
-      </ol>
-    </div>
-
-    <div class="sidebar-footer">
-      <div class="user-card">
-        <i class="user-icon fi-rr-circle-user" aria-hidden="true"></i>
-        <strong>{{ identity.name }}</strong>
-      </div>
-      <a class="icon-credit" href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>
+    <div class="t-user">
+      <b aria-hidden="true">{{ initials }}</b>
+      <span>{{ identity.name }} · {{ roleLabel }}</span>
+      <button type="button" title="로그아웃" aria-label="로그아웃" @click="identity.logout()"><i class="fi-rr-sign-out-alt" aria-hidden="true"></i></button>
     </div>
   </aside>
 </template>

@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { MockError, createMockStore, type MockIdentity, type MockStore, type Pushed } from './store'
+import { LiveError, createLiveMock } from './live'
 
 function identityOf(req: IncomingMessage): MockIdentity {
   if (req.headers.authorization !== 'Bearer trace-mock-user') throw new MockError(401, '목업 신원 정보가 필요합니다.')
@@ -52,7 +53,27 @@ export function mockApi(): Plugin {
     name: 'trace-mock-api',
     configureServer(server) {
       const store = createMockStore()
-      server.config.logger.info('  ➜  Mock API: /api (in-memory, resets on restart)')
+      const live = createLiveMock()
+      server.config.logger.info('  ➜  Mock API: /api, /agent (in-memory, resets on restart)')
+      server.middlewares.use('/agent', async (req, res) => {
+        try {
+          identityOf(req)
+          const url = new URL(req.url || '/', 'http://mock')
+          const [, threadId = '', resource, sub] = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+          if (resource === 'state') return send(res, 200, live.state(threadId))
+          if (resource === 'runs' && !sub && req.method === 'GET') return send(res, 200, [])
+          if (resource === 'runs' && sub === 'stream' && req.method === 'POST') {
+            const input = (await body(req)) as {input?: {request?: {content?: string}}}
+            const reply = live.ask(threadId, String(input.input?.request?.content ?? ''))
+            res.writeHead(200, {'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache'})
+            return res.end(reply)
+          }
+          throw new MockError(404, 'Not Found')
+        } catch (error) {
+          const status = error instanceof MockError || error instanceof LiveError ? error.status : 500
+          send(res, status, {detail: (error as Error).message})
+        }
+      })
       server.middlewares.use('/api', async (req, res) => {
         try {
           const url = new URL(req.url || '/', 'http://mock')
@@ -61,6 +82,15 @@ export function mockApi(): Plugin {
           if (parts[0] === 'sops' && method === 'GET') {
             identityOf(req)
             return send(res, 200, parts[1] ? store.sop(parts[1]) : store.sops())
+          }
+          if (parts[0] === 'investigations') {
+            identityOf(req)
+            const [, id, action] = parts
+            if (!id && method === 'GET') return send(res, 200, live.list())
+            if (id && !action && method === 'GET') return send(res, 200, live.detail(id))
+            if (id && action === 'approval' && method === 'POST') return send(res, 200, live.approve(id, await body(req)))
+            if (id && action === 'action' && method === 'POST') return send(res, 200, live.recordAction(id, await body(req)))
+            throw new MockError(404, 'Not Found')
           }
           if (parts[0] !== 'ai' || parts[1] !== 'tasks') throw new MockError(404, 'Not Found')
           const [, , id, action] = parts
@@ -75,7 +105,7 @@ export function mockApi(): Plugin {
           throw new MockError(404, 'Not Found')
         } catch (error) {
           if (res.headersSent) return res.end()
-          send(res, error instanceof MockError ? error.status : 500, {detail: (error as Error).message})
+          send(res, error instanceof MockError || error instanceof LiveError ? error.status : 500, {detail: (error as Error).message})
         }
       })
     },
