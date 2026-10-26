@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
@@ -29,8 +30,8 @@ const when = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleStr
     <button type="button" @click="live.refreshList()">다시 연결</button></div>
   <div class="records t-fill t-cols">
     <section class="t-card" aria-labelledby="recordListHeading">
-      <h2 id="recordListHeading">기록 목록</h2>
-      <label class="t-search inline"><i class="fi-rr-search" aria-hidden="true"></i>
+      <h2 id="recordListHeading" class="t-icon-heading"><TraceIcon name="records" />기록 목록</h2>
+      <label class="t-search inline"><TraceIcon name="search" />
         <span class="sr-only">장비·알람 검색</span>
         <input v-model="query" type="search" placeholder="장비·알람 검색"></label>
       <hr class="t-rule">
@@ -59,7 +60,7 @@ const when = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleStr
       </template>
       <template v-else>
         <h2>{{ done.length ? '기록을 선택해 주세요' : '조사 기록이 아직 없습니다' }}</h2>
-        <div class="t-actions bottom"><RouterLink class="t-btn" to="/">이상 로그로 이동 →</RouterLink></div>
+        <div class="t-actions bottom"><RouterLink class="t-btn" to="/">이상 로그로 이동 <TraceIcon name="forward" /></RouterLink></div>
       </template>
     </section>
   </div>

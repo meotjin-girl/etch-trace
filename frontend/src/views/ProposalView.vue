@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TraceIcon from '@/components/TraceIcon.vue'
 import { computed } from 'vue'
 import AiPanel from '@/components/AiPanel.vue'
 import AlarmHeader from '@/components/AlarmHeader.vue'
@@ -39,10 +40,10 @@ const docLink = (doc: string) => `/sop/${encodeURIComponent(doc.split('#')[0]!)}
           </header>
           <p class="t-sub">{{ candidate.rationale }}</p>
           <footer>
-            <RouterLink v-if="candidate.doc_ids[0]" class="t-link" :to="docLink(candidate.doc_ids[0])">{{ candidate.doc_ids[0] }} ↗</RouterLink>
+            <RouterLink v-if="candidate.doc_ids[0]" class="t-link" :to="docLink(candidate.doc_ids[0])"><TraceIcon name="document" /> {{ candidate.doc_ids[0] }} <TraceIcon name="chevron" /></RouterLink>
             <span v-else></span>
             <RouterLink class="t-link" :to="`/investigations/${encodeURIComponent(detail.id)}/candidates/${encodeURIComponent(candidate.id)}`">
-              분석 근거 보기 →
+              분석 근거 보기 <TraceIcon name="forward" />
             </RouterLink>
           </footer>
         </article>
